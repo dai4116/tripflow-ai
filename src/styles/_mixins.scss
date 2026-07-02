@@ -1,0 +1,18 @@
+@use './variables' as *;
+
+@mixin card-shell {
+  border: 1px solid $color-border-light;
+  border-radius: $radius-lg;
+  background: $color-surface;
+  box-shadow: $shadow-sm;
+}
+
+@mixin focus-ring {
+  outline: 3px solid rgba($color-primary, 0.16);
+  outline-offset: 2px;
+}
+
+@mixin page-grid {
+  display: grid;
+  gap: 24px;
+}
