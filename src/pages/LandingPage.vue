@@ -47,6 +47,22 @@
           <span>18 places · 7 days</span>
         </BaseCard>
       </div>
+
+      <div class="landing-mobile-preview" aria-label="Trip preview cards">
+        <RouterLink
+          v-for="trip in previewTrips"
+          :key="trip.title"
+          class="landing-mobile-trip"
+          :to="{ name: 'trip-board' }"
+        >
+          <span class="landing-mobile-trip__image" :style="{ background: trip.imageGradient }" />
+          <strong>{{ trip.title }}</strong>
+          <small>⌖ {{ trip.destination }}</small>
+          <span class="landing-mobile-trip__progress">
+            <i :style="{ width: `${trip.progress}%` }" />
+          </span>
+        </RouterLink>
+      </div>
     </section>
 
     <section id="features" class="landing-section" aria-label="Features">
@@ -118,8 +134,10 @@
 import BaseButton from '../components/ui/BaseButton.vue'
 import BaseCard from '../components/ui/BaseCard.vue'
 import StatusBadge from '../components/ui/StatusBadge.vue'
+import { trips } from '../data/mockTrips'
 
 const previewColumns = ['Planning', 'Day 1', 'Day 2']
+const previewTrips = trips.slice(0, 2)
 
 const features = [
   {

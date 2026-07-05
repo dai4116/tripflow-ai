@@ -1,7 +1,7 @@
 @use './variables' as *;
 
 @mixin card-shell {
-  border: 1px solid $color-border-light;
+  border: 1px solid $color-border;
   border-radius: $radius-lg;
   background: $color-surface;
   box-shadow: $shadow-sm;

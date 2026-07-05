@@ -227,3 +227,41 @@ Avoid adding interactions too early
 Extract reusable components only when needed
 Keep styles scoped when possible
 Use global SCSS variables for colors, radius, and shadows
+
+## Mobile Design
+
+Breakpoint:
+- Mobile layout applies below 768px.
+
+Layout:
+- Desktop uses sidebar layout.
+- Mobile uses top bar, content area, and bottom navigation.
+- Sidebar is hidden on mobile.
+
+Pages:
+- Landing:
+  - Reduce font sizes.
+  - Stack hero content vertically.
+  - Replace desktop mockup with compact preview cards.
+  - Hide some testimonials.
+
+- Dashboard:
+  - Trip cards become horizontal snap scroll cards.
+  - Reduce spacing.
+
+- Create Trip:
+  - Keep the same form structure.
+  - Reduce card and input sizes.
+  - Hide the back button because bottom navigation handles navigation.
+
+- Trip Board:
+  - Add Board / Map segmented control in the header.
+  - Kanban columns scroll horizontally with snap behavior.
+  - Map view becomes full screen on mobile.
+
+Place detail:
+- Desktop uses right-side drawer.
+- Mobile uses bottom sheet.
+- Bottom sheet has rounded top corners.
+- Bottom sheet has dark overlay.
+- Tapping overlay closes the sheet.

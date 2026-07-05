@@ -22,13 +22,13 @@ $color-danger: #c96c5a;
 $radius-xs: 6px;
 $radius-sm: 8px;
 $radius-md: 12px;
-$radius-lg: 20px;
-$radius-xl: 28px;
+$radius-lg: 16px;
+$radius-xl: 24px;
 $radius-pill: 999px;
 
-$shadow-sm: 0 4px 12px rgba(31, 36, 51, 0.06);
-$shadow-md: 0 12px 30px rgba(31, 36, 51, 0.08);
-$shadow-lg: 0 24px 60px rgba(31, 36, 51, 0.12);
+$shadow-sm: 0 3px 10px rgba(31, 36, 51, 0.045);
+$shadow-md: 0 10px 24px rgba(31, 36, 51, 0.07);
+$shadow-lg: 0 20px 48px rgba(31, 36, 51, 0.1);
 
 $font-family-base: Inter, "Noto Sans TC", system-ui, sans-serif;
 $font-size-xs: 12px;
@@ -40,4 +40,4 @@ $font-size-2xl: 40px;
 $font-size-3xl: 56px;
 
 $sidebar-width: 240px;
-$page-padding: 32px;
+$page-padding: 28px;
