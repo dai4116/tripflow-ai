@@ -1,7 +1,8 @@
 <template>
   <section class="new-trip-page">
     <PageHeader
-      title="Plan a new trip"
+      eyebrow="New itinerary"
+      title="Plan a new trip ✈️"
       description="Fill in the details and AI will build your itinerary."
       :back-to="{ name: 'dashboard' }"
       back-label="Back to dashboard"
@@ -13,15 +14,17 @@
           v-model="form.destination"
           label="Where are you going?"
           placeholder="e.g. Tokyo, Japan"
+          icon="search"
+          :error="destinationError"
         />
       </BaseCard>
 
       <BaseCard class="form-card">
         <h3>Trip details</h3>
         <div class="form-grid">
-          <BaseInput v-model="form.duration" label="Duration" type="number" />
-          <BaseInput v-model="form.budget" label="Budget (USD)" placeholder="$ 3,000" />
-          <BaseInput v-model="form.travelers" label="Travelers" type="number" />
+          <BaseInput v-model="form.duration" label="Duration (days)" type="number" icon="calendar" :min="1" :max="30" />
+          <BaseInput v-model="form.budget" label="Budget (USD)" placeholder="3,000" icon="dollar" />
+          <BaseInput v-model="form.travelers" label="Travelers" type="number" icon="users" :min="1" :max="12" />
         </div>
       </BaseCard>
 
@@ -34,9 +37,10 @@
             type="button"
             class="choice-pill"
             :class="{ 'choice-pill--selected': form.travelStyle === style }"
+            :aria-pressed="form.travelStyle === style"
             @click="selectTravelStyle(style)"
           >
-            <span>{{ getStyleIcon(style) }}</span>
+            <AppIcon :name="getStyleIcon(style)" :size="15" />
             {{ style }}
           </button>
         </div>
@@ -52,8 +56,14 @@
             type="button"
             class="preference-chip"
             :class="{ 'preference-chip--selected': selectedPreferences.includes(preference) }"
+            :aria-pressed="selectedPreferences.includes(preference)"
             @click="togglePreference(preference)"
           >
+            <AppIcon
+              v-if="selectedPreferences.includes(preference)"
+              name="check"
+              :size="11"
+            />
             {{ preference }}
           </button>
         </div>
@@ -64,7 +74,7 @@
           v-model="form.avoidPlaces"
           label="Places to avoid"
           multiline
-          placeholder="e.g. Avoid crowded spots, tourist traps, or specific areas..."
+          placeholder="e.g. Avoid Shibuya on weekends, skip tourist-trap ramen chains..."
         />
       </BaseCard>
 
@@ -73,10 +83,11 @@
         type="submit"
         :loading="isGenerating"
       >
-        {{ isGenerating ? 'Generating itinerary...' : '✦ Generate with AI' }}
+        <AppIcon v-if="!isGenerating" name="sparkle" :size="15" />
+        {{ isGenerating ? 'Generating itinerary...' : 'Generate with AI' }}
       </BaseButton>
       <p class="trip-form__note">
-        AI will build a 7-day Kanban board with curated places and an optimized route.
+        AI builds a 7-day board · curated places · optimized route
       </p>
     </form>
   </section>
@@ -86,13 +97,16 @@
 import { onBeforeUnmount, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import PageHeader from '../components/layout/PageHeader.vue'
+import AppIcon from '../components/ui/AppIcon.vue'
 import BaseButton from '../components/ui/BaseButton.vue'
 import BaseCard from '../components/ui/BaseCard.vue'
 import BaseInput from '../components/ui/BaseInput.vue'
+import type { IconName } from '../components/ui/icons'
 import { preferences, travelStyles } from '../data/mockPreferences'
 
 const router = useRouter()
 const isGenerating = ref(false)
+const destinationError = ref('')
 const selectedPreferences = ref(['Museums', 'Local Food', 'Architecture'])
 const form = reactive({
   destination: '',
@@ -118,25 +132,31 @@ function togglePreference(preference: string) {
   selectedPreferences.value = [...selectedPreferences.value, preference]
 }
 
-function getStyleIcon(style: string) {
-  const icons: Record<string, string> = {
-    Adventure: '△',
-    Relaxation: '☕',
-    Cultural: '▣',
-    'Food & Drink': '♨',
-    Photography: '▧',
-    Nature: '◎',
+function getStyleIcon(style: string): IconName {
+  const icons: Record<string, IconName> = {
+    Adventure: 'mountain',
+    Relaxation: 'coffee',
+    Cultural: 'museum',
+    'Food & Drink': 'cutlery',
+    Photography: 'camera',
+    Nature: 'leaf',
   }
 
-  return icons[style] ?? '✦'
+  return icons[style] ?? 'sparkle'
 }
 
 function generateTrip() {
   if (isGenerating.value) return
 
+  if (!form.destination.trim()) {
+    destinationError.value = 'Tell us where you are going first.'
+    return
+  }
+
+  destinationError.value = ''
   isGenerating.value = true
   redirectTimer = window.setTimeout(() => {
-    router.push({ name: 'trip-board' })
+    router.push({ name: 'trip-board', params: { tripId: 'tokyo-explorer' } })
   }, 1500)
 }
 

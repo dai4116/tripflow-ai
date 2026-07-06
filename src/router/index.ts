@@ -21,7 +21,13 @@ const routes: RouteRecordRaw[] = [
     meta: { layout: 'workspace' },
   },
   {
-    path: '/trips/tokyo-explorer',
+    path: '/trips',
+    name: 'trips',
+    component: () => import('../pages/TripsPage.vue'),
+    meta: { layout: 'workspace' },
+  },
+  {
+    path: '/trips/:tripId',
     name: 'trip-board',
     component: () => import('../pages/TripBoardPage.vue'),
     meta: { layout: 'workspace' },

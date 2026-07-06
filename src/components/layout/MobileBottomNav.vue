@@ -1,19 +1,23 @@
 <template>
   <nav class="mobile-bottom-nav" aria-label="Mobile navigation">
     <RouterLink :to="{ name: 'dashboard' }">
-      <span>▦</span>
+      <AppIcon name="grid" :size="19" />
       <small>Home</small>
     </RouterLink>
-    <RouterLink :to="{ name: 'trip-board' }">
-      <span>▤</span>
-      <small>Board</small>
+    <RouterLink
+      class="mobile-bottom-nav__primary"
+      :to="{ name: 'trip-create' }"
+      aria-label="Create new trip"
+    >
+      <AppIcon name="plus" :size="20" />
     </RouterLink>
-    <RouterLink class="mobile-bottom-nav__primary" :to="{ name: 'trip-create' }">
-      <span>＋</span>
-    </RouterLink>
-    <RouterLink :to="{ name: 'landing' }">
-      <span>◎</span>
-      <small>Explore</small>
+    <RouterLink :to="{ name: 'trips' }">
+      <AppIcon name="board" :size="19" />
+      <small>Trips</small>
     </RouterLink>
   </nav>
 </template>
+
+<script setup lang="ts">
+import AppIcon from '../ui/AppIcon.vue'
+</script>

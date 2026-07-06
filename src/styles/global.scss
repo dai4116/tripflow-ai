@@ -56,12 +56,13 @@ p {
 h1 {
   font-size: clamp(32px, 4vw, $font-size-3xl);
   line-height: 1;
-  letter-spacing: 0;
+  letter-spacing: -0.02em;
 }
 
 h2 {
   font-size: $font-size-xl;
   line-height: 1.2;
+  letter-spacing: -0.01em;
 }
 
 h3 {
@@ -73,16 +74,77 @@ h3 {
   min-height: 100vh;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
 .brand-mark {
   display: inline-grid;
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   place-items: center;
-  border-radius: $radius-sm;
+  border-radius: 11px;
   background: $color-primary;
   color: $color-surface;
-  font-size: $font-size-sm;
 }
+
+// ---------------------------------------------------------------------------
+// Category color system (kanban chips, map pins, legend)
+// ---------------------------------------------------------------------------
+
+.category-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  padding: 3px 9px;
+  border-radius: $radius-pill;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.category-chip .app-icon {
+  color: currentColor;
+}
+
+.category-chip i {
+  width: 6px;
+  height: 6px;
+  border-radius: $radius-pill;
+  background: currentColor;
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: $radius-pill;
+}
+
+@each $name, $color in $place-categories {
+  .category-chip--#{$name} {
+    background: rgba($color, 0.12);
+    color: color.adjust($color, $lightness: -8%);
+  }
+
+  .legend-dot--#{$name} {
+    background: $color;
+  }
+
+  .map-pin--#{$name} {
+    color: $color;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Marketing shell
+// ---------------------------------------------------------------------------
 
 .marketing-shell {
   min-height: 100vh;
@@ -94,10 +156,10 @@ h3 {
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 24px;
-  min-height: 52px;
+  min-height: 56px;
   padding: 0 max(20px, calc((100vw - 1120px) / 2));
   border-bottom: 1px solid $color-border;
-  background: rgba($color-bg, 0.9);
+  background: rgba($color-surface, 0.92);
 }
 
 .app-header__brand,
@@ -105,6 +167,7 @@ h3 {
   display: inline-flex;
   align-items: center;
   gap: 10px;
+  color: $color-ink;
   font-size: $font-size-sm;
   font-weight: 800;
 }
@@ -116,6 +179,11 @@ h3 {
   gap: 26px;
   color: $color-muted;
   font-size: $font-size-xs;
+  font-weight: 600;
+}
+
+.app-header__nav a:hover {
+  color: $color-ink;
 }
 
 .app-header__actions {
@@ -131,6 +199,10 @@ h3 {
 .app-header__actions .base-button {
   justify-self: end;
 }
+
+// ---------------------------------------------------------------------------
+// Workspace shell + sidebar
+// ---------------------------------------------------------------------------
 
 .workspace-shell {
   display: grid;
@@ -156,52 +228,81 @@ h3 {
   flex-direction: column;
   gap: 26px;
   height: 100vh;
-  padding: 22px 14px;
+  padding: 22px 16px;
   border-right: 1px solid $color-border;
   background: $color-surface;
 }
 
 .app-sidebar__section {
   display: grid;
-  gap: 7px;
+  gap: 4px;
 }
 
 .app-sidebar__section a {
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-height: 38px;
-  padding: 0 12px;
-  border-radius: $radius-sm;
+  gap: 11px;
+  min-height: 40px;
+  padding: 0 13px;
+  border-radius: $radius-md;
   color: $color-muted;
-  font-size: $font-size-sm;
-  font-weight: 700;
+  font-size: 13.5px;
+  font-weight: 650;
+  transition:
+    background 140ms ease,
+    color 140ms ease;
+}
+
+.app-sidebar__section a:hover {
+  background: $color-surface-soft;
+  color: $color-ink;
 }
 
 .app-sidebar__section a.router-link-active {
   background: $color-primary;
   color: $color-surface;
-}
-
-.nav-icon {
-  display: inline-grid;
-  width: 18px;
-  place-items: center;
+  box-shadow: $shadow-primary;
 }
 
 .app-sidebar__label {
+  padding: 0 13px;
   color: $color-subtle;
-  font-size: $font-size-xs;
+  font-size: 10.5px;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 
+.app-sidebar__trip {
+  min-height: 36px !important;
+  font-weight: 600 !important;
+}
+
+.app-sidebar__trip.router-link-active {
+  background: $color-surface-soft !important;
+  color: $color-ink !important;
+  box-shadow: none !important;
+}
+
 .app-sidebar__trip-dot {
+  flex: 0 0 auto;
   width: 8px;
   height: 8px;
   border-radius: $radius-pill;
-  flex: 0 0 auto;
+}
+
+.app-sidebar__trip-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.app-sidebar__trip-pct {
+  margin-left: auto;
+  color: $color-subtle;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .app-sidebar__user {
@@ -209,23 +310,24 @@ h3 {
   align-items: center;
   gap: 10px;
   margin-top: auto;
-  padding-top: 18px;
-  border-top: 1px solid $color-border-light;
+  padding: 11px;
+  border: 1px solid $color-border;
+  border-radius: $radius-lg;
+  background: $color-bg;
 }
 
 .app-sidebar__settings {
   margin-left: auto;
   color: $color-subtle;
-  font-size: $font-size-sm;
 }
 
 .app-sidebar__avatar {
   display: grid;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   place-items: center;
   border-radius: $radius-pill;
-  background: $color-primary;
+  background: linear-gradient(135deg, $color-primary, #4a7de0);
   color: $color-surface;
   font-size: $font-size-xs;
   font-weight: 800;
@@ -236,9 +338,18 @@ h3 {
   display: block;
 }
 
-.app-sidebar__user small {
-  color: $color-muted;
+.app-sidebar__user strong {
+  font-size: 12.5px;
 }
+
+.app-sidebar__user small {
+  color: $color-subtle;
+  font-size: 11px;
+}
+
+// ---------------------------------------------------------------------------
+// Page header
+// ---------------------------------------------------------------------------
 
 .page-header {
   display: flex;
@@ -250,9 +361,25 @@ h3 {
 
 .page-header__back {
   display: inline-flex;
-  margin-bottom: 18px;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 16px;
   color: $color-muted;
   font-weight: 700;
+}
+
+.page-header__back:hover {
+  color: $color-ink;
+}
+
+.page-header__eyebrow {
+  display: block;
+  margin-bottom: 5px;
+  color: $color-subtle;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .page-header__title-row {
@@ -262,20 +389,26 @@ h3 {
 }
 
 .page-header__title-row h1 {
-  font-size: 24px;
+  font-size: 25px;
   line-height: 1.15;
+  font-weight: 800;
 }
 
 .page-header p {
-  margin-top: 6px;
+  margin-top: 5px;
   color: $color-muted;
   font-size: $font-size-sm;
 }
 
 .page-header__actions {
   display: flex;
+  align-items: center;
   gap: 10px;
 }
+
+// ---------------------------------------------------------------------------
+// Base UI
+// ---------------------------------------------------------------------------
 
 .base-card {
   @include card-shell;
@@ -293,12 +426,13 @@ h3 {
   border: 1px solid transparent;
   border-radius: $radius-pill;
   white-space: nowrap;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1;
   transition:
     background 160ms ease,
     border-color 160ms ease,
-    color 160ms ease;
+    color 160ms ease,
+    box-shadow 160ms ease;
 }
 
 .base-button:focus-visible {
@@ -306,26 +440,35 @@ h3 {
 }
 
 .base-button--md {
-  min-height: 38px;
-  padding: 0 15px;
-  font-size: $font-size-sm;
+  min-height: 40px;
+  padding: 0 18px;
+  font-size: 13.5px;
 }
 
 .base-button--sm {
-  min-height: 30px;
-  padding: 0 12px;
+  min-height: 32px;
+  padding: 0 14px;
   font-size: $font-size-xs;
 }
 
 .base-button--primary {
   background: $color-primary;
   color: $color-surface;
+  box-shadow: $shadow-primary;
+}
+
+.base-button--primary:hover {
+  background: $color-primary-deep;
 }
 
 .base-button--secondary {
   border-color: $color-border;
   background: $color-surface;
-  color: $color-text;
+  color: $color-ink;
+}
+
+.base-button--secondary:hover {
+  border-color: $color-subtle;
 }
 
 .base-button--ghost {
@@ -333,9 +476,18 @@ h3 {
   color: $color-muted;
 }
 
+.base-button--ghost:hover {
+  color: $color-ink;
+}
+
 .base-button--accent {
   background: $color-accent;
-  color: $color-primary;
+  color: $color-surface;
+  box-shadow: $shadow-accent;
+}
+
+.base-button--accent:hover {
+  background: $color-accent-deep;
 }
 
 .base-button--disabled,
@@ -361,131 +513,230 @@ h3 {
 
 .base-field {
   display: grid;
-  gap: 8px;
+  gap: 6px;
   color: $color-muted;
-  font-size: $font-size-sm;
+  font-size: $font-size-xs;
   font-weight: 700;
+}
+
+.base-field__control {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+  background: $color-bg;
+  color: $color-subtle;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.base-field__control--area {
+  align-items: flex-start;
+  min-height: 0;
+  padding: 11px 14px;
+}
+
+.base-field__control:focus-within {
+  border-color: $color-primary;
+  background: $color-surface;
+  box-shadow: 0 0 0 3px rgba($color-primary, 0.16);
 }
 
 .base-field input,
 .base-field textarea {
   width: 100%;
-  border: 1px solid $color-border;
-  border-radius: $radius-sm;
-  background: $color-surface-soft;
+  border: 0;
+  outline: 0;
+  background: transparent;
   color: $color-text;
-  font-weight: 600;
+  font-size: 13.5px;
+  font-weight: 550;
 }
 
-.base-field input {
-  height: 46px;
-  padding: 0 14px;
+.base-field input::placeholder,
+.base-field textarea::placeholder {
+  color: $color-subtle;
 }
 
 .base-field textarea {
-  min-height: 96px;
+  min-height: 80px;
   resize: vertical;
-  padding: 14px;
+  line-height: 1.5;
 }
 
-.base-field input:focus,
-.base-field textarea:focus {
-  @include focus-ring;
-  border-color: $color-primary;
+.base-field--error .base-field__control {
+  border-color: $color-danger;
+}
+
+.base-field__error {
+  color: $color-danger;
+  font-weight: 650;
 }
 
 .status-badge {
   display: inline-flex;
   align-items: center;
   width: fit-content;
-  height: 30px;
+  height: 28px;
   padding: 0 11px;
   border-radius: $radius-pill;
   background: $color-primary-soft;
-  color: $color-primary;
+  color: $color-primary-text;
   font-size: $font-size-xs;
-  font-weight: 800;
+  font-weight: 750;
   text-transform: capitalize;
 }
 
 .status-badge--success {
-  background: rgba($color-success, 0.14);
+  background: $color-success-soft;
   color: $color-success;
 }
 
 .status-badge--warning {
-  background: rgba($color-warning, 0.14);
-  color: color.adjust($color-warning, $lightness: -18%);
+  background: $color-warning-soft;
+  color: color.adjust($color-warning, $lightness: -8%);
 }
 
 .status-badge--danger {
-  background: rgba($color-danger, 0.14);
+  background: $color-danger-soft;
   color: $color-danger;
 }
 
 .status-badge--accent {
   background: $color-accent-soft;
-  color: color.adjust($color-accent, $lightness: -24%);
+  color: $color-accent-text;
 }
+
+// ---------------------------------------------------------------------------
+// Trip card
+// ---------------------------------------------------------------------------
 
 .trip-card {
   overflow: hidden;
   transition:
-    transform 160ms ease,
-    box-shadow 160ms ease;
+    transform 140ms ease,
+    box-shadow 140ms ease;
 }
 
 .trip-grid a:hover .trip-card {
-  transform: translateY(-2px);
-  box-shadow: $shadow-md;
+  transform: translateY(-3px);
+  box-shadow: $shadow-lg;
+}
+
+.trip-grid a:focus-visible {
+  @include focus-ring;
+  border-radius: $radius-lg;
 }
 
 .trip-card__media {
+  position: relative;
   display: flex;
+  align-items: flex-end;
   height: 132px;
-  justify-content: flex-end;
-  padding: 12px;
+  padding: 12px 14px;
+}
+
+.trip-card__media::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba($color-dusk, 0) 32%, rgba($color-dusk, 0.6));
+  content: '';
+}
+
+.trip-card__status {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1;
+  padding: 4px 10px;
+  border-radius: $radius-pill;
+  background: rgba($color-surface, 0.94);
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+.trip-card__status--active {
+  color: $color-success;
+}
+
+.trip-card__status--planning {
+  color: $color-accent-text;
+}
+
+.trip-card__status--done {
+  color: $color-muted;
+}
+
+.trip-card__title {
+  position: relative;
+  z-index: 1;
+  color: $color-surface;
+}
+
+.trip-card__title strong {
+  display: block;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+
+.trip-card__title small {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0.9;
+  font-size: 11.5px;
 }
 
 .trip-card__body {
   display: grid;
-  gap: 9px;
-  padding: 14px;
-}
-
-.trip-card__location,
-.place-card p {
-  color: $color-muted;
-}
-
-.trip-card__meta,
-.place-card__meta {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
   gap: 10px;
+  padding: 12px 14px 15px;
+}
+
+.trip-card__meta {
+  display: flex;
+  gap: 15px;
   color: $color-muted;
   font-size: $font-size-xs;
-  font-weight: 700;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.trip-card__meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }
 
 .trip-card__progress-label {
   display: flex;
   justify-content: space-between;
-  color: $color-muted;
-  font-size: $font-size-xs;
-  font-weight: 800;
+  color: $color-subtle;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .trip-card__progress-label strong {
-  color: $color-muted;
+  color: $color-ink;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.trip-card__progress-label .trip-card__progress-value--done {
+  color: $color-success;
 }
 
 .trip-card__progress {
   height: 6px;
   overflow: hidden;
   border-radius: $radius-pill;
-  background: $color-border-light;
+  background: $color-surface-soft;
 }
 
 .trip-card__progress span {
@@ -495,42 +746,83 @@ h3 {
   background: $color-primary;
 }
 
+.trip-card__progress--done span {
+  background: $color-success;
+}
+
+// ---------------------------------------------------------------------------
+// Place card
+// ---------------------------------------------------------------------------
+
 .place-card {
   display: grid;
-  grid-template-rows: 88px minmax(0, 1fr);
-  gap: 10px;
-  min-height: 222px;
+  grid-template-rows: 80px minmax(0, 1fr);
   overflow: hidden;
-  padding: 10px;
   text-align: left;
 }
 
 .place-card__media {
+  position: relative;
   min-height: 0;
-  border-radius: $radius-md;
+}
+
+.place-card__media::after {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(120px 60px at 80% 0%, rgba($color-surface, 0.3), transparent 70%),
+    linear-gradient(180deg, rgba($color-dusk, 0.04), rgba($color-dusk, 0.16));
+  content: '';
 }
 
 .place-card__content {
   display: grid;
-  grid-template-rows: auto auto minmax(40px, auto) auto;
+  align-content: start;
   gap: 7px;
-  min-height: 0;
+  padding: 11px 13px 13px;
 }
 
 .place-card__content h3 {
-  display: -webkit-box;
-  min-height: 40px;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  font-size: 13.5px;
+  font-weight: 750;
+  letter-spacing: -0.01em;
 }
 
-.place-card__content p {
-  display: -webkit-box;
-  min-height: 40px;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+.place-card__meta {
+  display: flex;
+  gap: 12px;
+  color: $color-muted;
+  font-size: 11.5px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.place-card__meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.place-card__rating {
+  color: color.adjust($color-warning, $lightness: -4%);
+}
+
+.place-card__tip {
+  padding: 6px 10px;
+  border-radius: $radius-sm;
+  background: $color-accent-soft;
+  color: $color-accent-text;
+  font-size: 11px;
+  font-style: italic;
+}
+
+.place-card__done {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: $color-success;
+  font-size: 11px;
+  font-weight: 800;
 }
 
 .place-card-button {
@@ -546,18 +838,15 @@ h3 {
 
 .place-card-button .place-card {
   height: 100%;
-}
-
-.place-card-button .place-card {
   transition:
-    border-color 160ms ease,
-    box-shadow 160ms ease,
-    transform 160ms ease;
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    transform 140ms ease;
 }
 
 .place-card-button:hover .place-card {
-  border-color: rgba($color-primary, 0.28);
-  transform: translateY(-1px);
+  border-color: $color-primary;
+  transform: translateY(-2px);
 }
 
 .place-card-button:focus-visible .place-card {
@@ -567,9 +856,13 @@ h3 {
 .place-card-button--selected .place-card {
   border-color: $color-primary;
   box-shadow:
-    0 0 0 2px rgba($color-primary, 0.12),
+    0 0 0 2px rgba($color-primary, 0.16),
     $shadow-md;
 }
+
+// ---------------------------------------------------------------------------
+// Landing page
+// ---------------------------------------------------------------------------
 
 .landing-page {
   --landing-container: 1120px;
@@ -596,7 +889,6 @@ h3 {
   max-width: 420px;
   font-size: clamp(42px, 4vw, 52px);
   line-height: 1.02;
-  letter-spacing: 0;
 }
 
 .landing-hero__copy p {
@@ -634,7 +926,7 @@ h3 {
   min-height: 246px;
   overflow: hidden;
   border-radius: $radius-md;
-  box-shadow: 0 18px 48px rgba(31, 36, 51, 0.1);
+  box-shadow: $shadow-lg;
 }
 
 .product-preview__chrome {
@@ -701,13 +993,12 @@ h3 {
   background: $color-accent-soft;
 }
 
-.product-preview__map,
-.map-panel__canvas {
+.product-preview__map {
   position: relative;
   background:
-    linear-gradient(rgba(45, 58, 94, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(45, 58, 94, 0.06) 1px, transparent 1px),
-    linear-gradient(135deg, #cbdccf, #d8d1bf);
+    linear-gradient(rgba($color-dusk, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba($color-dusk, 0.05) 1px, transparent 1px),
+    linear-gradient(135deg, #cfe7dc, #d8e6e2);
   background-size: 24px 24px, 24px 24px, cover;
 }
 
@@ -725,7 +1016,7 @@ h3 {
   padding: 9px 11px;
   border-radius: $radius-lg;
   background: $color-surface;
-  box-shadow: 0 10px 28px rgba(31, 36, 51, 0.1);
+  box-shadow: $shadow-md;
 }
 
 .product-preview__budget span,
@@ -741,68 +1032,24 @@ h3 {
   gap: 2px;
   padding: 10px 13px;
   border-radius: $radius-md;
-  box-shadow: 0 12px 30px rgba(31, 36, 51, 0.1);
+  box-shadow: $shadow-md;
 }
 
 .map-dot {
   position: absolute;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   padding: 0;
   border: 2px solid $color-surface;
   border-radius: $radius-pill;
   background: $color-primary;
   box-shadow: $shadow-sm;
-  transition:
-    box-shadow 160ms ease,
-    transform 160ms ease;
-}
-
-.map-dot:hover,
-.map-dot--selected {
-  transform: translateY(-2px) scale(1.2);
-  box-shadow:
-    0 0 0 6px rgba($color-primary, 0.14),
-    $shadow-md;
-}
-
-.map-dot:focus-visible,
-.place-drawer__close:focus-visible {
-  @include focus-ring;
-}
-
-.map-dot--culture,
-.legend-dot--culture {
-  background: #7d6cc2;
-}
-
-.map-dot--food,
-.legend-dot--food {
-  background: #d4864a;
-}
-
-.map-dot--nature,
-.legend-dot--nature {
-  background: $color-success;
-}
-
-.map-dot--shopping,
-.legend-dot--shopping {
-  background: #c8a97e;
-}
-
-.map-dot--hotel,
-.map-dot--transport,
-.map-dot--activity,
-.legend-dot--landmark {
-  background: $color-primary;
 }
 
 .section-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 18px;
-  margin-top: 0;
 }
 
 .section-grid .base-card {
@@ -811,7 +1058,6 @@ h3 {
   min-height: 154px;
   padding: 20px;
   border-radius: $radius-md;
-  box-shadow: 0 5px 16px rgba(31, 36, 51, 0.045);
 }
 
 .landing-section {
@@ -854,9 +1100,10 @@ h3 {
 }
 
 .workflow-step > strong {
-  color: rgba($color-primary, 0.12);
+  color: rgba($color-primary, 0.35);
   font-size: 34px;
   line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 .workflow-step p {
@@ -878,11 +1125,10 @@ h3 {
   min-height: 148px;
   padding: 20px;
   border-radius: $radius-md;
-  box-shadow: 0 5px 16px rgba(31, 36, 51, 0.045);
 }
 
 .testimonial-card__stars {
-  color: $color-accent;
+  color: $color-warning;
   letter-spacing: 2px;
 }
 
@@ -904,8 +1150,8 @@ h3 {
   gap: 16px;
   margin: 0 var(--landing-gutter) 72px;
   padding: 40px 24px;
-  border-radius: $radius-lg;
-  background: $color-primary;
+  border-radius: 20px;
+  background: $color-dusk;
   color: $color-surface;
   text-align: center;
 }
@@ -915,7 +1161,7 @@ h3 {
 }
 
 .landing-cta p {
-  color: rgba($color-surface, 0.78);
+  color: rgba($color-surface, 0.72);
   font-size: $font-size-sm;
 }
 
@@ -946,73 +1192,182 @@ h3 {
   color: $color-muted;
 }
 
+// ---------------------------------------------------------------------------
+// Dashboard
+// ---------------------------------------------------------------------------
+
 .dashboard-page {
   @include page-grid;
-  gap: 26px;
+  gap: 24px;
+}
+
+.trips-page {
+  @include page-grid;
+  gap: 22px;
 }
 
 .dashboard-section {
   min-width: 0;
 }
 
+.section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.section-head h2 {
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.section-head__count {
+  color: $color-subtle;
+  font-size: $font-size-xs;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.section-head .base-button {
+  margin-left: auto;
+}
+
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
+  gap: 14px;
 }
 
 .stat-card {
   display: grid;
-  gap: 8px;
-  min-height: 138px;
-  padding: 20px;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    'icon delta'
+    'value value'
+    'label label';
+  gap: 10px 12px;
+  align-content: start;
+  padding: 17px;
 }
 
-.stat-card__top {
-  display: flex;
-  justify-content: space-between;
-  color: $color-subtle;
+.stat-card__icon {
+  grid-area: icon;
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: $radius-md;
 }
 
-.stat-card strong {
-  margin-top: 8px;
-  font-size: 26px;
+.stat-card__icon--brand {
+  background: $color-primary-soft;
+  color: $color-primary-text;
 }
 
-.stat-card span {
-  color: $color-muted;
-  font-weight: 700;
+.stat-card__icon--culture {
+  background: #f0ebfd;
+  color: #8161e6;
 }
 
-.stat-card small {
-  color: $color-success;
+.stat-card__icon--coral {
+  background: $color-accent-soft;
+  color: $color-accent;
+}
+
+.stat-card__icon--stay {
+  background: #f8efe3;
+  color: #c7935b;
+}
+
+.stat-card__value {
+  grid-area: value;
+  margin-top: 3px;
+  font-size: 27px;
   font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-card__label {
+  grid-area: label;
+  color: $color-muted;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.stat-card__delta {
+  grid-area: delta;
+  align-self: start;
+  justify-self: end;
+  width: fit-content;
+  padding: 4px 10px;
+  border-radius: $radius-pill;
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.2;
+  text-align: right;
+}
+
+.stat-card__delta--positive {
+  background: $color-success-soft;
+  color: $color-success;
+}
+
+.stat-card__delta--neutral {
+  background: $color-surface-soft;
+  color: $color-muted;
 }
 
 .trip-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(220px, 1fr));
-  gap: 16px;
+  gap: 14px;
+}
+
+.trips-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+  gap: 14px;
 }
 
 .cta-band {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
+  position: relative;
   align-items: center;
-  gap: 22px;
-  padding: 22px 24px;
-  border-radius: $radius-lg;
-  background: $color-primary;
+  gap: 18px;
+  padding: 24px 28px;
+  border-radius: 20px;
+  overflow: hidden;
+  background: $color-dusk;
   color: $color-surface;
 }
 
-.cta-band .base-button {
-  justify-self: end;
+.cta-band__copy {
+  position: relative;
+  z-index: 1;
+}
+
+.cta-band h2 {
+  margin-bottom: 4px;
+  font-size: 18px;
+  font-weight: 800;
 }
 
 .cta-band p {
-  color: rgba($color-surface, 0.74);
+  color: #aeb3c7;
+  font-size: 13px;
 }
+
+.cta-band .base-button {
+  position: relative;
+  z-index: 1;
+  margin-left: auto;
+}
+
+// ---------------------------------------------------------------------------
+// Create trip
+// ---------------------------------------------------------------------------
 
 .new-trip-page {
   width: min(100%, 680px);
@@ -1026,113 +1381,129 @@ h3 {
 
 .trip-form {
   display: grid;
-  gap: 16px;
+  gap: 14px;
 }
 
 .form-card {
   display: grid;
-  gap: 16px;
+  gap: 14px;
   padding: 20px;
-  border-radius: $radius-lg;
 }
 
 .form-card h3 {
-  font-size: $font-size-md;
+  font-size: 14.5px;
+  font-weight: 800;
 }
 
 .form-card__hint {
-  margin-top: -12px;
-  color: $color-muted;
-  font-size: $font-size-sm;
-  font-weight: 700;
+  margin-top: -10px;
+  color: $color-subtle;
+  font-size: $font-size-xs;
+  font-weight: 600;
 }
 
 .form-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
 }
 
 .choice-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 9px;
+  gap: 8px;
 }
 
 .choice-pill {
   display: inline-flex;
-  gap: 8px;
-  min-height: 40px;
+  gap: 9px;
+  min-height: 44px;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  padding: 0 14px;
   border: 1px solid $color-border;
-  border-radius: $radius-sm;
+  border-radius: $radius-md;
   background: $color-surface;
   color: $color-muted;
-  font-weight: 800;
+  font-size: 13px;
+  font-weight: 650;
   transition:
-    background 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease,
-    box-shadow 160ms ease;
+    background 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.choice-pill .app-icon {
+  color: $color-subtle;
 }
 
 .choice-pill:hover,
 .preference-chip:hover {
-  border-color: rgba($color-primary, 0.38);
-  color: $color-primary;
+  border-color: $color-primary;
+  color: $color-primary-text;
 }
 
 .choice-pill--selected {
   border-color: $color-primary;
   background: $color-primary-soft;
-  color: $color-primary;
-  box-shadow: 0 0 0 1px rgba($color-primary, 0.16) inset;
+  color: $color-primary-text;
+  box-shadow: 0 0 0 1px $color-primary inset;
+}
+
+.choice-pill--selected .app-icon {
+  color: $color-primary-text;
 }
 
 .preference-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 9px;
+  gap: 8px;
 }
 
 .preference-chip {
   display: inline-flex;
-  min-height: 30px;
+  min-height: 34px;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   padding: 0 14px;
   border: 1px solid $color-border;
   border-radius: $radius-pill;
   background: $color-surface;
   color: $color-muted;
-  font-size: $font-size-sm;
-  font-weight: 800;
+  font-size: 12.5px;
+  font-weight: 650;
   transition:
-    background 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease;
+    background 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease;
 }
 
 .preference-chip--selected {
-  border-color: $color-accent;
-  background: $color-accent-soft;
-  color: color.adjust($color-accent, $lightness: -28%);
+  border-color: $color-primary;
+  background: $color-primary-soft;
+  color: $color-primary-text;
 }
 
 .trip-form__submit {
   width: 100%;
-  min-height: 48px;
+  min-height: 50px;
   margin-top: -2px;
+  font-size: 15px;
 }
 
 .trip-form__note {
-  margin-top: -6px;
-  color: $color-muted;
-  font-size: $font-size-sm;
-  font-weight: 700;
+  margin-top: -4px;
+  color: $color-subtle;
+  font-size: 11.5px;
+  font-weight: 600;
   text-align: center;
 }
+
+// ---------------------------------------------------------------------------
+// Trip board
+// ---------------------------------------------------------------------------
 
 .trip-board-page {
   display: grid;
@@ -1144,9 +1515,13 @@ h3 {
 .trip-board-page .page-header {
   align-items: center;
   margin: 0;
-  padding: 14px 22px;
+  padding: 16px 24px;
   border-bottom: 1px solid $color-border;
   background: $color-surface;
+}
+
+.trip-board-page .page-header__title-row h1 {
+  font-size: 19px;
 }
 
 .trip-view-toggle {
@@ -1165,9 +1540,10 @@ h3 {
   display: grid;
   grid-auto-columns: 236px;
   grid-auto-flow: column;
-  gap: 16px;
+  gap: 14px;
+  align-items: start;
   overflow-x: auto;
-  padding: 18px;
+  padding: 20px 22px 28px;
   background: $color-bg;
 }
 
@@ -1180,30 +1556,77 @@ h3 {
 .kanban-column__header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 2px 2px 4px;
   color: $color-muted;
-  font-size: $font-size-xs;
-  font-weight: 900;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
+}
+
+.kanban-column__dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: $radius-pill;
 }
 
 .kanban-column__count {
   display: inline-grid;
-  min-width: 22px;
-  height: 22px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
   place-items: center;
+  border: 1px solid $color-border;
   border-radius: $radius-pill;
-  background: $color-border-light;
+  background: $color-surface;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.kanban-column__quick-add {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  margin-left: auto;
+  place-items: center;
+  border: 0;
+  border-radius: $radius-sm;
+  background: transparent;
+  color: $color-subtle;
+}
+
+.kanban-column__quick-add:hover {
+  background: $color-surface;
+  color: $color-primary-text;
+}
+
+.kanban-column__quick-add:focus-visible {
+  @include focus-ring;
 }
 
 .kanban-column__add {
-  min-height: 38px;
-  border: 1px dashed $color-border;
+  min-height: 40px;
+  border: 1.5px dashed $color-border;
   border-radius: $radius-md;
   background: transparent;
-  color: $color-muted;
-  font-weight: 800;
+  color: $color-subtle;
+  font-size: 12.5px;
+  font-weight: 700;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    color 140ms ease;
 }
+
+.kanban-column__add:hover {
+  border-color: $color-primary;
+  background: $color-primary-soft;
+  color: $color-primary-text;
+}
+
+// map panel
 
 .map-panel {
   display: grid;
@@ -1212,26 +1635,97 @@ h3 {
   background: $color-surface;
 }
 
-.map-panel__header,
-.map-panel__legend {
+.map-panel__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 46px;
+  min-height: 48px;
   padding: 0 16px;
+  border-bottom: 1px solid $color-border;
+  font-weight: 800;
+}
+
+.map-panel__header span {
+  color: $color-subtle;
+  font-size: 11.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .map-panel__canvas {
+  position: relative;
   overflow: hidden;
+  background:
+    radial-gradient(340px 220px at 88% 88%, #cfe7ec 0%, transparent 60%),
+    radial-gradient(300px 200px at 6% 10%, #dcefd9 0%, transparent 55%),
+    linear-gradient(0deg, transparent calc(100% - 1px), rgba($color-ink, 0.04) calc(100% - 1px)),
+    linear-gradient(90deg, transparent calc(100% - 1px), rgba($color-ink, 0.04) calc(100% - 1px)),
+    #eaf3ec;
+  background-size: auto, auto, 100% 38px, 38px 100%, auto;
+}
+
+.map-panel__route {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.map-panel__route path {
+  fill: none;
+  stroke: $color-primary;
+  stroke-width: 1.8;
+  stroke-dasharray: 2 6;
+  stroke-linecap: round;
+  opacity: 0.8;
+}
+
+.map-panel__coord {
+  position: absolute;
+  left: 12px;
+  bottom: 10px;
+  color: $color-muted;
+  font-family: $font-family-mono;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.map-pin {
+  position: absolute;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  line-height: 0;
+  transform: translate(-50%, -100%);
+  filter: drop-shadow(0 2px 3px rgba($color-ink, 0.3));
+  transition: transform 130ms ease;
+}
+
+.map-pin:hover,
+.map-pin--selected {
+  transform: translate(-50%, -100%) scale(1.18);
+}
+
+.map-pin--selected {
+  filter: drop-shadow(0 0 3px rgba($color-primary, 0.55)) drop-shadow(0 3px 5px rgba($color-ink, 0.35));
+}
+
+.map-pin:focus-visible {
+  @include focus-ring;
+  border-radius: $radius-pill;
 }
 
 .map-panel__legend {
-  justify-content: flex-start;
-  gap: 12px;
-  color: $color-muted;
-  font-size: $font-size-xs;
-  font-weight: 800;
+  display: flex;
   flex-wrap: wrap;
+  gap: 8px 14px;
+  min-height: 44px;
+  align-items: center;
+  padding: 10px 16px;
+  border-top: 1px solid $color-border;
+  color: $color-muted;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .map-panel__legend span {
@@ -1240,11 +1734,7 @@ h3 {
   gap: 6px;
 }
 
-.legend-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: $radius-pill;
-}
+// drawer
 
 .place-drawer {
   position: absolute;
@@ -1252,11 +1742,11 @@ h3 {
   z-index: 4;
   display: grid;
   width: 340px;
-  grid-template-rows: 180px minmax(0, 1fr);
+  grid-template-rows: 168px minmax(0, 1fr);
   overflow: hidden;
   border-left: 1px solid $color-border;
   background: $color-surface;
-  box-shadow: -24px 0 60px rgba(31, 36, 51, 0.12);
+  box-shadow: $shadow-lg;
 }
 
 .mobile-sheet-overlay {
@@ -1315,38 +1805,52 @@ h3 {
 
 .place-drawer__close {
   position: absolute;
-  top: 14px;
-  right: 14px;
+  top: 10px;
+  right: 10px;
   z-index: 2;
   display: grid;
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   place-items: center;
   border: 0;
   border-radius: $radius-pill;
-  background: rgba($color-text, 0.52);
-  color: $color-surface;
-  font-size: $font-size-lg;
+  background: rgba($color-surface, 0.94);
+  color: $color-ink;
+}
+
+.place-drawer__close:focus-visible {
+  @include focus-ring;
 }
 
 .place-drawer__image {
+  position: relative;
   display: flex;
   align-items: flex-end;
-  padding: 22px;
+  padding: 14px 16px;
   color: $color-surface;
 }
 
+.place-drawer__image::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba($color-dusk, 0) 30%, rgba($color-dusk, 0.62));
+  content: '';
+}
+
 .place-drawer__image h2 {
+  position: relative;
+  z-index: 1;
   color: inherit;
-  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.28);
+  font-size: 17px;
+  font-weight: 800;
 }
 
 .place-drawer__content {
   display: grid;
   align-content: start;
-  gap: 16px;
+  gap: 14px;
   overflow-y: auto;
-  padding: 20px;
+  padding: 16px;
 }
 
 .place-drawer__title-row {
@@ -1356,37 +1860,92 @@ h3 {
   gap: 12px;
 }
 
-.place-drawer__title-row strong {
-  color: $color-muted;
+.place-drawer__rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
 }
 
-.place-drawer__content > p {
+.place-drawer__rating .app-icon {
+  color: $color-warning;
+}
+
+.place-drawer__rating span {
+  color: $color-subtle;
+  font-weight: 700;
+}
+
+.place-drawer__description {
   color: $color-muted;
-  line-height: 1.6;
+  font-size: 13px;
+  line-height: 1.55;
 }
 
 .place-drawer__facts {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 8px;
 }
 
-.place-drawer__facts .base-card {
+.place-drawer__fact {
   display: grid;
-  gap: 6px;
-  padding: 14px;
-  background: $color-surface-soft;
-  box-shadow: none;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: $radius-md;
+  background: $color-bg;
 }
 
-.place-drawer__facts span {
-  color: $color-muted;
-  font-size: $font-size-xs;
-  font-weight: 800;
+.place-drawer__fact span {
+  color: $color-subtle;
+  font-size: 10.5px;
+  font-weight: 750;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
-.place-drawer__facts strong {
+.place-drawer__fact strong {
+  font-size: 13.5px;
+  font-variant-numeric: tabular-nums;
   text-transform: capitalize;
+}
+
+.place-drawer__tip {
+  display: flex;
+  gap: 9px;
+  padding: 11px 13px;
+  border-radius: $radius-md;
+  background: $color-accent-soft;
+  color: $color-accent-text;
+  font-size: 12.5px;
+}
+
+.place-drawer__tip .app-icon {
+  margin-top: 1px;
+}
+
+.place-drawer__tip b {
+  display: block;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.place-drawer__actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.place-drawer__remove {
+  grid-column: 1 / -1;
+  color: $color-danger !important;
+}
+
+.place-drawer__remove:hover {
+  background: $color-danger-soft !important;
 }
 
 @keyframes spin {
@@ -1395,9 +1954,13 @@ h3 {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Responsive
+// ---------------------------------------------------------------------------
+
 @media (max-width: 1100px) {
   .workspace-shell {
-    grid-template-columns: 80px minmax(0, 1fr);
+    grid-template-columns: 76px minmax(0, 1fr);
   }
 
   .app-sidebar {
@@ -1406,8 +1969,10 @@ h3 {
 
   .app-sidebar__brand span:last-child,
   .app-sidebar__label,
-  .app-sidebar__section a span:last-child,
-  .app-sidebar__user div {
+  .app-sidebar__section a span,
+  .app-sidebar__trip-pct,
+  .app-sidebar__user div,
+  .app-sidebar__settings {
     display: none;
   }
 
@@ -1416,8 +1981,14 @@ h3 {
     padding-inline: 0;
   }
 
+  .app-sidebar__user {
+    justify-content: center;
+    padding: 8px;
+  }
+
   .stats-grid,
   .trip-grid,
+  .trips-list,
   .section-grid,
   .workflow-list,
   .testimonial-grid {
@@ -1532,6 +2103,7 @@ h3 {
   .brand-mark {
     width: 28px;
     height: 28px;
+    border-radius: 9px;
   }
 
   .workspace-shell {
@@ -1578,7 +2150,7 @@ h3 {
     height: 30px;
     place-items: center;
     border-radius: $radius-pill;
-    background: $color-primary;
+    background: linear-gradient(135deg, $color-primary, #4a7de0);
     color: $color-surface;
     font-size: $font-size-xs;
     font-weight: 800;
@@ -1589,7 +2161,7 @@ h3 {
     inset: auto 0 0;
     z-index: 60;
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     align-items: center;
     height: 68px;
     padding: 6px 12px 8px;
@@ -1601,9 +2173,8 @@ h3 {
     display: grid;
     justify-items: center;
     gap: 3px;
-    color: $color-muted;
-    font-size: $font-size-lg;
-    font-weight: 800;
+    color: $color-subtle;
+    font-weight: 700;
   }
 
   .mobile-bottom-nav small {
@@ -1611,7 +2182,7 @@ h3 {
   }
 
   .mobile-bottom-nav a.router-link-active {
-    color: $color-primary;
+    color: $color-primary-text;
   }
 
   .mobile-bottom-nav__primary {
@@ -1623,7 +2194,7 @@ h3 {
     border-radius: $radius-pill;
     background: $color-primary;
     color: $color-surface !important;
-    box-shadow: $shadow-md;
+    box-shadow: $shadow-primary;
   }
 
   .app-header {
@@ -1641,17 +2212,12 @@ h3 {
     display: none;
   }
 
-  .base-button--md {
-    min-height: 38px;
-    padding-inline: 15px;
-  }
-
-  .base-field input {
-    height: 42px;
+  .base-field__control {
+    min-height: 42px;
   }
 
   .base-field textarea {
-    min-height: 80px;
+    min-height: 72px;
   }
 
   .page-header {
@@ -1742,7 +2308,7 @@ h3 {
     height: 5px;
     overflow: hidden;
     border-radius: $radius-pill;
-    background: $color-border-light;
+    background: $color-surface-soft;
   }
 
   .landing-mobile-trip__progress i {
@@ -1788,19 +2354,35 @@ h3 {
     gap: 22px;
   }
 
+  .trips-page {
+    max-width: 100%;
+    gap: 18px;
+  }
+
   .stats-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
   }
 
   .stat-card {
-    min-height: 112px;
-    padding: 16px;
+    gap: 8px;
+    min-height: 134px;
+    padding: 14px;
   }
 
-  .stat-card strong {
-    margin-top: 4px;
-    font-size: 22px;
+  .stat-card__value {
+    font-size: 23px;
+  }
+
+  .stat-card__label {
+    line-height: 1.35;
+  }
+
+  .stat-card__delta {
+    max-width: 100%;
+    padding-inline: 8px;
+    font-size: 10.5px;
+    white-space: normal;
   }
 
   .trip-grid {
@@ -1822,10 +2404,21 @@ h3 {
     scroll-snap-align: start;
   }
 
+  .trips-list {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
   .cta-band {
     display: grid;
-    gap: 16px;
+    gap: 26px;
     padding: 20px 16px;
+  }
+
+  .cta-band .base-button {
+    margin-left: 0;
+    width: 100%;
+    justify-self: stretch;
   }
 
   .new-trip-page {
@@ -1858,18 +2451,18 @@ h3 {
   }
 
   .choice-pill {
-    min-height: 36px;
+    min-height: 40px;
     font-size: $font-size-xs;
   }
 
   .preference-chip {
-    min-height: 28px;
+    min-height: 30px;
     padding-inline: 11px;
     font-size: 11px;
   }
 
   .trip-form__submit {
-    min-height: 46px;
+    min-height: 48px;
   }
 
   .trip-board-page {
@@ -1913,7 +2506,7 @@ h3 {
     gap: 2px;
     padding: 3px;
     border-radius: $radius-pill;
-    background: #f1ece5;
+    background: $color-surface-soft;
   }
 
   .trip-view-toggle button {
@@ -1923,13 +2516,13 @@ h3 {
     background: transparent;
     color: $color-muted;
     font-size: $font-size-xs;
-    font-weight: 800;
+    font-weight: 750;
   }
 
   .trip-view-toggle__button--active {
     background: $color-primary !important;
     color: $color-surface !important;
-    box-shadow: $shadow-sm;
+    box-shadow: $shadow-primary;
   }
 
   .board-workspace {
@@ -1956,12 +2549,6 @@ h3 {
 
   .place-card {
     grid-template-rows: 76px minmax(0, 1fr);
-    min-height: 190px;
-  }
-
-  .place-card__content h3,
-  .place-card__content p {
-    min-height: 34px;
   }
 
   .map-panel {
@@ -1978,7 +2565,6 @@ h3 {
   }
 
   .map-panel__legend {
-    min-height: 46px;
     background: $color-surface;
   }
 
@@ -1988,7 +2574,7 @@ h3 {
     z-index: 38;
     display: block;
     border: 0;
-    background: rgba(31, 36, 51, 0.36);
+    background: rgba($color-dusk, 0.4);
   }
 
   .place-drawer.place-drawer--sheet {
@@ -2000,7 +2586,7 @@ h3 {
     grid-template-rows: 130px minmax(0, 1fr);
     border-left: 0;
     border-radius: $radius-lg $radius-lg 0 0;
-    box-shadow: 0 -18px 48px rgba(31, 36, 51, 0.18);
+    box-shadow: 0 -18px 48px rgba($color-dusk, 0.18);
   }
 
   .place-drawer--sheet.place-sheet-slide-enter-active,

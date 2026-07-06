@@ -9,7 +9,7 @@
 
   <div v-else class="workspace-shell">
     <AppSidebar />
-    <MobileTopBar :title="mobileTitle" />
+    <MobileTopBar />
 
     <main class="workspace-shell__main">
       <RouterView />
@@ -29,11 +29,4 @@ import MobileTopBar from '../components/layout/MobileTopBar.vue'
 
 const route = useRoute()
 const isMarketing = computed(() => route.meta.layout === 'marketing')
-const mobileTitle = computed(() => {
-  if (route.name === 'dashboard') return 'Dashboard'
-  if (route.name === 'trip-create') return 'New Trip'
-  if (route.name === 'trip-board') return 'Tokyo Explorer'
-
-  return 'TripFlow AI'
-})
 </script>

@@ -53,7 +53,7 @@
           v-for="trip in previewTrips"
           :key="trip.title"
           class="landing-mobile-trip"
-          :to="{ name: 'trip-board' }"
+          :to="{ name: 'trip-board', params: { tripId: trip.id } }"
         >
           <span class="landing-mobile-trip__image" :style="{ background: trip.imageGradient }" />
           <strong>{{ trip.title }}</strong>
@@ -117,7 +117,7 @@
 
     <footer class="landing-footer">
       <RouterLink class="landing-footer__brand" :to="{ name: 'landing' }">
-        <span class="brand-mark">✈</span>
+        <span class="brand-mark"><AppIcon name="compass" :size="16" /></span>
         <strong>TripFlow AI</strong>
       </RouterLink>
       <nav aria-label="Footer navigation">
@@ -131,6 +131,7 @@
 </template>
 
 <script setup lang="ts">
+import AppIcon from '../components/ui/AppIcon.vue'
 import BaseButton from '../components/ui/BaseButton.vue'
 import BaseCard from '../components/ui/BaseCard.vue'
 import StatusBadge from '../components/ui/StatusBadge.vue'

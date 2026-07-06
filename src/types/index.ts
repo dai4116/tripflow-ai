@@ -10,7 +10,7 @@ export type PlaceCategory =
   | 'nature'
   | 'museum'
   | 'transport'
-  | 'hotel'
+  | 'stay'
   | 'activity'
   | 'other'
 
@@ -54,7 +54,8 @@ export type Place = {
   lat: number
   lng: number
   rating: string
-  reason: string
+  description: string
+  travelTip?: string
   columnId: string
   imageGradient: string
 }
@@ -64,6 +65,7 @@ export type Stat = {
   label: string
   value: string
   helper: string
-  tone: 'navy' | 'violet' | 'green' | 'gold'
-  icon: string
+  helperTone: 'positive' | 'neutral'
+  tone: 'brand' | 'culture' | 'coral' | 'stay'
+  icon: 'compass' | 'calendar' | 'pin' | 'dollar'
 }

@@ -1,7 +1,7 @@
 <template>
   <header class="app-header">
     <RouterLink class="app-header__brand" :to="{ name: 'landing' }">
-      <span class="brand-mark">✈</span>
+      <span class="brand-mark"><AppIcon name="compass" :size="16" /></span>
       <span>TripFlow AI</span>
     </RouterLink>
 
@@ -20,5 +20,6 @@
 </template>
 
 <script setup lang="ts">
+import AppIcon from '../ui/AppIcon.vue'
 import BaseButton from '../ui/BaseButton.vue'
 </script>
