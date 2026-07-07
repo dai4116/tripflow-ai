@@ -103,8 +103,10 @@ import BaseCard from '../components/ui/BaseCard.vue'
 import BaseInput from '../components/ui/BaseInput.vue'
 import type { IconName } from '../components/ui/icons'
 import { preferences, travelStyles } from '../data/mockPreferences'
+import { useTripsStore } from '../stores/trips'
 
 const router = useRouter()
+const tripsStore = useTripsStore()
 const isGenerating = ref(false)
 const destinationError = ref('')
 const selectedPreferences = ref(['Museums', 'Local Food', 'Architecture'])
@@ -156,7 +158,16 @@ function generateTrip() {
   destinationError.value = ''
   isGenerating.value = true
   redirectTimer = window.setTimeout(() => {
-    router.push({ name: 'trip-board', params: { tripId: 'tokyo-explorer' } })
+    const trip = tripsStore.createTrip({
+      destination: form.destination.trim(),
+      duration: Number(form.duration) || 7,
+      budget: form.budget,
+      travelers: Number(form.travelers) || 1,
+      travelStyle: form.travelStyle,
+      avoidPlaces: form.avoidPlaces,
+      preferences: selectedPreferences.value,
+    })
+    router.push({ name: 'trip-board', params: { tripId: trip.id } })
   }, 1500)
 }
 

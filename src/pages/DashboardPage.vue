@@ -59,6 +59,7 @@
 </template>
 
 <script setup lang="ts">
+import { storeToRefs } from 'pinia'
 import PageHeader from '../components/layout/PageHeader.vue'
 import TripCard from '../components/trips/TripCard.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
@@ -66,7 +67,8 @@ import BaseButton from '../components/ui/BaseButton.vue'
 import BaseCard from '../components/ui/BaseCard.vue'
 import { useIsMobile } from '../composables/useIsMobile'
 import { stats } from '../data/mockStats'
-import { trips } from '../data/mockTrips'
+import { useTripsStore } from '../stores/trips'
 
 const isMobile = useIsMobile()
+const { trips } = storeToRefs(useTripsStore())
 </script>

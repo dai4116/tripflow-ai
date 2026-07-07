@@ -60,6 +60,16 @@ export type Place = {
   imageGradient: string
 }
 
+export type CreateTripInput = {
+  destination: string
+  duration: number
+  budget: string
+  travelers: number
+  travelStyle: string
+  avoidPlaces: string
+  preferences: string[]
+}
+
 export type Stat = {
   id: string
   label: string

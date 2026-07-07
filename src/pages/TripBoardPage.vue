@@ -184,26 +184,30 @@
           </div>
         </aside>
       </Transition>
+
+      <AskAiPanel />
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
+import { storeToRefs } from 'pinia'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import PageHeader from '../components/layout/PageHeader.vue'
+import AskAiPanel from '../components/trips/AskAiPanel.vue'
 import CategoryChip from '../components/trips/CategoryChip.vue'
 import PlaceCard from '../components/trips/PlaceCard.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
 import BaseButton from '../components/ui/BaseButton.vue'
 import StatusBadge from '../components/ui/StatusBadge.vue'
 import { useIsMobile } from '../composables/useIsMobile'
-import { places } from '../data/mockPlaces'
-import { trips } from '../data/mockTrips'
+import { useTripsStore } from '../stores/trips'
 import type { TripColumn } from '../types'
 
 const route = useRoute()
 const isMobile = useIsMobile()
+const { trips, places } = storeToRefs(useTripsStore())
 const mobileView = ref<'board' | 'map'>('board')
 const selectedPlaceId = ref<string | null>(null)
 const drawerPlaceId = ref<string | null>(null)
@@ -230,10 +234,10 @@ const emptyColumns: TripColumn[] = [
 const activeTrip = computed(() => {
   const tripId = String(route.params.tripId ?? 'tokyo-explorer')
 
-  return trips.find((trip) => trip.id === tripId) ?? trips[0]
+  return trips.value.find((trip) => trip.id === tripId) ?? trips.value[0]
 })
 const displayedColumns = computed(() => (activeTrip.value.columns.length > 0 ? activeTrip.value.columns : emptyColumns))
-const tripPlaces = computed(() => places.filter((place) => place.tripId === activeTrip.value.id))
+const tripPlaces = computed(() => places.value.filter((place) => place.tripId === activeTrip.value.id))
 
 const tripHeaderDescription = computed(() => {
   if (isMobile.value) return activeTrip.value.destination

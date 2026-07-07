@@ -131,14 +131,17 @@
 </template>
 
 <script setup lang="ts">
+import { storeToRefs } from 'pinia'
+import { computed } from 'vue'
 import AppIcon from '../components/ui/AppIcon.vue'
 import BaseButton from '../components/ui/BaseButton.vue'
 import BaseCard from '../components/ui/BaseCard.vue'
 import StatusBadge from '../components/ui/StatusBadge.vue'
-import { trips } from '../data/mockTrips'
+import { useTripsStore } from '../stores/trips'
 
+const { trips } = storeToRefs(useTripsStore())
 const previewColumns = ['Planning', 'Day 1', 'Day 2']
-const previewTrips = trips.slice(0, 2)
+const previewTrips = computed(() => trips.value.slice(0, 2))
 
 const features = [
   {

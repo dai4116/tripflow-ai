@@ -47,6 +47,9 @@
 </template>
 
 <script setup lang="ts">
-import { trips } from '../../data/mockTrips'
+import { storeToRefs } from 'pinia'
+import { useTripsStore } from '../../stores/trips'
 import AppIcon from '../ui/AppIcon.vue'
+
+const { trips } = storeToRefs(useTripsStore())
 </script>
