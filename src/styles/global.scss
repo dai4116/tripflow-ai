@@ -834,6 +834,10 @@ h3 {
   background: transparent;
   color: inherit;
   text-align: left;
+  cursor: grab;
+  // Without this, touch devices claim the gesture for native scrolling before
+  // Sortable's JS can take over, so a drag started inside a scrollable board never starts.
+  touch-action: none;
 }
 
 .place-card-button .place-card {
@@ -1624,6 +1628,33 @@ h3 {
   border-color: $color-primary;
   background: $color-primary-soft;
   color: $color-primary-text;
+}
+
+.kanban-column__cards {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  min-height: 12px;
+}
+
+.place-card-button--ghost {
+  opacity: 0.35;
+}
+
+.place-card-button--ghost .place-card {
+  border: 1.5px dashed $color-primary;
+  background: $color-primary-soft;
+  box-shadow: none;
+}
+
+.place-card-button--chosen .place-card {
+  box-shadow: $shadow-lg;
+}
+
+.place-card-button--dragging {
+  cursor: grabbing;
+  box-shadow: $shadow-lg;
+  transform: rotate(1.5deg);
 }
 
 // map panel
@@ -2794,6 +2825,12 @@ h3 {
     scroll-padding-inline: 12px;
     scroll-snap-type: x mandatory;
     -webkit-overflow-scrolling: touch;
+  }
+
+  // Scroll-snap fights Sortable's auto-scroll while dragging near the edge —
+  // suspend snapping for the duration of the drag so the board can actually scroll.
+  .kanban-board--dragging {
+    scroll-snap-type: none;
   }
 
   .kanban-column {

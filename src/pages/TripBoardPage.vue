@@ -41,6 +41,7 @@
       <div
         v-if="!isMobile || mobileView === 'board'"
         class="kanban-board"
+        :class="{ 'kanban-board--dragging': isDraggingCard }"
         :aria-label="`${activeTrip.title} board`"
       >
         <section
@@ -61,16 +62,33 @@
             </button>
           </header>
 
-          <button
-            v-for="place in getColumnPlaces(column.placeIds)"
-            :key="place.id"
-            class="place-card-button"
-            :class="{ 'place-card-button--selected': selectedPlaceId === place.id }"
-            type="button"
-            @click="openPlaceDrawer(place.id)"
+          <VueDraggable
+            v-model="column.placeIds"
+            class="kanban-column__cards"
+            group="kanban-places"
+            :animation="150"
+            :delay="150"
+            :delay-on-touch-only="true"
+            :scroll-sensitivity="80"
+            :scroll-speed="16"
+            :bubble-scroll="true"
+            ghost-class="place-card-button--ghost"
+            chosen-class="place-card-button--chosen"
+            drag-class="place-card-button--dragging"
+            @start="isDraggingCard = true"
+            @end="onDragEnd"
           >
-            <PlaceCard :place="place" :completed="column.type === 'done'" />
-          </button>
+            <button
+              v-for="place in getColumnPlaces(column.placeIds)"
+              :key="place.id"
+              class="place-card-button"
+              :class="{ 'place-card-button--selected': selectedPlaceId === place.id }"
+              type="button"
+              @click="openPlaceDrawer(place.id)"
+            >
+              <PlaceCard :place="place" :completed="column.type === 'done'" />
+            </button>
+          </VueDraggable>
 
           <button class="kanban-column__add" type="button">＋ Add place</button>
         </section>
@@ -193,6 +211,7 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { VueDraggable } from 'vue-draggable-plus'
 import { useRoute } from 'vue-router'
 import PageHeader from '../components/layout/PageHeader.vue'
 import AskAiPanel from '../components/trips/AskAiPanel.vue'
@@ -211,6 +230,7 @@ const { trips, places } = storeToRefs(useTripsStore())
 const mobileView = ref<'board' | 'map'>('board')
 const selectedPlaceId = ref<string | null>(null)
 const drawerPlaceId = ref<string | null>(null)
+const isDraggingCard = ref(false)
 
 const legendCategories = [
   { key: 'culture', label: 'Culture' },
@@ -289,6 +309,20 @@ function getColumnPlaces(placeIds: string[]) {
   return placeIds
     .map((placeId) => tripPlaces.value.find((place) => place.id === placeId))
     .filter((place) => place !== undefined)
+}
+
+function syncPlaceColumns() {
+  for (const column of displayedColumns.value) {
+    for (const placeId of column.placeIds) {
+      const place = places.value.find((item) => item.id === placeId)
+      if (place) place.columnId = column.id
+    }
+  }
+}
+
+function onDragEnd() {
+  syncPlaceColumns()
+  isDraggingCard.value = false
 }
 
 function openPlaceDrawer(placeId: string) {
