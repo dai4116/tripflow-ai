@@ -31,7 +31,6 @@
       >
         <span class="app-sidebar__trip-dot" :style="{ backgroundColor: trip.color }" />
         <span class="app-sidebar__trip-name">{{ trip.title }}</span>
-        <span class="app-sidebar__trip-pct">{{ trip.progress }}%</span>
       </RouterLink>
     </div>
 

@@ -297,14 +297,6 @@ h3 {
   text-overflow: ellipsis;
 }
 
-.app-sidebar__trip-pct {
-  margin-left: auto;
-  color: $color-subtle;
-  font-size: 11px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
 .app-sidebar__user {
   display: flex;
   align-items: center;
@@ -648,31 +640,6 @@ h3 {
   content: '';
 }
 
-.trip-card__status {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  z-index: 1;
-  padding: 4px 10px;
-  border-radius: $radius-pill;
-  background: rgba($color-surface, 0.94);
-  font-size: 10.5px;
-  font-weight: 800;
-  text-transform: capitalize;
-}
-
-.trip-card__status--active {
-  color: $color-success;
-}
-
-.trip-card__status--planning {
-  color: $color-accent-text;
-}
-
-.trip-card__status--done {
-  color: $color-muted;
-}
-
 .trip-card__title {
   position: relative;
   z-index: 1;
@@ -712,42 +679,6 @@ h3 {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-}
-
-.trip-card__progress-label {
-  display: flex;
-  justify-content: space-between;
-  color: $color-subtle;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.trip-card__progress-label strong {
-  color: $color-ink;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-}
-
-.trip-card__progress-label .trip-card__progress-value--done {
-  color: $color-success;
-}
-
-.trip-card__progress {
-  height: 6px;
-  overflow: hidden;
-  border-radius: $radius-pill;
-  background: $color-surface-soft;
-}
-
-.trip-card__progress span {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: $color-primary;
-}
-
-.trip-card__progress--done span {
-  background: $color-success;
 }
 
 // ---------------------------------------------------------------------------
@@ -814,15 +745,6 @@ h3 {
   color: $color-accent-text;
   font-size: 11px;
   font-style: italic;
-}
-
-.place-card__done {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: $color-success;
-  font-size: 11px;
-  font-weight: 800;
 }
 
 .place-card-button {
@@ -2348,9 +2270,82 @@ h3 {
 }
 
 .add-place-modal__pills {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 6px;
+}
+
+.add-place-modal__day-control {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid $color-border;
+  border-radius: $radius-pill;
+  background: $color-surface;
+  color: $color-muted;
+  transition:
+    border-color 140ms ease,
+    color 140ms ease;
+}
+
+.add-place-modal__day-control:hover:not(:disabled) {
+  border-color: $color-primary;
+  color: $color-primary-text;
+}
+
+.add-place-modal__day-control:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.add-place-modal__day-remove-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 3;
+  display: grid;
+  width: 160px;
+  gap: 2px;
+  padding: 8px;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+  background: $color-surface;
+  box-shadow: $shadow-lg;
+}
+
+.add-place-modal__day-remove-hint {
+  padding: 2px 6px 6px;
+  color: $color-subtle;
+  font-size: 10.5px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+}
+
+.add-place-modal__day-remove-option {
+  padding: 8px 10px;
+  border: 0;
+  border-radius: $radius-sm;
+  background: transparent;
+  color: $color-ink;
+  font-size: 12.5px;
+  font-weight: 650;
+  text-align: left;
+}
+
+.add-place-modal__day-remove-option:hover {
+  background: $color-danger-soft;
+  color: $color-danger;
+}
+
+.add-place-modal__day-remove-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  border: 0;
+  background: transparent;
 }
 
 .add-place-modal__suggestions {
@@ -2688,7 +2683,6 @@ h3 {
   .app-sidebar__brand span:last-child,
   .app-sidebar__label,
   .app-sidebar__section a span,
-  .app-sidebar__trip-pct,
   .app-sidebar__user div,
   .app-sidebar__settings {
     display: none;
@@ -3067,27 +3061,12 @@ h3 {
   }
 
   .landing-mobile-trip strong,
-  .landing-mobile-trip small,
-  .landing-mobile-trip__progress {
+  .landing-mobile-trip small {
     margin-inline: 10px;
   }
 
   .landing-mobile-trip small {
     color: $color-muted;
-  }
-
-  .landing-mobile-trip__progress {
-    height: 5px;
-    overflow: hidden;
-    border-radius: $radius-pill;
-    background: $color-surface-soft;
-  }
-
-  .landing-mobile-trip__progress i {
-    display: block;
-    height: 100%;
-    border-radius: inherit;
-    background: $color-primary;
   }
 
   .landing-section {

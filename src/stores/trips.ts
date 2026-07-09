@@ -15,8 +15,12 @@ export type NewPlaceInput = {
 }
 
 export const useTripsStore = defineStore('trips', () => {
-  const trips = useStorage<Trip[]>('tripflow-trips', seedTrips)
-  const places = useStorage<Place[]>('tripflow-places', seedPlaces)
+  // Bumped to v2 when the Planning/Done columns were removed from the board
+  // structure — old localStorage data under the v1 keys is stale/incompatible,
+  // so browsers with existing data fall back to the fresh seed instead of
+  // rendering columns that no longer exist in the UI.
+  const trips = useStorage<Trip[]>('tripflow-trips-v2', seedTrips)
+  const places = useStorage<Place[]>('tripflow-places-v2', seedPlaces)
 
   function getTripById(tripId: string) {
     return trips.value.find((trip) => trip.id === tripId)
@@ -36,13 +40,10 @@ export const useTripsStore = defineStore('trips', () => {
     return trip
   }
 
-  // Derives placeCount/progress from the columns themselves rather than
-  // tracking counters by hand, so add/remove/move can't drift out of sync.
-  function recalcTripProgress(trip: Trip) {
-    const total = trip.columns.reduce((sum, column) => sum + column.placeIds.length, 0)
-    const done = trip.columns.find((column) => column.type === 'done')?.placeIds.length ?? 0
-    trip.placeCount = total
-    trip.progress = total > 0 ? Math.round((done / total) * 100) : 0
+  // Derives placeCount from the columns themselves rather than tracking a
+  // counter by hand, so add/remove/move can't drift out of sync.
+  function recalcPlaceCount(trip: Trip) {
+    trip.placeCount = trip.columns.reduce((sum, column) => sum + column.placeIds.length, 0)
   }
 
   function addPlace(input: NewPlaceInput): Place | undefined {
@@ -68,7 +69,7 @@ export const useTripsStore = defineStore('trips', () => {
 
     places.value.push(place)
     column.placeIds.push(place.id)
-    recalcTripProgress(trip)
+    recalcPlaceCount(trip)
 
     return place
   }
@@ -82,7 +83,7 @@ export const useTripsStore = defineStore('trips', () => {
     if (column) column.placeIds = column.placeIds.filter((id) => id !== placeId)
 
     places.value = places.value.filter((item) => item.id !== placeId)
-    if (trip) recalcTripProgress(trip)
+    if (trip) recalcPlaceCount(trip)
   }
 
   function movePlaceToColumn(placeId: string, columnId: string) {
@@ -97,7 +98,7 @@ export const useTripsStore = defineStore('trips', () => {
     if (fromColumn) fromColumn.placeIds = fromColumn.placeIds.filter((id) => id !== placeId)
     toColumn.placeIds.push(placeId)
     place.columnId = columnId
-    recalcTripProgress(trip)
+    recalcPlaceCount(trip)
   }
 
   function updatePlace(placeId: string, patch: Partial<Pick<Place, 'name' | 'category' | 'estimatedTime' | 'estimatedCost' | 'description' | 'travelTip'>>) {
@@ -115,6 +116,6 @@ export const useTripsStore = defineStore('trips', () => {
     removePlace,
     movePlaceToColumn,
     updatePlace,
-    recalcTripProgress,
+    recalcPlaceCount,
   }
 })

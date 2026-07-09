@@ -22,6 +22,43 @@
             >
               {{ column.title }}
             </button>
+            <button
+              type="button"
+              class="add-place-modal__day-control"
+              aria-label="Remove a day"
+              :disabled="columns.length <= 1"
+              @click="isRemoveDayMenuOpen = !isRemoveDayMenuOpen"
+            >
+              <AppIcon name="minus" :size="12" />
+            </button>
+            <div v-if="isRemoveDayMenuOpen" class="add-place-modal__day-remove-menu" role="menu">
+              <p class="add-place-modal__day-remove-hint">請選擇要刪除的天數</p>
+              <button
+                v-for="column in columns"
+                :key="column.id"
+                type="button"
+                class="add-place-modal__day-remove-option"
+                role="menuitem"
+                @click="confirmRemoveDay(column)"
+              >
+                {{ column.title }}
+              </button>
+            </div>
+            <button
+              v-if="isRemoveDayMenuOpen"
+              class="add-place-modal__day-remove-backdrop"
+              type="button"
+              aria-label="Close"
+              @click="isRemoveDayMenuOpen = false"
+            />
+            <button
+              type="button"
+              class="add-place-modal__day-control"
+              aria-label="Add a day"
+              @click="emit('add-day')"
+            >
+              <AppIcon name="plus" :size="12" />
+            </button>
           </div>
         </div>
 
@@ -96,7 +133,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { suggestedPlacesForCity } from '../../data/generateTrip'
 import type { PlaceCategory, TripColumn } from '../../types'
 import AppIcon from '../ui/AppIcon.vue'
@@ -114,6 +151,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: []
   add: [payload: { columnId: string; name: string; category: PlaceCategory; description: string }]
+  'add-day': []
+  'remove-day': [columnId: string]
 }>()
 
 function categoryLabel(category: PlaceCategory) {
@@ -125,6 +164,28 @@ const search = ref('')
 const activeCategory = ref<PlaceCategory | 'all'>('all')
 const customName = ref('')
 const customCategory = ref<PlaceCategory>('activity')
+const isRemoveDayMenuOpen = ref(false)
+
+// Adding a day is almost always so you can add a place to it — jump the
+// selection there instead of leaving it on whatever day was picked before.
+// Removing a day can also knock out whatever was selected, so fall back to
+// the first remaining day rather than emitting an add against a dead id.
+watch(
+  () => props.columns,
+  (columns, previousColumns) => {
+    if (columns.length > previousColumns.length) {
+      selectedColumnId.value = columns[columns.length - 1].id
+    } else if (!columns.some((column) => column.id === selectedColumnId.value)) {
+      selectedColumnId.value = columns[0]?.id ?? ''
+    }
+  },
+)
+
+function confirmRemoveDay(column: TripColumn) {
+  isRemoveDayMenuOpen.value = false
+  const confirmed = window.confirm(`要刪除第 ${column.dayNumber} 天及這天所有行程嗎？\n刪除後無法復原喔`)
+  if (confirmed) emit('remove-day', column.id)
+}
 
 const suggestions = computed(() => suggestedPlacesForCity(props.city))
 const availableCategories = computed(() => {

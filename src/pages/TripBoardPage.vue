@@ -4,9 +4,6 @@
       :title="activeTrip.title"
       :description="tripHeaderDescription"
     >
-      <template #badge>
-        <StatusBadge tone="success">{{ activeTrip.status }}</StatusBadge>
-      </template>
       <template #actions>
         <div class="trip-view-toggle" aria-label="Trip board view">
           <button
@@ -107,7 +104,7 @@
               type="button"
               @click="openPlaceDrawer(place.id)"
             >
-              <PlaceCard :place="place" :completed="column.type === 'done'" />
+              <PlaceCard :place="place" />
             </button>
           </VueDraggable>
         </section>
@@ -297,6 +294,8 @@
         :existing-names="tripPlaces.map((place) => place.name)"
         @close="showAddModal = false"
         @add="onAddPlace"
+        @add-day="addDay"
+        @remove-day="removeDay"
       />
 
       <AskAiPanel />
@@ -306,6 +305,7 @@
 </template>
 
 <script setup lang="ts">
+import { nanoid } from 'nanoid'
 import { storeToRefs } from 'pinia'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { VueDraggable } from 'vue-draggable-plus'
@@ -318,7 +318,6 @@ import PlaceCard from '../components/trips/PlaceCard.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
 import BaseButton from '../components/ui/BaseButton.vue'
 import BaseInput from '../components/ui/BaseInput.vue'
-import StatusBadge from '../components/ui/StatusBadge.vue'
 import { useIsMobile } from '../composables/useIsMobile'
 import { useTripsStore } from '../stores/trips'
 import type { Place, PlaceCategory, TripColumn } from '../types'
@@ -365,11 +364,9 @@ const legendCategories = [
 
 const dayColumnColors = ['#2e9e62', '#4a7de0', '#ef7a3a']
 const emptyColumns: TripColumn[] = [
-  { id: 'planning', title: 'Planning', type: 'planning', placeIds: [] },
-  { id: 'day-1', title: 'Day 1', type: 'day', dayNumber: 1, placeIds: [] },
-  { id: 'day-2', title: 'Day 2', type: 'day', dayNumber: 2, placeIds: [] },
-  { id: 'day-3', title: 'Day 3', type: 'day', dayNumber: 3, placeIds: [] },
-  { id: 'done', title: 'Done', type: 'done', placeIds: [] },
+  { id: 'day-1', title: 'Day 1', dayNumber: 1, placeIds: [] },
+  { id: 'day-2', title: 'Day 2', dayNumber: 2, placeIds: [] },
+  { id: 'day-3', title: 'Day 3', dayNumber: 3, placeIds: [] },
 ]
 
 const activeTrip = computed(() => {
@@ -381,10 +378,9 @@ const displayedColumns = computed(() => (activeTrip.value.columns.length > 0 ? a
 const tripPlaces = computed(() => places.value.filter((place) => place.tripId === activeTrip.value.id))
 
 function resolveDefaultColumnId(columns: TripColumn[]) {
-  const firstDayWithPlaces = columns.find((column) => column.type === 'day' && column.placeIds.length > 0)
   const firstWithPlaces = columns.find((column) => column.placeIds.length > 0)
 
-  return firstDayWithPlaces?.id ?? firstWithPlaces?.id ?? columns[0]?.id ?? ''
+  return firstWithPlaces?.id ?? columns[0]?.id ?? ''
 }
 
 focusedColumnId.value = resolveDefaultColumnId(displayedColumns.value)
@@ -468,10 +464,7 @@ function onKeydown(event: KeyboardEvent) {
 }
 
 function columnColor(column: TripColumn) {
-  if (column.type === 'planning') return '#8161e6'
-  if (column.type === 'done') return '#2e9e62'
-
-  return dayColumnColors[((column.dayNumber ?? 1) - 1) % dayColumnColors.length]
+  return dayColumnColors[(column.dayNumber - 1) % dayColumnColors.length]
 }
 
 function getColumnPlaces(placeIds: string[]) {
@@ -491,7 +484,7 @@ function syncPlaceColumns() {
 
 function onDragEnd() {
   syncPlaceColumns()
-  tripsStore.recalcTripProgress(activeTrip.value)
+  tripsStore.recalcPlaceCount(activeTrip.value)
   isDraggingCard.value = false
 }
 
@@ -518,6 +511,41 @@ function openAddPlaceModal(columnId: string) {
 
 function onAddPlace(payload: { columnId: string; name: string; category: PlaceCategory; description: string }) {
   tripsStore.addPlace({ tripId: activeTrip.value.id, ...payload })
+}
+
+// Trips with no real columns yet render the emptyColumns fallback (see
+// displayedColumns) — build on top of whatever is currently shown so adding
+// or removing a day never silently drops the fallback's other days.
+function addDay() {
+  const nextDayNumber = displayedColumns.value.length + 1
+  // nanoid rather than `day-${nextDayNumber}` — after a mid-list day is
+  // removed and the rest renumbered, a position-based id could collide with
+  // a survivor that kept its original id.
+  activeTrip.value.columns = [
+    ...displayedColumns.value,
+    { id: `day-${nanoid(6)}`, dayNumber: nextDayNumber, title: `Day ${nextDayNumber}`, placeIds: [] },
+  ]
+  activeTrip.value.days = activeTrip.value.columns.length
+}
+
+// Deletes the day itself and every place on it (not a move — the confirm
+// prompt in AddPlaceModal is explicit that this is destructive), then
+// renumbers the remaining days so they stay sequential.
+function removeDay(columnId: string) {
+  const current = displayedColumns.value
+  const column = current.find((item) => item.id === columnId)
+  if (!column || current.length <= 1) return
+
+  const placeIdsToRemove = new Set(column.placeIds)
+  places.value = places.value.filter((place) => !placeIdsToRemove.has(place.id))
+
+  activeTrip.value.columns = current
+    .filter((item) => item.id !== columnId)
+    .map((item, index) => ({ ...item, dayNumber: index + 1, title: `Day ${index + 1}` }))
+  activeTrip.value.days = activeTrip.value.columns.length
+
+  if (drawerPlaceId.value && placeIdsToRemove.has(drawerPlaceId.value)) closeDrawer()
+  if (focusedColumnId.value === columnId) focusedColumnId.value = resolveDefaultColumnId(displayedColumns.value)
 }
 
 function removeDrawerPlace() {

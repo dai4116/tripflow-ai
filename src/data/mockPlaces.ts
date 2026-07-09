@@ -14,7 +14,7 @@ export const places: Place[] = [
     rating: '4.9',
     description: "Tokyo's oldest Buddhist temple, with the iconic Kaminarimon gate and Nakamise shopping street.",
     travelTip: 'Arrive before 8am to avoid crowds',
-    columnId: 'planning',
+    columnId: 'day-1',
     imageGradient: 'linear-gradient(135deg, #18233c, #c23b5c 50%, #f1a15f)',
   },
   {
@@ -29,7 +29,7 @@ export const places: Place[] = [
     lng: 139.7005,
     rating: '4.7',
     description: "The world's busiest pedestrian crossing — best paired with a nearby rooftop view.",
-    columnId: 'planning',
+    columnId: 'day-2',
     imageGradient: 'linear-gradient(135deg, #183c5d, #4a7de0 55%, #ff7a59)',
   },
   {
@@ -165,7 +165,7 @@ export const places: Place[] = [
     lng: 139.7798,
     rating: '5',
     description: 'Arrival logistics confirmed — lands at Haneda 15:40, airport limousine bus to Shinjuku.',
-    columnId: 'done',
+    columnId: 'day-1',
     imageGradient: 'linear-gradient(135deg, #dbe7ef, #8fb6d0 50%, #f9efe4)',
   },
   {
@@ -181,7 +181,7 @@ export const places: Place[] = [
     rating: '4.9',
     description: 'Park Hyatt Tokyo, Shinjuku — featured in Lost in Translation. Stunning skyline views.',
     travelTip: 'Ask for a Shinjuku-facing room — check-in from 3pm',
-    columnId: 'done',
+    columnId: 'day-1',
     imageGradient: 'linear-gradient(135deg, #6d4f3d, #c7935b 48%, #f7ead7)',
   },
 ]

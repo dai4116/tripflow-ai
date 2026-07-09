@@ -9,10 +9,7 @@
         <span class="place-card__rating"><AppIcon name="star" :size="11" />{{ place.rating }}</span>
         <span>{{ place.estimatedCost }}</span>
       </div>
-      <span v-if="completed" class="place-card__done">
-        <AppIcon name="check" :size="12" />Completed
-      </span>
-      <p v-else-if="place.travelTip" class="place-card__tip">{{ place.travelTip }}</p>
+      <p v-if="place.travelTip" class="place-card__tip">{{ place.travelTip }}</p>
     </div>
   </BaseCard>
 </template>
@@ -23,13 +20,7 @@ import AppIcon from '../ui/AppIcon.vue'
 import BaseCard from '../ui/BaseCard.vue'
 import CategoryChip from './CategoryChip.vue'
 
-withDefaults(
-  defineProps<{
-    place: Place
-    completed?: boolean
-  }>(),
-  {
-    completed: false,
-  },
-)
+defineProps<{
+  place: Place
+}>()
 </script>

@@ -11,6 +11,9 @@ export const icons = {
   plus: {
     body: `<path d="M12 5v14M5 12h14" ${STROKE} stroke-width="1.9"/>`,
   },
+  minus: {
+    body: `<path d="M5 12h14" ${STROKE} stroke-width="1.9"/>`,
+  },
   pin: {
     body: `<path d="M12 21s-6.5-5.4-6.5-10.2A6.5 6.5 0 0 1 12 4.2a6.5 6.5 0 0 1 6.5 6.6C18.5 15.6 12 21 12 21z" ${STROKE}/><circle cx="12" cy="10.8" r="2.1" fill="currentColor" stroke="none"/>`,
   },

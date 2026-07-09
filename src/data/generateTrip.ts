@@ -148,33 +148,22 @@ export function generateTrip(input: CreateTripInput, existingTripIds: string[]):
     return place
   }
 
-  const dayColumns: TripColumn[] = Array.from({ length: days }, (_, index) => {
+  const columns: TripColumn[] = Array.from({ length: days }, (_, index) => {
     const dayNumber = index + 1
     const columnId = `day-${dayNumber}`
     const placeIds = [0, 1].map((i) => addPlace(categories[(index * 2 + i) % categories.length], columnId).id)
 
-    return { id: columnId, title: `Day ${dayNumber}`, type: 'day', dayNumber, placeIds }
+    return { id: columnId, title: `Day ${dayNumber}`, dayNumber, placeIds }
   })
-
-  const planningColumn: TripColumn = {
-    id: 'planning',
-    title: 'Planning',
-    type: 'planning',
-    placeIds: [0, 1].map((i) => addPlace(categories[i % categories.length], 'planning').id),
-  }
-
-  const columns: TripColumn[] = [planningColumn, ...dayColumns, { id: 'done', title: 'Done', type: 'done', placeIds: [] }]
 
   const trip: Trip = {
     id: tripId,
     title: `${city} Trip`,
     destination: input.destination,
-    status: 'planning',
     days,
     travelers: input.travelers,
     budget: formatBudget(input.budget),
     placeCount: places.length,
-    progress: 0,
     color: palette.color,
     imageGradient: palette.imageGradient,
     dateRange: 'Dates TBD',

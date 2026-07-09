@@ -1,5 +1,3 @@
-export type TripStatus = 'active' | 'planning' | 'done'
-
 export type TripPace = 'relaxed' | 'balanced' | 'packed'
 
 export type PlaceCategory =
@@ -17,8 +15,7 @@ export type PlaceCategory =
 export type TripColumn = {
   id: string
   title: string
-  type: 'planning' | 'day' | 'done'
-  dayNumber?: number
+  dayNumber: number
   placeIds: string[]
 }
 
@@ -26,12 +23,10 @@ export type TripSummary = {
   id: string
   title: string
   destination: string
-  status: TripStatus
   days: number
   travelers: number
   budget: string
   placeCount: number
-  progress: number
   color: string
   imageGradient: string
 }

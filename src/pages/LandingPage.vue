@@ -58,9 +58,6 @@
           <span class="landing-mobile-trip__image" :style="{ background: trip.imageGradient }" />
           <strong>{{ trip.title }}</strong>
           <small>⌖ {{ trip.destination }}</small>
-          <span class="landing-mobile-trip__progress">
-            <i :style="{ width: `${trip.progress}%` }" />
-          </span>
         </RouterLink>
       </div>
     </section>
