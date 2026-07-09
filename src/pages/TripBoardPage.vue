@@ -37,11 +37,25 @@
       </template>
     </PageHeader>
 
-    <div class="board-workspace">
+    <Transition name="board-reveal" mode="out-in">
+      <div
+        v-if="showSkeleton"
+        key="skeleton"
+        class="kanban-skeleton"
+        role="status"
+        aria-label="Generating your itinerary board"
+      >
+        <div v-for="column in displayedColumns" :key="column.id" class="kanban-skeleton__column">
+          <div class="kanban-skeleton__header" />
+          <div v-for="n in Math.max(column.placeIds.length, 1)" :key="n" class="kanban-skeleton__card" />
+        </div>
+      </div>
+
+      <div v-else key="board" class="board-workspace">
       <div
         v-if="!isMobile || mobileView === 'board'"
         class="kanban-board"
-        :class="{ 'kanban-board--dragging': isDraggingCard }"
+        :class="{ 'kanban-board--dragging': isDraggingCard, 'kanban-board--fresh-enter': isFreshEntry }"
         :aria-label="`${activeTrip.title} board`"
       >
         <section
@@ -50,9 +64,18 @@
           class="kanban-column"
         >
           <header class="kanban-column__header">
-            <span class="kanban-column__dot" :style="{ backgroundColor: columnColor(column) }" />
-            <span class="kanban-column__title">{{ column.title }}</span>
-            <span class="kanban-column__count">{{ column.placeIds.length }}</span>
+            <button
+              type="button"
+              class="kanban-column__focus"
+              :class="{ 'kanban-column__focus--active': focusedColumnId === column.id }"
+              :aria-pressed="focusedColumnId === column.id"
+              :aria-label="`Show ${column.title} on the map`"
+              @click="focusColumn(column.id)"
+            >
+              <span class="kanban-column__dot" :style="{ backgroundColor: columnColor(column) }" />
+              <span class="kanban-column__title">{{ column.title }}</span>
+              <span class="kanban-column__count">{{ column.placeIds.length }}</span>
+            </button>
             <button
               class="kanban-column__quick-add"
               type="button"
@@ -105,7 +128,7 @@
         </div>
         <div class="map-panel__canvas">
           <svg class="map-panel__route" viewBox="0 0 340 560" preserveAspectRatio="none" aria-hidden="true">
-            <path d="M96 138 C 140 180, 200 170, 214 232 S 150 330, 122 356" />
+            <path v-if="routePathD" :d="routePathD" />
           </svg>
           <button
             v-for="(place, index) in tripPlaces"
@@ -113,7 +136,10 @@
             class="map-pin"
             :class="[
               `map-pin--${place.category}`,
-              { 'map-pin--selected': selectedPlaceId === place.id },
+              {
+                'map-pin--selected': selectedPlaceId === place.id,
+                'map-pin--dim': hasFocusHighlight && !isPlaceFocused(place.id),
+              },
             ]"
             type="button"
             :style="markerPosition(index)"
@@ -122,6 +148,7 @@
             @click="openPlaceDrawer(place.id)"
           >
             <AppIcon name="pin-solid" :size="24" />
+            <span v-if="focusOrder(place.id)" class="map-pin__order">{{ focusOrder(place.id) }}</span>
           </button>
           <span class="map-panel__coord">{{ activeTrip.destination.toUpperCase() }}</span>
         </div>
@@ -204,7 +231,8 @@
       </Transition>
 
       <AskAiPanel />
-    </div>
+      </div>
+    </Transition>
   </section>
 </template>
 
@@ -212,7 +240,7 @@
 import { storeToRefs } from 'pinia'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { VueDraggable } from 'vue-draggable-plus'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '../components/layout/PageHeader.vue'
 import AskAiPanel from '../components/trips/AskAiPanel.vue'
 import CategoryChip from '../components/trips/CategoryChip.vue'
@@ -222,15 +250,23 @@ import BaseButton from '../components/ui/BaseButton.vue'
 import StatusBadge from '../components/ui/StatusBadge.vue'
 import { useIsMobile } from '../composables/useIsMobile'
 import { useTripsStore } from '../stores/trips'
-import type { TripColumn } from '../types'
+import type { Place, TripColumn } from '../types'
 
 const route = useRoute()
-const isMobile = useIsMobile()
+const router = useRouter()
+// Must match the CSS breakpoint where .board-workspace switches from a
+// side-by-side grid to a single Board/Map pane (see global.scss) — below
+// this width there's no room to show both, so the toggle takes over.
+const isMobile = useIsMobile(1100)
 const { trips, places } = storeToRefs(useTripsStore())
 const mobileView = ref<'board' | 'map'>('board')
 const selectedPlaceId = ref<string | null>(null)
 const drawerPlaceId = ref<string | null>(null)
 const isDraggingCard = ref(false)
+const focusedColumnId = ref('')
+const isFreshEntry = ref(route.query.fresh === '1')
+const showSkeleton = ref(isFreshEntry.value)
+const BOARD_SKELETON_DURATION = 650
 
 const legendCategories = [
   { key: 'culture', label: 'Culture' },
@@ -259,6 +295,42 @@ const activeTrip = computed(() => {
 const displayedColumns = computed(() => (activeTrip.value.columns.length > 0 ? activeTrip.value.columns : emptyColumns))
 const tripPlaces = computed(() => places.value.filter((place) => place.tripId === activeTrip.value.id))
 
+function resolveDefaultColumnId(columns: TripColumn[]) {
+  const firstDayWithPlaces = columns.find((column) => column.type === 'day' && column.placeIds.length > 0)
+  const firstWithPlaces = columns.find((column) => column.placeIds.length > 0)
+
+  return firstDayWithPlaces?.id ?? firstWithPlaces?.id ?? columns[0]?.id ?? ''
+}
+
+focusedColumnId.value = resolveDefaultColumnId(displayedColumns.value)
+
+const focusedPlaces = computed(() => {
+  const column = displayedColumns.value.find((item) => item.id === focusedColumnId.value)
+  if (!column) return []
+
+  return column.placeIds
+    .map((placeId) => tripPlaces.value.find((place) => place.id === placeId))
+    .filter((place): place is Place => place !== undefined)
+})
+const hasFocusHighlight = computed(() => focusedPlaces.value.length > 0)
+
+const ROUTE_VIEWBOX = { width: 340, height: 560 }
+const routePathD = computed(() => {
+  const points = focusedPlaces.value.map((place) => {
+    const index = tripPlaces.value.findIndex((item) => item.id === place.id)
+    const position = markerPosition(index)
+
+    return {
+      x: (Number.parseFloat(position.left) / 100) * ROUTE_VIEWBOX.width,
+      y: (Number.parseFloat(position.top) / 100) * ROUTE_VIEWBOX.height,
+    }
+  })
+
+  if (points.length < 2) return ''
+
+  return points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(' ')
+})
+
 const tripHeaderDescription = computed(() => {
   if (isMobile.value) return activeTrip.value.destination
 
@@ -281,11 +353,19 @@ watch(
   () => {
     selectedPlaceId.value = null
     drawerPlaceId.value = null
+    focusedColumnId.value = resolveDefaultColumnId(displayedColumns.value)
   },
 )
 
 onMounted(() => {
   window.addEventListener('keydown', onKeydown)
+
+  if (isFreshEntry.value) {
+    window.setTimeout(() => {
+      showSkeleton.value = false
+      router.replace({ path: route.path })
+    }, BOARD_SKELETON_DURATION)
+  }
 })
 
 onBeforeUnmount(() => {
@@ -328,10 +408,27 @@ function onDragEnd() {
 function openPlaceDrawer(placeId: string) {
   selectedPlaceId.value = placeId
   drawerPlaceId.value = placeId
+
+  const place = tripPlaces.value.find((item) => item.id === placeId)
+  if (place) focusedColumnId.value = place.columnId
 }
 
 function closeDrawer() {
   drawerPlaceId.value = null
+}
+
+function focusColumn(columnId: string) {
+  focusedColumnId.value = columnId
+}
+
+function isPlaceFocused(placeId: string) {
+  return focusedPlaces.value.some((place) => place.id === placeId)
+}
+
+function focusOrder(placeId: string): number | null {
+  const index = focusedPlaces.value.findIndex((place) => place.id === placeId)
+
+  return index === -1 ? null : index + 1
 }
 
 function viewOnMap() {
@@ -345,23 +442,44 @@ function getPlaceDay(columnId: string) {
   return column?.title ?? 'Planning'
 }
 
-function markerPosition(index: number) {
-  const positions = [
-    ['25%', '28%'],
-    ['64%', '36%'],
-    ['41%', '63%'],
-    ['22%', '70%'],
-    ['35%', '31%'],
-    ['57%', '24%'],
-    ['50%', '30%'],
-    ['44%', '44%'],
-    ['31%', '58%'],
-    ['76%', '66%'],
-    ['52%', '41%'],
-    ['68%', '52%'],
-  ]
-  const [top, left] = positions[index] ?? ['50%', '50%']
+const CURATED_MARKER_POSITIONS = [
+  ['25%', '28%'],
+  ['64%', '36%'],
+  ['41%', '63%'],
+  ['22%', '70%'],
+  ['35%', '31%'],
+  ['57%', '24%'],
+  ['50%', '30%'],
+  ['44%', '44%'],
+  ['31%', '58%'],
+  ['76%', '66%'],
+  ['52%', '41%'],
+  ['68%', '52%'],
+]
 
-  return { top, left }
+// AI-generated trips can have more places than the curated table above —
+// spiral the overflow out at the golden angle so pins stay spread out and
+// in-bounds instead of collapsing onto a single fallback point.
+function overflowMarkerPosition(index: number) {
+  const goldenAngleRad = (137.508 * Math.PI) / 180
+  const angle = index * goldenAngleRad
+  const radius = 12 + (index % 7) * 6
+  const clamp = (value: number) => Math.min(84, Math.max(10, value))
+
+  return {
+    top: `${clamp(46 + radius * Math.sin(angle) * 0.9).toFixed(1)}%`,
+    left: `${clamp(46 + radius * Math.cos(angle)).toFixed(1)}%`,
+  }
+}
+
+function markerPosition(index: number) {
+  const curated = CURATED_MARKER_POSITIONS[index]
+  if (curated) {
+    const [top, left] = curated
+
+    return { top, left }
+  }
+
+  return overflowMarkerPosition(index)
 }
 </script>

@@ -1505,6 +1505,114 @@ h3 {
   text-align: center;
 }
 
+.generating-card {
+  padding: 0;
+}
+
+.generating {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 56px 24px 48px;
+  text-align: center;
+}
+
+.generating__badge {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  margin-bottom: 6px;
+  border-radius: $radius-pill;
+  background: $color-primary-soft;
+  color: $color-primary-text;
+  animation: generating-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes generating-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.08);
+  }
+}
+
+.generating__title {
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.generating__subtitle {
+  margin: 0;
+  color: $color-muted;
+  font-size: 13px;
+}
+
+.generating__stages {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  max-width: 340px;
+  margin: 22px 0 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+
+.generating__stage {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 4px;
+  color: $color-subtle;
+  font-size: 13.5px;
+  font-weight: 600;
+  transition: color 200ms ease;
+}
+
+.generating__stage-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid $color-border;
+  border-radius: $radius-pill;
+  color: $color-subtle;
+  transition:
+    border-color 200ms ease,
+    background 200ms ease,
+    color 200ms ease;
+}
+
+.generating__spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba($color-primary, 0.25);
+  border-top-color: $color-primary;
+  border-radius: $radius-pill;
+  animation: spin 700ms linear infinite;
+}
+
+.generating__stage--active,
+.generating__stage--done {
+  color: $color-ink;
+}
+
+.generating__stage--active .generating__stage-icon {
+  border-color: $color-primary;
+}
+
+.generating__stage--done .generating__stage-icon {
+  border-color: $color-success;
+  background: $color-success;
+  color: $color-surface;
+}
+
 // ---------------------------------------------------------------------------
 // Trip board
 // ---------------------------------------------------------------------------
@@ -1551,22 +1659,140 @@ h3 {
   background: $color-bg;
 }
 
+.kanban-board--fresh-enter .kanban-column {
+  animation: column-enter 360ms ease both;
+}
+
+@for $i from 1 through 5 {
+  .kanban-board--fresh-enter .kanban-column:nth-child(#{$i}) {
+    animation-delay: ($i - 1) * 60ms;
+  }
+}
+
+.kanban-board--fresh-enter .kanban-column:nth-child(n + 6) {
+  animation-delay: 300ms;
+}
+
+@keyframes column-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .kanban-column {
   display: grid;
   align-content: start;
   gap: 10px;
 }
 
+// board skeleton (shown briefly right after AI generation)
+
+.board-reveal-enter-active,
+.board-reveal-leave-active {
+  transition: opacity 200ms ease;
+}
+
+.board-reveal-enter-from,
+.board-reveal-leave-to {
+  opacity: 0;
+}
+
+.kanban-skeleton {
+  display: grid;
+  grid-auto-columns: 236px;
+  grid-auto-flow: column;
+  gap: 14px;
+  align-items: start;
+  overflow: hidden;
+  padding: 20px 22px 28px;
+  background: $color-bg;
+}
+
+.kanban-skeleton__column {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.kanban-skeleton__header,
+.kanban-skeleton__card {
+  border-radius: $radius-md;
+  background: linear-gradient(90deg, $color-surface-soft 25%, $color-surface 50%, $color-surface-soft 75%);
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+}
+
+.kanban-skeleton__header {
+  width: 60%;
+  height: 22px;
+  border-radius: $radius-sm;
+}
+
+.kanban-skeleton__card {
+  height: 150px;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+
+  100% {
+    background-position: -100% 0;
+  }
+}
+
 .kanban-column__header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 2px 2px 2px 4px;
+  gap: 4px;
   color: $color-muted;
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+}
+
+.kanban-column__focus {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 4px 6px 4px 4px;
+  border: 0;
+  border-radius: $radius-sm;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  text-transform: inherit;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.kanban-column__focus:hover {
+  background: $color-surface-soft;
+}
+
+.kanban-column__focus:focus-visible {
+  @include focus-ring;
+}
+
+.kanban-column__focus--active {
+  background: $color-primary-soft;
+}
+
+.kanban-column__focus--active .kanban-column__title {
+  color: $color-primary-text;
 }
 
 .kanban-column__dot {
@@ -1729,7 +1955,9 @@ h3 {
   line-height: 0;
   transform: translate(-50%, -100%);
   filter: drop-shadow(0 2px 3px rgba($color-ink, 0.3));
-  transition: transform 130ms ease;
+  transition:
+    transform 130ms ease,
+    opacity 160ms ease;
 }
 
 .map-pin:hover,
@@ -1741,9 +1969,29 @@ h3 {
   filter: drop-shadow(0 0 3px rgba($color-primary, 0.55)) drop-shadow(0 3px 5px rgba($color-ink, 0.35));
 }
 
+.map-pin--dim {
+  opacity: 0.34;
+}
+
+.map-pin--dim:hover {
+  opacity: 0.7;
+}
+
 .map-pin:focus-visible {
   @include focus-ring;
   border-radius: $radius-pill;
+}
+
+.map-pin__order {
+  position: absolute;
+  top: 34%;
+  left: 50%;
+  color: currentColor;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
 }
 
 .map-panel__legend {
@@ -1994,15 +2242,15 @@ h3 {
   padding: 12px 18px;
   border: 0;
   border-radius: $radius-pill;
-  background: $color-primary;
+  background: $color-dusk;
   color: $color-surface;
   font-size: $font-size-sm;
   font-weight: 750;
-  box-shadow: $shadow-primary;
+  box-shadow: $shadow-md;
+  transition: box-shadow 160ms ease;
 }
 
 .ask-ai-launcher--open {
-  background: $color-ink;
   box-shadow: $shadow-lg;
 }
 
@@ -2271,13 +2519,53 @@ h3 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .landing-hero,
-  .board-workspace {
+  .landing-hero {
     grid-template-columns: 1fr;
   }
 
+  // Below this width there's no room to show the Kanban board and the map
+  // side by side — fall back to the same Board/Map toggle pattern used on
+  // mobile, one full-width pane at a time, instead of squeezing both in.
+  .trip-view-toggle {
+    display: grid;
+    width: min(160px, 30vw);
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2px;
+    padding: 3px;
+    border-radius: $radius-pill;
+    background: $color-surface-soft;
+  }
+
+  .trip-view-toggle button {
+    min-height: 32px;
+    border: 0;
+    border-radius: $radius-pill;
+    background: transparent;
+    color: $color-muted;
+    font-size: $font-size-xs;
+    font-weight: 750;
+  }
+
+  .trip-view-toggle__button--active {
+    background: $color-primary !important;
+    color: $color-surface !important;
+    box-shadow: $shadow-primary;
+  }
+
+  .board-workspace {
+    display: block;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .kanban-board,
   .map-panel {
-    min-height: 420px;
+    width: 100%;
+    height: 100%;
+  }
+
+  .map-panel {
     border-left: 0;
     border-top: 1px solid $color-border;
   }

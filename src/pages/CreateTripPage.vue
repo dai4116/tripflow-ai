@@ -8,7 +8,7 @@
       back-label="Back to dashboard"
     />
 
-    <form class="trip-form" @submit.prevent="generateTrip">
+    <form v-if="!isGenerating" class="trip-form" @submit.prevent="generateTrip">
       <BaseCard class="form-card">
         <BaseInput
           v-model="form.destination"
@@ -78,23 +78,47 @@
         />
       </BaseCard>
 
-      <BaseButton
-        class="trip-form__submit"
-        type="submit"
-        :loading="isGenerating"
-      >
-        <AppIcon v-if="!isGenerating" name="sparkle" :size="15" />
-        {{ isGenerating ? 'Generating itinerary...' : 'Generate with AI' }}
+      <BaseButton class="trip-form__submit" type="submit">
+        <AppIcon name="sparkle" :size="15" />
+        Generate with AI
       </BaseButton>
       <p class="trip-form__note">
         AI builds a 7-day board · curated places · optimized route
       </p>
     </form>
+
+    <BaseCard v-else class="form-card generating-card">
+      <div class="generating">
+        <span class="generating__badge">
+          <AppIcon name="sparkle" :size="22" />
+        </span>
+        <h2 class="generating__title">Building your {{ cityLabel }} itinerary</h2>
+        <p class="generating__subtitle">This usually takes a few seconds…</p>
+
+        <ol class="generating__stages">
+          <li
+            v-for="(stage, index) in stages"
+            :key="stage"
+            class="generating__stage"
+            :class="{
+              'generating__stage--done': index < currentStageIndex,
+              'generating__stage--active': index === currentStageIndex,
+            }"
+          >
+            <span class="generating__stage-icon">
+              <AppIcon v-if="index < currentStageIndex" name="check" :size="11" />
+              <span v-else-if="index === currentStageIndex" class="generating__spinner" />
+            </span>
+            {{ stage }}
+          </li>
+        </ol>
+      </div>
+    </BaseCard>
   </section>
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import PageHeader from '../components/layout/PageHeader.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
@@ -105,9 +129,12 @@ import type { IconName } from '../components/ui/icons'
 import { preferences, travelStyles } from '../data/mockPreferences'
 import { useTripsStore } from '../stores/trips'
 
+const STAGE_DURATION = 550
+
 const router = useRouter()
 const tripsStore = useTripsStore()
 const isGenerating = ref(false)
+const currentStageIndex = ref(0)
 const destinationError = ref('')
 const selectedPreferences = ref(['Museums', 'Local Food', 'Architecture'])
 const form = reactive({
@@ -119,7 +146,15 @@ const form = reactive({
   avoidPlaces: '',
 })
 
-let redirectTimer: number | undefined
+const cityLabel = computed(() => form.destination.split(',')[0].trim() || 'your')
+const stages = computed(() => [
+  'Reading your preferences',
+  `Scouting places in ${cityLabel.value}`,
+  'Building your day-by-day plan',
+  'Optimizing your route',
+])
+
+let stageTimer: number | undefined
 
 function selectTravelStyle(style: string) {
   form.travelStyle = style
@@ -157,23 +192,37 @@ function generateTrip() {
 
   destinationError.value = ''
   isGenerating.value = true
-  redirectTimer = window.setTimeout(() => {
-    const trip = tripsStore.createTrip({
-      destination: form.destination.trim(),
-      duration: Number(form.duration) || 7,
-      budget: form.budget,
-      travelers: Number(form.travelers) || 1,
-      travelStyle: form.travelStyle,
-      avoidPlaces: form.avoidPlaces,
-      preferences: selectedPreferences.value,
-    })
-    router.push({ name: 'trip-board', params: { tripId: trip.id } })
-  }, 1500)
+  currentStageIndex.value = 0
+  advanceStage()
+}
+
+function advanceStage() {
+  stageTimer = window.setTimeout(() => {
+    currentStageIndex.value += 1
+    if (currentStageIndex.value >= stages.value.length) {
+      finishGeneration()
+    } else {
+      advanceStage()
+    }
+  }, STAGE_DURATION)
+}
+
+function finishGeneration() {
+  const trip = tripsStore.createTrip({
+    destination: form.destination.trim(),
+    duration: Number(form.duration) || 7,
+    budget: form.budget,
+    travelers: Number(form.travelers) || 1,
+    travelStyle: form.travelStyle,
+    avoidPlaces: form.avoidPlaces,
+    preferences: selectedPreferences.value,
+  })
+  router.push({ name: 'trip-board', params: { tripId: trip.id }, query: { fresh: '1' } })
 }
 
 onBeforeUnmount(() => {
-  if (redirectTimer) {
-    window.clearTimeout(redirectTimer)
+  if (stageTimer) {
+    window.clearTimeout(stageTimer)
   }
 })
 </script>
