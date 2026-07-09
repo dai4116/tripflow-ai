@@ -8,7 +8,7 @@ const TRIP_PALETTE = [
   { color: '#4a7de0', imageGradient: 'linear-gradient(135deg, #182a4d, #4a7de0 50%, #d5e2f8)' },
 ]
 
-const PLACE_GRADIENTS = [
+export const PLACE_GRADIENTS = [
   'linear-gradient(135deg, #18233c, #c23b5c 50%, #f1a15f)',
   'linear-gradient(135deg, #183c5d, #4a7de0 55%, #ff7a59)',
   'linear-gradient(135deg, #22465c, #d96b4b 45%, #f3d0bb)',
@@ -80,6 +80,17 @@ const CATEGORY_TEMPLATES: Partial<Record<PlaceCategory, (city: string) => Catego
     { name: `Evening Cruise in ${city}`, description: 'See the city from the water as the sun sets.' },
     { name: `${city} Live Music Venue`, description: 'Local sounds and a lively late-night crowd.' },
   ],
+}
+
+export type PlaceSuggestion = { category: PlaceCategory; name: string; description: string }
+
+// Same curated templates AI generation draws from — reused so manually added
+// places read consistently with generated ones instead of needing a second
+// content source.
+export function suggestedPlacesForCity(city: string): PlaceSuggestion[] {
+  return (Object.keys(CATEGORY_TEMPLATES) as PlaceCategory[]).flatMap((category) =>
+    CATEGORY_TEMPLATES[category]!(city).map((template) => ({ category, ...template })),
+  )
 }
 
 function slugify(text: string): string {

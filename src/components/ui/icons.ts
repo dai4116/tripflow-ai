@@ -5,9 +5,6 @@ export const icons = {
   compass: {
     body: `<circle cx="12" cy="12" r="9" ${STROKE}/><path d="M15 9l-2 5-4 1 2-5z" fill="currentColor" stroke="none"/>`,
   },
-  board: {
-    body: `<rect x="4" y="4" width="7" height="16" rx="1.6" ${STROKE}/><rect x="14" y="4" width="7" height="10" rx="1.6" ${STROKE}/>`,
-  },
   grid: {
     body: `<rect x="4" y="4" width="7" height="7" rx="1.6" ${STROKE}/><rect x="13" y="4" width="7" height="7" rx="1.6" ${STROKE}/><rect x="4" y="13" width="7" height="7" rx="1.6" ${STROKE}/><rect x="13" y="13" width="7" height="7" rx="1.6" ${STROKE}/>`,
   },
@@ -89,6 +86,18 @@ export const icons = {
   },
   'chevron-left': {
     body: `<path d="M14.5 5.5L8 12l6.5 6.5" ${STROKE} stroke-width="1.9"/>`,
+  },
+  trash: {
+    body: `<path d="M5 7h14M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m-9 0 1 12.5A1.5 1.5 0 0 0 8.5 21h7a1.5 1.5 0 0 0 1.5-1.5L18 7M10 11v6M14 11v6" ${STROKE}/>`,
+  },
+  edit: {
+    body: `<path d="M15.5 4.5l4 4L8 20H4v-4z" ${STROKE}/>`,
+  },
+  list: {
+    body: `<circle cx="5" cy="6" r="1.3" fill="currentColor" stroke="none"/><circle cx="5" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="5" cy="18" r="1.3" fill="currentColor" stroke="none"/><path d="M9.5 6h10M9.5 12h10M9.5 18h10" ${STROKE}/>`,
+  },
+  'chat-sparkle': {
+    body: `<rect x="3" y="4.5" width="17" height="11" rx="5" ${STROKE}/><path d="M8 15.5v3.7l4.6-3.7" ${STROKE}/><path d="M18.5 3l1 2.2 2.2 1-2.2 1-1 2.2-1-2.2-2.2-1 2.2-1z" fill="currentColor" stroke="none"/>`,
   },
 } satisfies Record<string, { body: string; tall?: boolean }>
 

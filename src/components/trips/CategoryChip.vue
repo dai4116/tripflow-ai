@@ -5,17 +5,11 @@
   </span>
 </template>
 
-<script setup lang="ts">
-import { computed } from 'vue'
+<script lang="ts">
 import type { PlaceCategory } from '../../types'
-import AppIcon from '../ui/AppIcon.vue'
 import type { IconName } from '../ui/icons'
 
-const props = defineProps<{
-  category: PlaceCategory
-}>()
-
-const categoryIcons: Record<PlaceCategory, IconName> = {
+export const categoryIcons: Record<PlaceCategory, IconName> = {
   food: 'cutlery',
   cafe: 'coffee',
   shopping: 'bag',
@@ -28,7 +22,7 @@ const categoryIcons: Record<PlaceCategory, IconName> = {
   other: 'sparkle',
 }
 
-const categoryLabels: Record<PlaceCategory, string> = {
+export const categoryLabels: Record<PlaceCategory, string> = {
   food: 'Food',
   cafe: 'Cafe',
   shopping: 'Shopping',
@@ -40,6 +34,18 @@ const categoryLabels: Record<PlaceCategory, string> = {
   activity: 'Activity',
   other: 'Other',
 }
+
+export const allPlaceCategories = Object.keys(categoryLabels) as PlaceCategory[]
+</script>
+
+<script setup lang="ts">
+import { computed } from 'vue'
+import type { PlaceCategory as PlaceCategoryProp } from '../../types'
+import AppIcon from '../ui/AppIcon.vue'
+
+const props = defineProps<{
+  category: PlaceCategoryProp
+}>()
 
 const categoryIcon = computed(() => categoryIcons[props.category])
 const categoryLabel = computed(() => categoryLabels[props.category])

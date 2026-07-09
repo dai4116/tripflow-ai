@@ -12,7 +12,7 @@
         <span>Dashboard</span>
       </RouterLink>
       <RouterLink :to="{ name: 'trips' }">
-        <AppIcon name="board" />
+        <AppIcon name="list" />
         <span>Trips</span>
       </RouterLink>
       <RouterLink :to="{ name: 'trip-create' }">

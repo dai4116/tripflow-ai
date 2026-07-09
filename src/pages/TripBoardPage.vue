@@ -12,28 +12,33 @@
           <button
             type="button"
             :class="{ 'trip-view-toggle__button--active': mobileView === 'board' }"
+            aria-label="Board view"
             @click="mobileView = 'board'"
           >
-            Board
+            <AppIcon name="list" :size="15" />
           </button>
           <button
             type="button"
             :class="{ 'trip-view-toggle__button--active': mobileView === 'map' }"
+            aria-label="Map view"
             @click="mobileView = 'map'"
           >
-            Map
+            <AppIcon name="pin" :size="15" />
           </button>
         </div>
-        <template v-if="!isMobile">
-          <BaseButton variant="secondary" size="sm">
-            <AppIcon name="filter" :size="13" />
-            Filter
-          </BaseButton>
-          <BaseButton size="sm">
-            <AppIcon name="plus" :size="13" />
-            Add place
-          </BaseButton>
-        </template>
+        <BaseButton v-if="!isMobile" variant="secondary" size="sm">
+          <AppIcon name="filter" :size="13" />
+          Filter
+        </BaseButton>
+        <BaseButton
+          variant="accent"
+          size="sm"
+          class="page-header__add-place"
+          @click="openAddPlaceModal(resolveDefaultColumnId(displayedColumns))"
+        >
+          <AppIcon name="plus" :size="13" />
+          <span v-if="!isMobile">Add place</span>
+        </BaseButton>
       </template>
     </PageHeader>
 
@@ -76,13 +81,6 @@
               <span class="kanban-column__title">{{ column.title }}</span>
               <span class="kanban-column__count">{{ column.placeIds.length }}</span>
             </button>
-            <button
-              class="kanban-column__quick-add"
-              type="button"
-              :aria-label="`Add place to ${column.title}`"
-            >
-              <AppIcon name="plus" :size="13" />
-            </button>
           </header>
 
           <VueDraggable
@@ -112,8 +110,6 @@
               <PlaceCard :place="place" :completed="column.type === 'done'" />
             </button>
           </VueDraggable>
-
-          <button class="kanban-column__add" type="button">＋ Add place</button>
         </section>
       </div>
 
@@ -179,56 +175,129 @@
           <button class="place-drawer__close" type="button" aria-label="Close drawer" @click="closeDrawer">
             <AppIcon name="close" :size="13" />
           </button>
+          <button
+            v-if="!isEditingPlace"
+            class="place-drawer__edit-toggle"
+            type="button"
+            aria-label="Edit place details"
+            @click="startEdit"
+          >
+            <AppIcon name="edit" :size="13" />
+          </button>
           <div class="place-drawer__image" :style="{ background: drawerPlace.imageGradient }">
             <h2>{{ drawerPlace.name }}</h2>
           </div>
 
           <div class="place-drawer__content">
-            <div class="place-drawer__title-row">
-              <CategoryChip :category="drawerPlace.category" />
-              <strong class="place-drawer__rating">
-                <AppIcon name="star" :size="12" />
-                {{ drawerPlace.rating }} <span>/ 5.0</span>
-              </strong>
-            </div>
+            <template v-if="!isEditingPlace">
+              <div class="place-drawer__title-row">
+                <CategoryChip :category="drawerPlace.category" />
+                <strong class="place-drawer__rating">
+                  <AppIcon name="star" :size="12" />
+                  {{ drawerPlace.rating }} <span>/ 5.0</span>
+                </strong>
+              </div>
 
-            <p class="place-drawer__description">{{ drawerPlace.description }}</p>
+              <p class="place-drawer__description">{{ drawerPlace.description }}</p>
 
-            <div class="place-drawer__facts">
-              <div class="place-drawer__fact">
-                <span>Duration</span>
-                <strong>{{ drawerPlace.estimatedTime }}h</strong>
+              <div class="place-drawer__facts">
+                <div class="place-drawer__fact">
+                  <span>Duration</span>
+                  <strong>{{ drawerPlace.estimatedTime }}h</strong>
+                </div>
+                <div class="place-drawer__fact">
+                  <span>Price</span>
+                  <strong>{{ drawerPlace.estimatedCost }}</strong>
+                </div>
+                <div class="place-drawer__fact">
+                  <span>Day</span>
+                  <strong>{{ getPlaceDay(drawerPlace.columnId) }}</strong>
+                </div>
+                <div class="place-drawer__fact">
+                  <span>Category</span>
+                  <strong>{{ drawerPlace.category }}</strong>
+                </div>
               </div>
-              <div class="place-drawer__fact">
-                <span>Price</span>
-                <strong>{{ drawerPlace.estimatedCost }}</strong>
-              </div>
-              <div class="place-drawer__fact">
-                <span>Day</span>
-                <strong>{{ getPlaceDay(drawerPlace.columnId) }}</strong>
-              </div>
-              <div class="place-drawer__fact">
-                <span>Category</span>
-                <strong>{{ drawerPlace.category }}</strong>
-              </div>
-            </div>
 
-            <div v-if="drawerPlace.travelTip" class="place-drawer__tip">
-              <AppIcon name="sparkle" :size="15" />
-              <div>
-                <b>Travel tip</b>
-                {{ drawerPlace.travelTip }}
+              <div v-if="drawerPlace.travelTip" class="place-drawer__tip">
+                <AppIcon name="sparkle" :size="15" />
+                <div>
+                  <b>Travel tip</b>
+                  {{ drawerPlace.travelTip }}
+                </div>
               </div>
-            </div>
 
-            <div class="place-drawer__actions">
-              <BaseButton @click="viewOnMap">View on map</BaseButton>
-              <BaseButton variant="secondary">Move day</BaseButton>
-              <BaseButton class="place-drawer__remove" variant="ghost">Remove place</BaseButton>
+              <div class="place-drawer__actions">
+                <BaseButton @click="viewOnMap">View on map</BaseButton>
+                <div class="place-drawer__move-wrap">
+                  <BaseButton variant="secondary" @click="isMoveMenuOpen = !isMoveMenuOpen">Move day</BaseButton>
+                  <div v-if="isMoveMenuOpen" class="place-drawer__move-menu" role="menu">
+                    <button
+                      v-for="column in displayedColumns"
+                      :key="column.id"
+                      type="button"
+                      class="place-drawer__move-option"
+                      role="menuitem"
+                      :disabled="column.id === drawerPlace.columnId"
+                      @click="moveDrawerPlaceTo(column.id)"
+                    >
+                      {{ column.title }}
+                    </button>
+                  </div>
+                </div>
+                <BaseButton class="place-drawer__remove" variant="ghost" @click="removeDrawerPlace">Remove place</BaseButton>
+              </div>
+              <button
+                v-if="isMoveMenuOpen"
+                class="place-drawer__move-backdrop"
+                type="button"
+                aria-label="Close move menu"
+                @click="isMoveMenuOpen = false"
+              />
+            </template>
+
+            <div v-else class="place-drawer__edit-form">
+              <BaseInput v-model="editForm.name" label="Name" placeholder="Place name" />
+
+              <div class="add-place-modal__pills">
+                <button
+                  v-for="category in allPlaceCategories"
+                  :key="category"
+                  type="button"
+                  class="preference-chip"
+                  :class="{ 'preference-chip--selected': editForm.category === category }"
+                  @click="editForm.category = category"
+                >
+                  {{ categoryLabels[category] }}
+                </button>
+              </div>
+
+              <div class="place-drawer__edit-row">
+                <BaseInput v-model="editForm.estimatedTime" type="number" label="Duration (h)" :min="0" />
+                <BaseInput v-model="editForm.estimatedCost" label="Price" placeholder="$$" />
+              </div>
+
+              <BaseInput v-model="editForm.description" label="Description" multiline :rows="3" />
+              <BaseInput v-model="editForm.travelTip" label="Travel tip (optional)" placeholder="Optional tip" />
+
+              <div class="place-drawer__edit-actions">
+                <BaseButton variant="secondary" @click="cancelEdit">Cancel</BaseButton>
+                <BaseButton :disabled="!editForm.name.trim()" @click="saveEdit">Save changes</BaseButton>
+              </div>
             </div>
           </div>
         </aside>
       </Transition>
+
+      <AddPlaceModal
+        v-if="showAddModal"
+        :columns="displayedColumns"
+        :default-column-id="addModalColumnId"
+        :city="cityName"
+        :existing-names="tripPlaces.map((place) => place.name)"
+        @close="showAddModal = false"
+        @add="onAddPlace"
+      />
 
       <AskAiPanel />
       </div>
@@ -238,19 +307,21 @@
 
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { VueDraggable } from 'vue-draggable-plus'
 import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '../components/layout/PageHeader.vue'
+import AddPlaceModal from '../components/trips/AddPlaceModal.vue'
 import AskAiPanel from '../components/trips/AskAiPanel.vue'
-import CategoryChip from '../components/trips/CategoryChip.vue'
+import CategoryChip, { allPlaceCategories, categoryLabels } from '../components/trips/CategoryChip.vue'
 import PlaceCard from '../components/trips/PlaceCard.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
 import BaseButton from '../components/ui/BaseButton.vue'
+import BaseInput from '../components/ui/BaseInput.vue'
 import StatusBadge from '../components/ui/StatusBadge.vue'
 import { useIsMobile } from '../composables/useIsMobile'
 import { useTripsStore } from '../stores/trips'
-import type { Place, TripColumn } from '../types'
+import type { Place, PlaceCategory, TripColumn } from '../types'
 
 const route = useRoute()
 const router = useRouter()
@@ -258,7 +329,8 @@ const router = useRouter()
 // side-by-side grid to a single Board/Map pane (see global.scss) — below
 // this width there's no room to show both, so the toggle takes over.
 const isMobile = useIsMobile(1100)
-const { trips, places } = storeToRefs(useTripsStore())
+const tripsStore = useTripsStore()
+const { trips, places } = storeToRefs(tripsStore)
 const mobileView = ref<'board' | 'map'>('board')
 const selectedPlaceId = ref<string | null>(null)
 const drawerPlaceId = ref<string | null>(null)
@@ -267,6 +339,19 @@ const focusedColumnId = ref('')
 const isFreshEntry = ref(route.query.fresh === '1')
 const showSkeleton = ref(isFreshEntry.value)
 const BOARD_SKELETON_DURATION = 650
+
+const showAddModal = ref(false)
+const addModalColumnId = ref('')
+const isMoveMenuOpen = ref(false)
+const isEditingPlace = ref(false)
+const editForm = reactive({
+  name: '',
+  category: 'activity' as PlaceCategory,
+  estimatedTime: '1.5',
+  estimatedCost: '',
+  description: '',
+  travelTip: '',
+})
 
 const legendCategories = [
   { key: 'culture', label: 'Culture' },
@@ -338,6 +423,7 @@ const tripHeaderDescription = computed(() => {
 })
 const drawerPlace = computed(() => tripPlaces.value.find((place) => place.id === drawerPlaceId.value))
 const shouldLockBodyScroll = computed(() => isMobile.value && Boolean(drawerPlace.value))
+const cityName = computed(() => activeTrip.value.destination.split(',')[0].trim() || activeTrip.value.destination)
 
 watch(
   shouldLockBodyScroll,
@@ -353,6 +439,9 @@ watch(
   () => {
     selectedPlaceId.value = null
     drawerPlaceId.value = null
+    isMoveMenuOpen.value = false
+    isEditingPlace.value = false
+    showAddModal.value = false
     focusedColumnId.value = resolveDefaultColumnId(displayedColumns.value)
   },
 )
@@ -402,12 +491,15 @@ function syncPlaceColumns() {
 
 function onDragEnd() {
   syncPlaceColumns()
+  tripsStore.recalcTripProgress(activeTrip.value)
   isDraggingCard.value = false
 }
 
 function openPlaceDrawer(placeId: string) {
   selectedPlaceId.value = placeId
   drawerPlaceId.value = placeId
+  isMoveMenuOpen.value = false
+  isEditingPlace.value = false
 
   const place = tripPlaces.value.find((item) => item.id === placeId)
   if (place) focusedColumnId.value = place.columnId
@@ -415,6 +507,63 @@ function openPlaceDrawer(placeId: string) {
 
 function closeDrawer() {
   drawerPlaceId.value = null
+  isMoveMenuOpen.value = false
+  isEditingPlace.value = false
+}
+
+function openAddPlaceModal(columnId: string) {
+  addModalColumnId.value = columnId || displayedColumns.value[0]?.id || ''
+  showAddModal.value = true
+}
+
+function onAddPlace(payload: { columnId: string; name: string; category: PlaceCategory; description: string }) {
+  tripsStore.addPlace({ tripId: activeTrip.value.id, ...payload })
+}
+
+function removeDrawerPlace() {
+  if (!drawerPlace.value) return
+  if (!window.confirm(`Remove "${drawerPlace.value.name}" from this trip?`)) return
+
+  tripsStore.removePlace(drawerPlace.value.id)
+  closeDrawer()
+}
+
+function moveDrawerPlaceTo(columnId: string) {
+  if (!drawerPlace.value) return
+
+  tripsStore.movePlaceToColumn(drawerPlace.value.id, columnId)
+  focusedColumnId.value = columnId
+  isMoveMenuOpen.value = false
+}
+
+function startEdit() {
+  if (!drawerPlace.value) return
+
+  editForm.name = drawerPlace.value.name
+  editForm.category = drawerPlace.value.category
+  editForm.estimatedTime = String(drawerPlace.value.estimatedTime)
+  editForm.estimatedCost = drawerPlace.value.estimatedCost
+  editForm.description = drawerPlace.value.description
+  editForm.travelTip = drawerPlace.value.travelTip ?? ''
+  isEditingPlace.value = true
+}
+
+function cancelEdit() {
+  isEditingPlace.value = false
+}
+
+function saveEdit() {
+  if (!drawerPlace.value || !editForm.name.trim()) return
+
+  tripsStore.updatePlace(drawerPlace.value.id, {
+    name: editForm.name.trim(),
+    category: editForm.category,
+    estimatedTime: Number(editForm.estimatedTime) || drawerPlace.value.estimatedTime,
+    estimatedCost: editForm.estimatedCost.trim() || drawerPlace.value.estimatedCost,
+    description: editForm.description.trim() || drawerPlace.value.description,
+    travelTip: editForm.travelTip.trim() || undefined,
+  })
+  isEditingPlace.value = false
 }
 
 function focusColumn(columnId: string) {

@@ -1,9 +1,18 @@
 import { useStorage } from '@vueuse/core'
+import { nanoid } from 'nanoid'
 import { defineStore } from 'pinia'
-import { generateTrip } from '../data/generateTrip'
+import { generateTrip, PLACE_GRADIENTS } from '../data/generateTrip'
 import { places as seedPlaces } from '../data/mockPlaces'
 import { trips as seedTrips } from '../data/mockTrips'
-import type { CreateTripInput, Place, Trip } from '../types'
+import type { CreateTripInput, Place, PlaceCategory, Trip } from '../types'
+
+export type NewPlaceInput = {
+  tripId: string
+  columnId: string
+  name: string
+  category: PlaceCategory
+  description: string
+}
 
 export const useTripsStore = defineStore('trips', () => {
   const trips = useStorage<Trip[]>('tripflow-trips', seedTrips)
@@ -27,5 +36,85 @@ export const useTripsStore = defineStore('trips', () => {
     return trip
   }
 
-  return { trips, places, getTripById, placesForTrip, createTrip }
+  // Derives placeCount/progress from the columns themselves rather than
+  // tracking counters by hand, so add/remove/move can't drift out of sync.
+  function recalcTripProgress(trip: Trip) {
+    const total = trip.columns.reduce((sum, column) => sum + column.placeIds.length, 0)
+    const done = trip.columns.find((column) => column.type === 'done')?.placeIds.length ?? 0
+    trip.placeCount = total
+    trip.progress = total > 0 ? Math.round((done / total) * 100) : 0
+  }
+
+  function addPlace(input: NewPlaceInput): Place | undefined {
+    const trip = trips.value.find((item) => item.id === input.tripId)
+    const column = trip?.columns.find((item) => item.id === input.columnId)
+    if (!trip || !column) return undefined
+
+    const place: Place = {
+      id: nanoid(8),
+      tripId: input.tripId,
+      name: input.name,
+      category: input.category,
+      estimatedTime: 1.5,
+      estimatedCost: '$',
+      address: trip.destination,
+      lat: 0,
+      lng: 0,
+      rating: '4.5',
+      description: input.description,
+      columnId: input.columnId,
+      imageGradient: PLACE_GRADIENTS[places.value.length % PLACE_GRADIENTS.length],
+    }
+
+    places.value.push(place)
+    column.placeIds.push(place.id)
+    recalcTripProgress(trip)
+
+    return place
+  }
+
+  function removePlace(placeId: string) {
+    const place = places.value.find((item) => item.id === placeId)
+    if (!place) return
+
+    const trip = trips.value.find((item) => item.id === place.tripId)
+    const column = trip?.columns.find((item) => item.id === place.columnId)
+    if (column) column.placeIds = column.placeIds.filter((id) => id !== placeId)
+
+    places.value = places.value.filter((item) => item.id !== placeId)
+    if (trip) recalcTripProgress(trip)
+  }
+
+  function movePlaceToColumn(placeId: string, columnId: string) {
+    const place = places.value.find((item) => item.id === placeId)
+    if (!place || place.columnId === columnId) return
+
+    const trip = trips.value.find((item) => item.id === place.tripId)
+    const toColumn = trip?.columns.find((item) => item.id === columnId)
+    if (!trip || !toColumn) return
+
+    const fromColumn = trip.columns.find((item) => item.id === place.columnId)
+    if (fromColumn) fromColumn.placeIds = fromColumn.placeIds.filter((id) => id !== placeId)
+    toColumn.placeIds.push(placeId)
+    place.columnId = columnId
+    recalcTripProgress(trip)
+  }
+
+  function updatePlace(placeId: string, patch: Partial<Pick<Place, 'name' | 'category' | 'estimatedTime' | 'estimatedCost' | 'description' | 'travelTip'>>) {
+    const place = places.value.find((item) => item.id === placeId)
+    if (place) Object.assign(place, patch)
+  }
+
+  return {
+    trips,
+    places,
+    getTripById,
+    placesForTrip,
+    createTrip,
+    addPlace,
+    removePlace,
+    movePlaceToColumn,
+    updatePlace,
+    recalcTripProgress,
+  }
 })

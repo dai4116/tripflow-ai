@@ -1815,47 +1815,6 @@ h3 {
   font-variant-numeric: tabular-nums;
 }
 
-.kanban-column__quick-add {
-  display: grid;
-  width: 22px;
-  height: 22px;
-  margin-left: auto;
-  place-items: center;
-  border: 0;
-  border-radius: $radius-sm;
-  background: transparent;
-  color: $color-subtle;
-}
-
-.kanban-column__quick-add:hover {
-  background: $color-surface;
-  color: $color-primary-text;
-}
-
-.kanban-column__quick-add:focus-visible {
-  @include focus-ring;
-}
-
-.kanban-column__add {
-  min-height: 40px;
-  border: 1.5px dashed $color-border;
-  border-radius: $radius-md;
-  background: transparent;
-  color: $color-subtle;
-  font-size: 12.5px;
-  font-weight: 700;
-  transition:
-    border-color 140ms ease,
-    background 140ms ease,
-    color 140ms ease;
-}
-
-.kanban-column__add:hover {
-  border-color: $color-primary;
-  background: $color-primary-soft;
-  color: $color-primary-text;
-}
-
 .kanban-column__cards {
   display: grid;
   gap: 10px;
@@ -2227,6 +2186,241 @@ h3 {
   background: $color-danger-soft !important;
 }
 
+.place-drawer__edit-toggle {
+  position: absolute;
+  top: 10px;
+  right: 48px;
+  z-index: 2;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 0;
+  border-radius: $radius-pill;
+  background: rgba($color-surface, 0.94);
+  color: $color-ink;
+}
+
+.place-drawer__edit-toggle:hover {
+  color: $color-primary-text;
+}
+
+.place-drawer__edit-toggle:focus-visible {
+  @include focus-ring;
+}
+
+.place-drawer__move-wrap {
+  position: relative;
+}
+
+.place-drawer__move-wrap .base-button {
+  width: 100%;
+}
+
+.place-drawer__move-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 3;
+  display: grid;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+  background: $color-surface;
+  box-shadow: $shadow-lg;
+}
+
+.place-drawer__move-option {
+  padding: 8px 10px;
+  border: 0;
+  border-radius: $radius-sm;
+  background: transparent;
+  color: $color-ink;
+  font-size: 12.5px;
+  font-weight: 650;
+  text-align: left;
+}
+
+.place-drawer__move-option:hover:not(:disabled) {
+  background: $color-primary-soft;
+  color: $color-primary-text;
+}
+
+.place-drawer__move-option:disabled {
+  color: $color-subtle;
+  cursor: default;
+}
+
+.place-drawer__move-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  border: 0;
+  background: transparent;
+}
+
+.place-drawer__edit-form {
+  display: grid;
+  gap: 12px;
+}
+
+.place-drawer__edit-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.place-drawer__edit-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 4px;
+}
+
+// ---------------------------------------------------------------------------
+// Add place modal
+// ---------------------------------------------------------------------------
+
+.add-place-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba($color-dusk, 0.42);
+}
+
+.add-place-modal {
+  display: grid;
+  width: min(480px, 100%);
+  max-height: min(640px, 90vh);
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  border-radius: $radius-lg;
+  background: $color-surface;
+  box-shadow: $shadow-lg;
+}
+
+.add-place-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px;
+  border-bottom: 1px solid $color-border;
+}
+
+.add-place-modal__header h3 {
+  font-size: 15.5px;
+  font-weight: 800;
+}
+
+.add-place-modal__close {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 0;
+  border-radius: $radius-pill;
+  background: $color-surface-soft;
+  color: $color-ink;
+}
+
+.add-place-modal__close:focus-visible {
+  @include focus-ring;
+}
+
+.add-place-modal__section {
+  display: grid;
+  gap: 8px;
+  padding: 14px 20px 0;
+}
+
+.add-place-modal__label {
+  color: $color-subtle;
+  font-size: 10.5px;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.add-place-modal__pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.add-place-modal__suggestions {
+  display: grid;
+  gap: 8px;
+  overflow-y: auto;
+  padding: 14px 20px;
+}
+
+.add-place-modal__empty {
+  padding: 20px 0;
+  color: $color-subtle;
+  font-size: 12.5px;
+  text-align: center;
+}
+
+.add-place-suggestion {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+  background: $color-surface;
+  text-align: left;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease;
+}
+
+.add-place-suggestion:hover {
+  border-color: $color-primary;
+  background: $color-primary-soft;
+}
+
+.add-place-suggestion:focus-visible {
+  @include focus-ring;
+}
+
+.add-place-suggestion__body {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+}
+
+.add-place-suggestion__body strong {
+  font-size: 13px;
+}
+
+.add-place-suggestion__body small {
+  overflow: hidden;
+  color: $color-muted;
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.add-place-suggestion > .app-icon {
+  flex: none;
+  color: $color-subtle;
+}
+
+.add-place-custom {
+  padding-top: 16px;
+  padding-bottom: 18px;
+  border-top: 1px solid $color-border;
+  margin-top: 4px;
+}
+
 // ---------------------------------------------------------------------------
 // Ask AI panel
 // ---------------------------------------------------------------------------
@@ -2528,7 +2722,7 @@ h3 {
   // mobile, one full-width pane at a time, instead of squeezing both in.
   .trip-view-toggle {
     display: grid;
-    width: min(160px, 30vw);
+    width: 76px;
     grid-template-columns: repeat(2, 1fr);
     gap: 2px;
     padding: 3px;
@@ -2537,19 +2731,25 @@ h3 {
   }
 
   .trip-view-toggle button {
+    display: grid;
     min-height: 32px;
+    place-items: center;
     border: 0;
     border-radius: $radius-pill;
     background: transparent;
     color: $color-muted;
-    font-size: $font-size-xs;
-    font-weight: 750;
   }
 
   .trip-view-toggle__button--active {
     background: $color-primary !important;
     color: $color-surface !important;
     box-shadow: $shadow-primary;
+  }
+
+  .page-header__add-place {
+    width: 32px;
+    padding: 0;
+    border-radius: $radius-pill;
   }
 
   .board-workspace {
@@ -3073,7 +3273,7 @@ h3 {
 
   .trip-view-toggle {
     display: grid;
-    width: min(140px, 38vw);
+    width: 76px;
     grid-template-columns: repeat(2, 1fr);
     gap: 2px;
     padding: 3px;
@@ -3082,19 +3282,25 @@ h3 {
   }
 
   .trip-view-toggle button {
+    display: grid;
     min-height: 32px;
+    place-items: center;
     border: 0;
     border-radius: $radius-pill;
     background: transparent;
     color: $color-muted;
-    font-size: $font-size-xs;
-    font-weight: 750;
   }
 
   .trip-view-toggle__button--active {
     background: $color-primary !important;
     color: $color-surface !important;
     box-shadow: $shadow-primary;
+  }
+
+  .page-header__add-place {
+    width: 32px;
+    padding: 0;
+    border-radius: $radius-pill;
   }
 
   .board-workspace {

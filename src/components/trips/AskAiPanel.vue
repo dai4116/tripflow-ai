@@ -8,7 +8,7 @@
     aria-label="Ask AI to adjust your itinerary"
     @click="toggleOpen"
   >
-    <AppIcon :name="isOpen ? 'close' : 'sparkle'" :size="isMobile ? 17 : 15" />
+    <AppIcon :name="isOpen ? 'close' : 'chat-sparkle'" :size="isMobile ? 19 : 17" />
     <span v-if="!isMobile">{{ isOpen ? 'Close' : 'Ask AI' }}</span>
   </button>
 
