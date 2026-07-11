@@ -39,6 +39,7 @@ select {
 
 button {
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 a {
@@ -1570,6 +1571,65 @@ h3 {
   overflow: hidden;
 }
 
+// Mobile day switcher — tap a pill to change which day's cards are shown
+// (see .kanban-board's mobile override). A separate, small, non-draggable
+// row like this can scroll horizontally with no gesture conflict, unlike
+// the board itself once it's full of draggable cards.
+.mobile-day-tabs {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid $color-border;
+  background: $color-surface;
+}
+
+.mobile-day-tabs__row {
+  display: flex;
+  flex: 1;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.mobile-day-tabs__row::-webkit-scrollbar {
+  display: none;
+}
+
+.mobile-day-tabs__tab {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid $color-border;
+  border-radius: $radius-pill;
+  background: $color-surface;
+  color: $color-muted;
+  font-size: 12.5px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.mobile-day-tabs__tab--active {
+  border-color: $color-primary;
+  background: $color-primary-soft;
+  color: $color-primary-text;
+}
+
+.mobile-day-tabs__add {
+  display: grid;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 1.5px dashed $color-border;
+  border-radius: $radius-pill;
+  background: transparent;
+  color: $color-subtle;
+}
+
 .kanban-board {
   display: grid;
   grid-auto-columns: 236px;
@@ -1605,6 +1665,12 @@ h3 {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+// One-off entrance for a single freshly-added day, as opposed to
+// .kanban-board--fresh-enter's staggered replay across every column.
+.kanban-column--enter {
+  animation: column-enter 320ms ease both;
 }
 
 .kanban-column {
@@ -1671,9 +1737,11 @@ h3 {
 }
 
 .kanban-column__header {
+  @include card-shell;
   display: flex;
   align-items: center;
   gap: 4px;
+  padding: 4px 12px 4px 4px;
   color: $color-muted;
   font-size: 11px;
   font-weight: 800;
@@ -1687,9 +1755,9 @@ h3 {
   align-items: center;
   gap: 8px;
   min-width: 0;
-  padding: 4px 6px 4px 4px;
+  padding: 4px 6px 4px 10px;
   border: 0;
-  border-radius: $radius-sm;
+  border-radius: $radius-lg;
   background: transparent;
   color: inherit;
   font: inherit;
@@ -1701,27 +1769,41 @@ h3 {
     color 120ms ease;
 }
 
-.kanban-column__focus:hover {
-  background: $color-surface-soft;
+// Scoped to real pointer devices — on touch, `:hover` triggers on tap and
+// then has no "unhover" event to clear it, so it stays stuck showing a
+// ghost highlight until the next unrelated tap.
+@media (hover: hover) {
+  .kanban-column__focus:hover {
+    background: $color-surface-soft;
+  }
+
+  // The header itself already turns teal when this day is active — layering
+  // the button's own gray hover fill on top just fights it, so let the header
+  // color show through uninterrupted instead.
+  .kanban-column__header--active .kanban-column__focus:hover {
+    background: transparent;
+  }
 }
 
 .kanban-column__focus:focus-visible {
   @include focus-ring;
 }
 
-.kanban-column__focus--active {
+.kanban-column__header--active {
   background: $color-primary-soft;
 }
 
-.kanban-column__focus--active .kanban-column__title {
+.kanban-column__header--active .kanban-column__title {
   color: $color-primary-text;
 }
 
-.kanban-column__dot {
-  flex: 0 0 auto;
-  width: 8px;
-  height: 8px;
-  border-radius: $radius-pill;
+.kanban-column__date {
+  margin-left: 4px;
+  color: $color-subtle;
+  font-weight: 700;
+  letter-spacing: normal;
+  text-transform: none;
+  font-variant-numeric: tabular-nums;
 }
 
 .kanban-column__count {
@@ -1737,11 +1819,94 @@ h3 {
   font-variant-numeric: tabular-nums;
 }
 
+.kanban-column__add-place,
+.kanban-column__delete-day {
+  display: grid;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 0;
+  border-radius: $radius-sm;
+  background: transparent;
+  color: $color-subtle;
+}
+
+.kanban-column__add-place:hover {
+  background: $color-primary-soft;
+  color: $color-primary-text;
+}
+
+.kanban-column__delete-day:hover:not(:disabled) {
+  background: $color-danger-soft;
+  color: $color-danger;
+}
+
+.kanban-column__delete-day:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.kanban-column__add-place:focus-visible,
+.kanban-column__delete-day:focus-visible {
+  @include focus-ring;
+}
+
+.kanban-add-day {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px;
+  border: 1.5px dashed $color-border;
+  border-radius: $radius-lg;
+  background: $color-surface;
+  color: $color-subtle;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    color 140ms ease;
+}
+
+.kanban-add-day:hover {
+  border-color: $color-primary;
+  background: $color-primary-soft;
+  color: $color-primary-text;
+}
+
 .kanban-column__cards {
   display: grid;
   gap: 10px;
   align-content: start;
-  min-height: 12px;
+  // This element is the actual Sortable.js drop container, not just a visual
+  // wrapper — with an empty day it used to be 12px tall, so the "empty day"
+  // you can see was mostly just page background, not a valid drop target.
+  min-height: 160px;
+}
+
+.kanban-column__empty {
+  display: grid;
+  // Matches the rendered height of a base .place-card-button (no travel tip)
+  // so the empty-day placeholder reads as "one card slot," not an oversized box.
+  min-height: 168px;
+  place-items: center;
+  border: 1.5px dashed $color-border;
+  border-radius: $radius-lg;
+  color: $color-subtle;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+// Sortable inserts the dropped card straight into the DOM as part of the
+// drag, which can land a beat before Vue's own v-if re-render clears this
+// hint — hide it immediately whenever a real card is already present so the
+// two never visibly stack, regardless of which update lands first.
+.kanban-column__cards:has(.place-card-button) .kanban-column__empty {
+  display: none;
 }
 
 .place-card-button--ghost {
@@ -2208,7 +2373,9 @@ h3 {
 .add-place-modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  // Above the mobile top bar / bottom nav (both z-index: 60) — otherwise
+  // those fixed bars sit on top of and clip the modal's edges on mobile.
+  z-index: 70;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2220,7 +2387,7 @@ h3 {
   display: grid;
   width: min(480px, 100%);
   max-height: min(640px, 90vh);
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   overflow: hidden;
   border-radius: $radius-lg;
   background: $color-surface;
@@ -2238,6 +2405,13 @@ h3 {
 .add-place-modal__header h3 {
   font-size: 15.5px;
   font-weight: 800;
+}
+
+.add-place-modal__subtitle {
+  margin-top: 2px;
+  color: $color-subtle;
+  font-size: 12px;
+  font-weight: 650;
 }
 
 .add-place-modal__close {
@@ -2270,82 +2444,10 @@ h3 {
 }
 
 .add-place-modal__pills {
-  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-}
-
-.add-place-modal__day-control {
-  display: grid;
-  width: 30px;
-  height: 30px;
-  place-items: center;
-  border: 1px solid $color-border;
-  border-radius: $radius-pill;
-  background: $color-surface;
-  color: $color-muted;
-  transition:
-    border-color 140ms ease,
-    color 140ms ease;
-}
-
-.add-place-modal__day-control:hover:not(:disabled) {
-  border-color: $color-primary;
-  color: $color-primary-text;
-}
-
-.add-place-modal__day-control:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.add-place-modal__day-remove-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  z-index: 3;
-  display: grid;
-  width: 160px;
-  gap: 2px;
-  padding: 8px;
-  border: 1px solid $color-border;
-  border-radius: $radius-md;
-  background: $color-surface;
-  box-shadow: $shadow-lg;
-}
-
-.add-place-modal__day-remove-hint {
-  padding: 2px 6px 6px;
-  color: $color-subtle;
-  font-size: 10.5px;
-  font-weight: 750;
-  letter-spacing: 0.04em;
-}
-
-.add-place-modal__day-remove-option {
-  padding: 8px 10px;
-  border: 0;
-  border-radius: $radius-sm;
-  background: transparent;
-  color: $color-ink;
-  font-size: 12.5px;
-  font-weight: 650;
-  text-align: left;
-}
-
-.add-place-modal__day-remove-option:hover {
-  background: $color-danger-soft;
-  color: $color-danger;
-}
-
-.add-place-modal__day-remove-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 2;
-  border: 0;
-  background: transparent;
 }
 
 .add-place-modal__suggestions {
@@ -2740,26 +2842,28 @@ h3 {
     box-shadow: $shadow-primary;
   }
 
-  .page-header__add-place {
-    width: 32px;
-    padding: 0;
-    border-radius: $radius-pill;
-  }
-
   .board-workspace {
-    display: block;
+    display: flex;
+    flex-direction: column;
     height: 100%;
     min-height: 0;
     overflow: hidden;
   }
 
-  .kanban-board,
-  .map-panel {
+  .kanban-board {
+    display: block;
+    flex: 1;
     width: 100%;
-    height: 100%;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding: 12px;
   }
 
   .map-panel {
+    flex: 1;
+    width: 100%;
+    min-height: 0;
     border-left: 0;
     border-top: 1px solid $color-border;
   }
@@ -3276,48 +3380,38 @@ h3 {
     box-shadow: $shadow-primary;
   }
 
-  .page-header__add-place {
-    width: 32px;
-    padding: 0;
-    border-radius: $radius-pill;
-  }
-
   .board-workspace {
-    display: block;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
     min-height: 0;
     overflow: hidden;
   }
 
   .kanban-board {
-    grid-auto-columns: minmax(238px, 76vw);
-    gap: 10px;
-    height: calc(100dvh - 218px);
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
+    display: block;
+    flex: 1;
+    width: 100%;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
     padding: 12px;
-    scroll-padding-inline: 12px;
-    scroll-snap-type: x mandatory;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  // Scroll-snap fights Sortable's auto-scroll while dragging near the edge —
-  // suspend snapping for the duration of the drag so the board can actually scroll.
-  .kanban-board--dragging {
-    scroll-snap-type: none;
-  }
-
-  .kanban-column {
-    scroll-snap-align: start;
   }
 
   .place-card {
     grid-template-rows: 76px minmax(0, 1fr);
   }
 
+  .kanban-column__empty {
+    // .place-card's media row shrinks to 76px at this breakpoint, so its
+    // base (no-tip) rendered height drops a few px too — keep this matched.
+    min-height: 164px;
+  }
+
   .map-panel {
     display: grid;
+    flex: 1;
     width: 100%;
-    height: calc(100dvh - 164px);
     min-height: 0;
     overflow: hidden;
     border: 0;

@@ -16,11 +16,12 @@ export type NewPlaceInput = {
 
 export const useTripsStore = defineStore('trips', () => {
   // Bumped to v2 when the Planning/Done columns were removed from the board
-  // structure — old localStorage data under the v1 keys is stale/incompatible,
-  // so browsers with existing data fall back to the fresh seed instead of
-  // rendering columns that no longer exist in the UI.
-  const trips = useStorage<Trip[]>('tripflow-trips-v2', seedTrips)
-  const places = useStorage<Place[]>('tripflow-places-v2', seedPlaces)
+  // structure, then to v3 when trips gained a startDate field — old
+  // localStorage data under earlier keys is stale/incompatible, so browsers
+  // with existing data fall back to the fresh seed instead of silently
+  // missing fields the UI now expects.
+  const trips = useStorage<Trip[]>('tripflow-trips-v3', seedTrips)
+  const places = useStorage<Place[]>('tripflow-places-v3', seedPlaces)
 
   function getTripById(tripId: string) {
     return trips.value.find((trip) => trip.id === tripId)

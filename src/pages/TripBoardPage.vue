@@ -27,15 +27,6 @@
           <AppIcon name="filter" :size="13" />
           Filter
         </BaseButton>
-        <BaseButton
-          variant="accent"
-          size="sm"
-          class="page-header__add-place"
-          @click="openAddPlaceModal(resolveDefaultColumnId(displayedColumns))"
-        >
-          <AppIcon name="plus" :size="13" />
-          <span v-if="!isMobile">Add place</span>
-        </BaseButton>
       </template>
     </PageHeader>
 
@@ -54,6 +45,24 @@
       </div>
 
       <div v-else key="board" class="board-workspace">
+      <div v-if="isMobile && mobileView === 'board'" class="mobile-day-tabs">
+        <div class="mobile-day-tabs__row">
+          <button
+            v-for="column in displayedColumns"
+            :key="column.id"
+            :ref="(el) => setDayTabRef(column.id, el)"
+            type="button"
+            class="mobile-day-tabs__tab"
+            :class="{ 'mobile-day-tabs__tab--active': focusedColumnId === column.id }"
+            @click="focusColumn(column.id)"
+          >
+            {{ column.title }}
+          </button>
+        </div>
+        <button type="button" class="mobile-day-tabs__add" aria-label="Add a day" @click="addDay">
+          <AppIcon name="plus" :size="13" />
+        </button>
+      </div>
       <div
         v-if="!isMobile || mobileView === 'board'"
         class="kanban-board"
@@ -61,22 +70,41 @@
         :aria-label="`${activeTrip.title} board`"
       >
         <section
-          v-for="column in displayedColumns"
+          v-for="column in boardColumns"
           :key="column.id"
           class="kanban-column"
+          :class="{ 'kanban-column--enter': newlyAddedColumnId === column.id }"
         >
-          <header class="kanban-column__header">
+          <header class="kanban-column__header" :class="{ 'kanban-column__header--active': focusedColumnId === column.id }">
             <button
               type="button"
               class="kanban-column__focus"
-              :class="{ 'kanban-column__focus--active': focusedColumnId === column.id }"
               :aria-pressed="focusedColumnId === column.id"
               :aria-label="`Show ${column.title} on the map`"
               @click="focusColumn(column.id)"
             >
-              <span class="kanban-column__dot" :style="{ backgroundColor: columnColor(column) }" />
-              <span class="kanban-column__title">{{ column.title }}</span>
+              <span class="kanban-column__title">
+                {{ column.title }}
+                <span v-if="columnDate(column)" class="kanban-column__date">{{ columnDate(column) }}</span>
+              </span>
               <span class="kanban-column__count">{{ column.placeIds.length }}</span>
+            </button>
+            <button
+              type="button"
+              class="kanban-column__add-place"
+              :aria-label="`Add a place to ${column.title}`"
+              @click="openAddPlaceModal(column.id)"
+            >
+              <AppIcon name="plus" :size="12" />
+            </button>
+            <button
+              type="button"
+              class="kanban-column__delete-day"
+              :aria-label="`Delete ${column.title}`"
+              :disabled="displayedColumns.length <= 1"
+              @click="confirmDeleteDay(column)"
+            >
+              <AppIcon name="trash" :size="12" />
             </button>
           </header>
 
@@ -90,6 +118,7 @@
             :scroll-sensitivity="80"
             :scroll-speed="16"
             :bubble-scroll="true"
+            draggable=".place-card-button"
             ghost-class="place-card-button--ghost"
             chosen-class="place-card-button--chosen"
             drag-class="place-card-button--dragging"
@@ -106,8 +135,14 @@
             >
               <PlaceCard :place="place" />
             </button>
+            <p v-if="column.placeIds.length === 0" class="kanban-column__empty">Drag a place here</p>
           </VueDraggable>
         </section>
+
+        <button v-if="!isMobile" type="button" class="kanban-add-day" @click="addDay">
+          <AppIcon name="plus" :size="12" />
+          Add day
+        </button>
       </div>
 
       <aside
@@ -288,14 +323,12 @@
 
       <AddPlaceModal
         v-if="showAddModal"
-        :columns="displayedColumns"
-        :default-column-id="addModalColumnId"
+        :column-id="addModalColumnId"
+        :column-title="addModalColumnTitle"
         :city="cityName"
         :existing-names="tripPlaces.map((place) => place.name)"
         @close="showAddModal = false"
         @add="onAddPlace"
-        @add-day="addDay"
-        @remove-day="removeDay"
       />
 
       <AskAiPanel />
@@ -307,7 +340,8 @@
 <script setup lang="ts">
 import { nanoid } from 'nanoid'
 import { storeToRefs } from 'pinia'
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import type { ComponentPublicInstance } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { VueDraggable } from 'vue-draggable-plus'
 import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '../components/layout/PageHeader.vue'
@@ -339,8 +373,15 @@ const isFreshEntry = ref(route.query.fresh === '1')
 const showSkeleton = ref(isFreshEntry.value)
 const BOARD_SKELETON_DURATION = 650
 
+const dayTabEls: Record<string, Element | null> = {}
+function setDayTabRef(columnId: string, el: Element | ComponentPublicInstance | null) {
+  dayTabEls[columnId] = el instanceof Element ? el : null
+}
+
 const showAddModal = ref(false)
 const addModalColumnId = ref('')
+const newlyAddedColumnId = ref('')
+const NEW_COLUMN_ENTER_DURATION = 400
 const isMoveMenuOpen = ref(false)
 const isEditingPlace = ref(false)
 const editForm = reactive({
@@ -362,7 +403,6 @@ const legendCategories = [
   { key: 'stay', label: 'Stay' },
 ]
 
-const dayColumnColors = ['#2e9e62', '#4a7de0', '#ef7a3a']
 const emptyColumns: TripColumn[] = [
   { id: 'day-1', title: 'Day 1', dayNumber: 1, placeIds: [] },
   { id: 'day-2', title: 'Day 2', dayNumber: 2, placeIds: [] },
@@ -376,6 +416,18 @@ const activeTrip = computed(() => {
 })
 const displayedColumns = computed(() => (activeTrip.value.columns.length > 0 ? activeTrip.value.columns : emptyColumns))
 const tripPlaces = computed(() => places.value.filter((place) => place.tripId === activeTrip.value.id))
+// On mobile, only the focused day's cards render at a time (tap a day tab to
+// switch) instead of horizontally scrolling between columns — swiping the
+// board to change days fought with dragging a card to reorder it, since both
+// are touch gestures on the same cards.
+const mobileColumns = computed(() => {
+  const match = displayedColumns.value.find((column) => column.id === focusedColumnId.value)
+  return match ? [match] : displayedColumns.value.slice(0, 1)
+})
+const boardColumns = computed(() => (isMobile.value ? mobileColumns.value : displayedColumns.value))
+const addModalColumnTitle = computed(
+  () => displayedColumns.value.find((column) => column.id === addModalColumnId.value)?.title ?? '',
+)
 
 function resolveDefaultColumnId(columns: TripColumn[]) {
   const firstWithPlaces = columns.find((column) => column.placeIds.length > 0)
@@ -463,8 +515,17 @@ function onKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') closeDrawer()
 }
 
-function columnColor(column: TripColumn) {
-  return dayColumnColors[(column.dayNumber - 1) % dayColumnColors.length]
+// Trips without a real startDate (AI-generated ones, for now) just show no
+// date rather than a fabricated one — showing a made-up date would look like
+// the user's actual travel date.
+function columnDate(column: TripColumn): string {
+  if (!activeTrip.value.startDate) return ''
+
+  const date = new Date(activeTrip.value.startDate)
+  if (Number.isNaN(date.getTime())) return ''
+
+  date.setDate(date.getDate() + (column.dayNumber - 1))
+  return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`
 }
 
 function getColumnPlaces(placeIds: string[]) {
@@ -505,8 +566,13 @@ function closeDrawer() {
 }
 
 function openAddPlaceModal(columnId: string) {
-  addModalColumnId.value = columnId || displayedColumns.value[0]?.id || ''
+  addModalColumnId.value = columnId
   showAddModal.value = true
+}
+
+function confirmDeleteDay(column: TripColumn) {
+  const confirmed = window.confirm(`要刪除第 ${column.dayNumber} 天及這天所有行程嗎？\n刪除後無法復原喔`)
+  if (confirmed) removeDay(column.id)
 }
 
 function onAddPlace(payload: { columnId: string; name: string; category: PlaceCategory; description: string }) {
@@ -521,11 +587,36 @@ function addDay() {
   // nanoid rather than `day-${nextDayNumber}` — after a mid-list day is
   // removed and the rest renumbered, a position-based id could collide with
   // a survivor that kept its original id.
-  activeTrip.value.columns = [
-    ...displayedColumns.value,
-    { id: `day-${nanoid(6)}`, dayNumber: nextDayNumber, title: `Day ${nextDayNumber}`, placeIds: [] },
-  ]
+  const newColumn: TripColumn = { id: `day-${nanoid(6)}`, dayNumber: nextDayNumber, title: `Day ${nextDayNumber}`, placeIds: [] }
+  activeTrip.value.columns = [...displayedColumns.value, newColumn]
   activeTrip.value.days = activeTrip.value.columns.length
+
+  // Focusing it lights up its header teal (same as clicking it) and syncs
+  // the map — a newly created day has no prior context worth preserving, so
+  // jumping focus there doubles as the "yes, it was added" confirmation.
+  //
+  // Deliberately NOT auto-scrolling the kanban-board/cards into view: any
+  // programmatic scroll of those containers — scrollTo() or a direct
+  // scrollLeft assignment, smooth or instant, immediately or delayed —
+  // permanently breaks cross-column drag-in for the newly mounted column.
+  // Sortable's own bubble-scroll/scroll-sensitivity auto-scroll listeners on
+  // those same containers appear to get confused by a scroll they didn't
+  // initiate.
+  //
+  // The mobile day-tab strip below is a different, plain (non-Sortable)
+  // element, so it's safe to scroll — and on mobile it's the only way to see
+  // that a new day was added, since only the focused column's cards render.
+  focusedColumnId.value = newColumn.id
+  newlyAddedColumnId.value = newColumn.id
+  window.setTimeout(() => {
+    if (newlyAddedColumnId.value === newColumn.id) newlyAddedColumnId.value = ''
+  }, NEW_COLUMN_ENTER_DURATION)
+
+  if (isMobile.value) {
+    nextTick(() => {
+      dayTabEls[newColumn.id]?.scrollIntoView({ behavior: 'smooth', inline: 'end', block: 'nearest' })
+    })
+  }
 }
 
 // Deletes the day itself and every place on it (not a move — the confirm

@@ -33,6 +33,10 @@ export type TripSummary = {
 
 export type Trip = TripSummary & {
   dateRange: string
+  // ISO date (YYYY-MM-DD) for Day 1 — lets each column compute its own
+  // calendar date instead of just a "Day N" label. Optional because
+  // AI-generated trips don't collect a start date yet.
+  startDate?: string
   preferences: string[]
   pace: TripPace
   columns: TripColumn[]
