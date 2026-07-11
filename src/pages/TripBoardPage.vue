@@ -331,6 +331,16 @@
         @add="onAddPlace"
       />
 
+      <ConfirmModal
+        v-if="confirmDialog.open"
+        :title="confirmDialog.title"
+        :message="confirmDialog.message"
+        :confirm-label="confirmDialog.confirmLabel"
+        :danger="confirmDialog.danger"
+        @confirm="acceptConfirm"
+        @cancel="closeConfirm"
+      />
+
       <AskAiPanel />
       </div>
     </Transition>
@@ -352,6 +362,7 @@ import PlaceCard from '../components/trips/PlaceCard.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
 import BaseButton from '../components/ui/BaseButton.vue'
 import BaseInput from '../components/ui/BaseInput.vue'
+import ConfirmModal from '../components/ui/ConfirmModal.vue'
 import { useIsMobile } from '../composables/useIsMobile'
 import { useTripsStore } from '../stores/trips'
 import type { Place, PlaceCategory, TripColumn } from '../types'
@@ -376,6 +387,41 @@ const BOARD_SKELETON_DURATION = 650
 const dayTabEls: Record<string, Element | null> = {}
 function setDayTabRef(columnId: string, el: Element | ComponentPublicInstance | null) {
   dayTabEls[columnId] = el instanceof Element ? el : null
+}
+
+const confirmDialog = reactive<{
+  open: boolean
+  title: string
+  message: string
+  confirmLabel: string
+  danger: boolean
+  onConfirm: (() => void) | null
+}>({
+  open: false,
+  title: '',
+  message: '',
+  confirmLabel: 'Confirm',
+  danger: false,
+  onConfirm: null,
+})
+
+function openConfirm(options: { title: string; message: string; confirmLabel?: string; danger?: boolean; onConfirm: () => void }) {
+  confirmDialog.open = true
+  confirmDialog.title = options.title
+  confirmDialog.message = options.message
+  confirmDialog.confirmLabel = options.confirmLabel ?? 'Confirm'
+  confirmDialog.danger = options.danger ?? false
+  confirmDialog.onConfirm = options.onConfirm
+}
+
+function closeConfirm() {
+  confirmDialog.open = false
+  confirmDialog.onConfirm = null
+}
+
+function acceptConfirm() {
+  confirmDialog.onConfirm?.()
+  closeConfirm()
 }
 
 const showAddModal = ref(false)
@@ -571,8 +617,13 @@ function openAddPlaceModal(columnId: string) {
 }
 
 function confirmDeleteDay(column: TripColumn) {
-  const confirmed = window.confirm(`要刪除第 ${column.dayNumber} 天及這天所有行程嗎？\n刪除後無法復原喔`)
-  if (confirmed) removeDay(column.id)
+  openConfirm({
+    title: `刪除第 ${column.dayNumber} 天？`,
+    message: '這天及這天所有行程都會一併刪除，刪除後無法復原喔。',
+    confirmLabel: '刪除',
+    danger: true,
+    onConfirm: () => removeDay(column.id),
+  })
 }
 
 function onAddPlace(payload: { columnId: string; name: string; category: PlaceCategory; description: string }) {
@@ -641,10 +692,18 @@ function removeDay(columnId: string) {
 
 function removeDrawerPlace() {
   if (!drawerPlace.value) return
-  if (!window.confirm(`Remove "${drawerPlace.value.name}" from this trip?`)) return
+  const place = drawerPlace.value
 
-  tripsStore.removePlace(drawerPlace.value.id)
-  closeDrawer()
+  openConfirm({
+    title: `Remove "${place.name}"?`,
+    message: 'This place will be removed from your itinerary. This can\'t be undone.',
+    confirmLabel: 'Remove',
+    danger: true,
+    onConfirm: () => {
+      tripsStore.removePlace(place.id)
+      closeDrawer()
+    },
+  })
 }
 
 function moveDrawerPlaceTo(columnId: string) {

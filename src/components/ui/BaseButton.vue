@@ -27,7 +27,7 @@ import type { RouteLocationRaw } from 'vue-router'
 
 const props = withDefaults(
   defineProps<{
-    variant?: 'primary' | 'secondary' | 'ghost' | 'accent'
+    variant?: 'primary' | 'secondary' | 'ghost' | 'accent' | 'danger'
     size?: 'sm' | 'md'
     type?: 'button' | 'submit'
     to?: RouteLocationRaw
