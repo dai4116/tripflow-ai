@@ -671,6 +671,48 @@ h3 {
   content: '';
 }
 
+.trip-card__delete {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border: 0;
+  border-radius: $radius-pill;
+  background: rgba($color-surface, 0.9);
+  color: $color-muted;
+  transition:
+    opacity 140ms ease,
+    color 140ms ease,
+    background 140ms ease;
+}
+
+// Hover-reveal only where hover is a real pointer capability — on touch
+// devices there's no hover-to-discover step, so the button must stay
+// visible by default there instead of requiring a press-and-hold.
+@media (hover: hover) {
+  .trip-card__delete {
+    opacity: 0;
+  }
+
+  .trip-card:hover .trip-card__delete,
+  .trip-card__delete:focus-visible {
+    opacity: 1;
+  }
+}
+
+.trip-card__delete:hover {
+  background: $color-danger-soft;
+  color: $color-danger;
+}
+
+.trip-card__delete:focus-visible {
+  @include focus-ring;
+}
+
 .trip-card__title {
   position: relative;
   z-index: 1;

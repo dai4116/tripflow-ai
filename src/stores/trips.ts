@@ -107,6 +107,11 @@ export const useTripsStore = defineStore('trips', () => {
     if (place) Object.assign(place, patch)
   }
 
+  function removeTrip(tripId: string) {
+    places.value = places.value.filter((place) => place.tripId !== tripId)
+    trips.value = trips.value.filter((trip) => trip.id !== tripId)
+  }
+
   return {
     trips,
     places,
@@ -118,5 +123,6 @@ export const useTripsStore = defineStore('trips', () => {
     movePlaceToColumn,
     updatePlace,
     recalcPlaceCount,
+    removeTrip,
   }
 })

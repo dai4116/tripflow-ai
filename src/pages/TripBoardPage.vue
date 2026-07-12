@@ -131,7 +131,7 @@
             >
               <PlaceCard :place="place" />
             </button>
-            <p v-if="column.placeIds.length === 0" class="kanban-column__empty">把地點拖曳到這裡</p>
+            <p v-if="column.placeIds.length === 0" class="kanban-column__empty">請新增景點</p>
           </VueDraggable>
         </section>
 
@@ -359,6 +359,7 @@ import AppIcon from '../components/ui/AppIcon.vue'
 import BaseButton from '../components/ui/BaseButton.vue'
 import BaseInput from '../components/ui/BaseInput.vue'
 import ConfirmModal from '../components/ui/ConfirmModal.vue'
+import { useConfirmDialog } from '../composables/useConfirmDialog'
 import { useIsMobile } from '../composables/useIsMobile'
 import { useTripsStore } from '../stores/trips'
 import type { Place, PlaceCategory, TripColumn } from '../types'
@@ -385,40 +386,7 @@ function setDayTabRef(columnId: string, el: Element | ComponentPublicInstance | 
   dayTabEls[columnId] = el instanceof Element ? el : null
 }
 
-const confirmDialog = reactive<{
-  open: boolean
-  title: string
-  message: string
-  confirmLabel: string
-  danger: boolean
-  onConfirm: (() => void) | null
-}>({
-  open: false,
-  title: '',
-  message: '',
-  confirmLabel: '確認',
-  danger: false,
-  onConfirm: null,
-})
-
-function openConfirm(options: { title: string; message: string; confirmLabel?: string; danger?: boolean; onConfirm: () => void }) {
-  confirmDialog.open = true
-  confirmDialog.title = options.title
-  confirmDialog.message = options.message
-  confirmDialog.confirmLabel = options.confirmLabel ?? '確認'
-  confirmDialog.danger = options.danger ?? false
-  confirmDialog.onConfirm = options.onConfirm
-}
-
-function closeConfirm() {
-  confirmDialog.open = false
-  confirmDialog.onConfirm = null
-}
-
-function acceptConfirm() {
-  confirmDialog.onConfirm?.()
-  closeConfirm()
-}
+const { confirmDialog, openConfirm, closeConfirm, acceptConfirm } = useConfirmDialog()
 
 const showAddModal = ref(false)
 const addModalColumnId = ref('')

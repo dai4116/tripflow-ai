@@ -1,6 +1,15 @@
 <template>
   <BaseCard class="trip-card">
     <div class="trip-card__media" :style="{ background: trip.imageGradient }">
+      <button
+        v-if="deletable"
+        type="button"
+        class="trip-card__delete"
+        :aria-label="`刪除 ${trip.title}`"
+        @click.stop.prevent="emit('delete')"
+      >
+        <AppIcon name="trash" :size="12" />
+      </button>
       <div class="trip-card__title">
         <strong>{{ trip.title }}</strong>
         <small><AppIcon name="pin" :size="11" />{{ trip.destination }}</small>
@@ -24,5 +33,10 @@ import BaseCard from '../ui/BaseCard.vue'
 
 defineProps<{
   trip: TripSummary
+  deletable?: boolean
+}>()
+
+const emit = defineEmits<{
+  delete: []
 }>()
 </script>
