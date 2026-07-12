@@ -341,7 +341,7 @@
         @cancel="closeConfirm"
       />
 
-      <AskAiPanel />
+      <AskAiPanel :trip-id="activeTrip.id" @applied="focusColumn" />
       </div>
     </Transition>
   </section>

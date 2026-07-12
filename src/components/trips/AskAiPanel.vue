@@ -89,17 +89,30 @@
 
 <script setup lang="ts">
 import { nanoid } from 'nanoid'
-import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useIsMobile } from '../../composables/useIsMobile'
+import { useTripsStore } from '../../stores/trips'
+import type { Place, TripColumn } from '../../types'
 import AppIcon from '../ui/AppIcon.vue'
+
+const props = defineProps<{
+  tripId: string
+}>()
+
+const emit = defineEmits<{
+  applied: [columnId: string]
+}>()
 
 type AiActionVariant = 'primary' | 'secondary'
 type AiAction = { label: string; variant: AiActionVariant }
+type AiIntent = { type: 'move'; placeId: string; toColumnId: string } | { type: 'remove'; placeId: string }
 type AiMessage = {
   id: string
   role: 'ai' | 'user'
   text: string
   actions?: AiAction[]
+  intent?: AiIntent
   resolved?: 'applied' | 'dismissed'
 }
 
@@ -109,6 +122,59 @@ const isThinking = ref(false)
 const draft = ref('')
 const messagesEl = ref<HTMLElement | null>(null)
 
+const tripsStore = useTripsStore()
+const { trips, places } = storeToRefs(tripsStore)
+const activeTrip = computed(() => trips.value.find((trip) => trip.id === props.tripId))
+const tripPlaces = computed(() => places.value.filter((place) => place.tripId === props.tripId))
+
+function suggestionActions(): AiAction[] {
+  return [
+    { label: 'Apply change', variant: 'primary' },
+    { label: 'Not now', variant: 'secondary' },
+  ]
+}
+
+// This is a mock: keyword/regex matching against the demo trip's own data,
+// not a real language model. It's enough to make the panel feel alive and
+// to prove out "chat edits the board" as a product idea.
+function computeRebalanceSuggestion(): { place: Place; fromColumn: TripColumn; toColumn: TripColumn } | null {
+  const columns = activeTrip.value?.columns ?? []
+  if (columns.length < 2) return null
+
+  const busiest = columns.reduce((max, column) => (column.placeIds.length > max.placeIds.length ? column : max), columns[0])
+  const lightest = columns.reduce((min, column) => (column.placeIds.length < min.placeIds.length ? column : min), columns[0])
+
+  // Only worth suggesting if there's a real imbalance and a place to move.
+  if (busiest.id === lightest.id || busiest.placeIds.length - lightest.placeIds.length < 2) return null
+
+  const placeId = busiest.placeIds[busiest.placeIds.length - 1]
+  const place = tripPlaces.value.find((item) => item.id === placeId)
+  if (!place) return null
+
+  return { place, fromColumn: busiest, toColumn: lightest }
+}
+
+function rebalanceMessage(suggestion: { place: Place; fromColumn: TripColumn; toColumn: TripColumn }): Omit<AiMessage, 'id' | 'role'> {
+  return {
+    text: `Day ${suggestion.fromColumn.dayNumber} has ${suggestion.fromColumn.placeIds.length} stops — I'd move "${suggestion.place.name}" to Day ${suggestion.toColumn.dayNumber}, which only has ${suggestion.toColumn.placeIds.length}. Want me to apply this?`,
+    actions: suggestionActions(),
+    intent: { type: 'move', placeId: suggestion.place.id, toColumnId: suggestion.toColumn.id },
+  }
+}
+
+function findMentionedPlace(text: string): Place | undefined {
+  const lower = text.toLowerCase()
+  return tripPlaces.value.find((place) => lower.includes(place.name.toLowerCase()))
+}
+
+function extractDayNumber(text: string): number | null {
+  const match = text.match(/day\s*(\d+)/i) ?? text.match(/第\s*(\d+)\s*天/)
+  const raw = match?.[1]
+  const num = raw ? Number(raw) : NaN
+  return Number.isFinite(num) ? num : null
+}
+
+const initialSuggestion = computeRebalanceSuggestion()
 const messages = ref<AiMessage[]>([
   {
     id: nanoid(),
@@ -118,17 +184,11 @@ const messages = ref<AiMessage[]>([
   {
     id: nanoid(),
     role: 'user',
-    text: 'Day 2 feels too packed, can you spread it out?',
+    text: 'This day feels too packed, can you spread it out?',
   },
-  {
-    id: nanoid(),
-    role: 'ai',
-    text: 'I\'d move "Harajuku Street" to Day 3 — that leaves Day 2 with 2 stops. Want me to apply this?',
-    actions: [
-      { label: 'Apply change', variant: 'primary' },
-      { label: 'Not now', variant: 'secondary' },
-    ],
-  },
+  initialSuggestion
+    ? { id: nanoid(), role: 'ai', ...rebalanceMessage(initialSuggestion) }
+    : { id: nanoid(), role: 'ai', text: 'Your days already look evenly balanced — nice work!' },
 ])
 
 let thinkingTimer: number | undefined
@@ -141,8 +201,23 @@ function closePanel() {
   isOpen.value = false
 }
 
+function applyIntent(intent: AiIntent) {
+  if (intent.type === 'move') {
+    tripsStore.movePlaceToColumn(intent.placeId, intent.toColumnId)
+    emit('applied', intent.toColumnId)
+    return
+  }
+
+  tripsStore.removePlace(intent.placeId)
+}
+
 function resolveSuggestion(message: AiMessage, action: AiAction) {
   message.resolved = action.variant === 'primary' ? 'applied' : 'dismissed'
+  if (action.variant !== 'primary' || !message.intent) return
+
+  applyIntent(message.intent)
+  messages.value.push({ id: nanoid(), role: 'ai', text: 'Done — updated your itinerary.' })
+  scrollToBottom()
 }
 
 function scrollToBottom() {
@@ -151,6 +226,42 @@ function scrollToBottom() {
       messagesEl.value.scrollTop = messagesEl.value.scrollHeight
     }
   })
+}
+
+// Keyword-matched demo intents, checked most-specific first: an explicit
+// "move X to day N" beats a vague "too packed" so a message naming both a
+// place and a day doesn't fall through to the generic rebalance heuristic.
+function buildAiResponse(text: string): Omit<AiMessage, 'id' | 'role'> {
+  const lower = text.toLowerCase()
+  const mentionedPlace = findMentionedPlace(text)
+  const dayNumber = extractDayNumber(text)
+
+  if (mentionedPlace && dayNumber) {
+    const toColumn = activeTrip.value?.columns.find((column) => column.dayNumber === dayNumber)
+    if (!toColumn) return { text: `I couldn't find Day ${dayNumber} on this trip.` }
+    if (toColumn.id === mentionedPlace.columnId) return { text: `"${mentionedPlace.name}" is already on Day ${dayNumber}.` }
+
+    return {
+      text: `Sure — I'll move "${mentionedPlace.name}" to Day ${dayNumber}. Want me to apply this?`,
+      actions: suggestionActions(),
+      intent: { type: 'move', placeId: mentionedPlace.id, toColumnId: toColumn.id },
+    }
+  }
+
+  if (mentionedPlace && /remove|delete|刪除|移除/.test(lower)) {
+    return {
+      text: `I'll remove "${mentionedPlace.name}" from your trip. Want me to apply this?`,
+      actions: suggestionActions(),
+      intent: { type: 'remove', placeId: mentionedPlace.id },
+    }
+  }
+
+  if (/pack|busy|太趕|太滿|太多/.test(lower)) {
+    const suggestion = computeRebalanceSuggestion()
+    return suggestion ? rebalanceMessage(suggestion) : { text: 'Your days already look evenly balanced to me!' }
+  }
+
+  return { text: "Got it — I'll factor that into your itinerary." }
 }
 
 function sendMessage() {
@@ -164,11 +275,7 @@ function sendMessage() {
   isThinking.value = true
   thinkingTimer = window.setTimeout(() => {
     isThinking.value = false
-    messages.value.push({
-      id: nanoid(),
-      role: 'ai',
-      text: "Got it — I'll factor that into your itinerary.",
-    })
+    messages.value.push({ id: nanoid(), role: 'ai', ...buildAiResponse(text) })
     scrollToBottom()
   }, 900)
 }
