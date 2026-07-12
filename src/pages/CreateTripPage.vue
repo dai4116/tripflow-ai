@@ -21,8 +21,8 @@
 
       <BaseCard class="form-card">
         <h3>Trip details</h3>
+        <BaseDateRangeInput label="Travel dates" v-model:start="form.startDate" v-model:end="form.endDate" :error="dateRangeError" />
         <div class="form-grid">
-          <BaseInput v-model="form.duration" label="Duration (days)" type="number" icon="calendar" :min="1" :max="30" />
           <BaseInput v-model="form.budget" label="Budget (USD)" placeholder="3,000" icon="dollar" />
           <BaseInput v-model="form.travelers" label="Travelers" type="number" icon="users" :min="1" :max="12" />
         </div>
@@ -124,6 +124,7 @@ import PageHeader from '../components/layout/PageHeader.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
 import BaseButton from '../components/ui/BaseButton.vue'
 import BaseCard from '../components/ui/BaseCard.vue'
+import BaseDateRangeInput from '../components/ui/BaseDateRangeInput.vue'
 import BaseInput from '../components/ui/BaseInput.vue'
 import type { IconName } from '../components/ui/icons'
 import { preferences, travelStyles } from '../data/mockPreferences'
@@ -136,10 +137,26 @@ const tripsStore = useTripsStore()
 const isGenerating = ref(false)
 const currentStageIndex = ref(0)
 const destinationError = ref('')
+const dateRangeError = ref('')
 const selectedPreferences = ref(['Museums', 'Local Food', 'Architecture'])
+
+// YYYY-MM-DD in local time — Date#toISOString() is UTC and can land on the
+// wrong calendar day depending on the visitor's timezone offset.
+function toDateInputValue(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const defaultStart = new Date()
+const defaultEnd = new Date()
+defaultEnd.setDate(defaultEnd.getDate() + 7)
+
 const form = reactive({
   destination: '',
-  duration: '7',
+  startDate: toDateInputValue(defaultStart),
+  endDate: toDateInputValue(defaultEnd),
   budget: '',
   travelers: '2',
   travelStyle: 'Cultural',
@@ -190,7 +207,18 @@ function generateTrip() {
     return
   }
 
+  if (!form.startDate || !form.endDate) {
+    dateRangeError.value = 'Pick your travel dates.'
+    return
+  }
+
+  if (new Date(form.endDate).getTime() <= new Date(form.startDate).getTime()) {
+    dateRangeError.value = 'End date must be after start date.'
+    return
+  }
+
   destinationError.value = ''
+  dateRangeError.value = ''
   isGenerating.value = true
   currentStageIndex.value = 0
   advanceStage()
@@ -210,7 +238,8 @@ function advanceStage() {
 function finishGeneration() {
   const trip = tripsStore.createTrip({
     destination: form.destination.trim(),
-    duration: Number(form.duration) || 7,
+    startDate: form.startDate,
+    endDate: form.endDate,
     budget: form.budget,
     travelers: Number(form.travelers) || 1,
     travelStyle: form.travelStyle,

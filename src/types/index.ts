@@ -61,7 +61,10 @@ export type Place = {
 
 export type CreateTripInput = {
   destination: string
-  duration: number
+  // ISO dates (YYYY-MM-DD) — trip length is derived from the gap between them
+  // rather than collected as its own field.
+  startDate: string
+  endDate: string
   budget: string
   travelers: number
   travelStyle: string

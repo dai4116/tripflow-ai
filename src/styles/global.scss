@@ -580,6 +580,36 @@ h3 {
   font-weight: 650;
 }
 
+.date-range-field__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.date-range-field__control {
+  flex: 1;
+  min-width: 0;
+}
+
+// Native date inputs render their own calendar-icon affordance on the
+// right — hide it since AppIcon's calendar glyph on the left already
+// signals what the field is, and two icons per box reads as clutter.
+.date-range-field__control input[type='date']::-webkit-calendar-picker-indicator {
+  margin-left: auto;
+  cursor: pointer;
+  opacity: 0.55;
+}
+
+.date-range-field__arrow {
+  flex: none;
+  color: $color-subtle;
+}
+
+.date-range-field__summary {
+  color: $color-primary-text;
+  font-weight: 650;
+}
+
 .status-badge {
   display: inline-flex;
   align-items: center;
@@ -1340,7 +1370,7 @@ h3 {
 
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -3350,7 +3380,7 @@ h3 {
   }
 
   .form-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
   }
 

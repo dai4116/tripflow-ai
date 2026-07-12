@@ -104,6 +104,26 @@ function formatBudget(raw: string): string {
   return /^[\d,.]+$/.test(trimmed) ? `$${trimmed}` : trimmed
 }
 
+// Trip length is nights, not inclusive calendar days — Mar 15 to Mar 22 is a
+// 7-day trip, matching the seed data's `days` field.
+function nightsBetween(startDate: string, endDate: string): number {
+  const start = new Date(startDate)
+  const end = new Date(endDate)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0
+
+  return Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+}
+
+function formatDateRange(startDate: string, endDate: string): string {
+  const start = new Date(startDate)
+  const end = new Date(endDate)
+  const startLabel = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()
+  const endLabel = sameMonth ? `${end.getDate()}` : end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+
+  return `${startLabel} - ${endLabel}, ${end.getFullYear()}`
+}
+
 function resolveCategories(input: CreateTripInput): PlaceCategory[] {
   const mapped = input.preferences
     .map((preference) => PREFERENCE_CATEGORY[preference])
@@ -114,7 +134,7 @@ function resolveCategories(input: CreateTripInput): PlaceCategory[] {
 
 export function generateTrip(input: CreateTripInput, existingTripIds: string[]): { trip: Trip; places: Place[] } {
   const city = input.destination.split(',')[0].trim() || input.destination
-  const days = Math.max(1, Math.min(30, Math.round(input.duration) || 7))
+  const days = Math.max(1, Math.min(30, nightsBetween(input.startDate, input.endDate) || 7))
   const tripId = `${slugify(input.destination)}-${nanoid(6)}`
   const palette = TRIP_PALETTE[existingTripIds.length % TRIP_PALETTE.length]
   const categories = resolveCategories(input)
@@ -166,7 +186,8 @@ export function generateTrip(input: CreateTripInput, existingTripIds: string[]):
     placeCount: places.length,
     color: palette.color,
     imageGradient: palette.imageGradient,
-    dateRange: 'Dates TBD',
+    dateRange: formatDateRange(input.startDate, input.endDate),
+    startDate: input.startDate,
     preferences: input.preferences,
     pace: TRAVEL_STYLE_PACE[input.travelStyle] ?? 'balanced',
     columns,
