@@ -21,19 +21,6 @@
       </RouterLink>
     </nav>
 
-    <div class="app-sidebar__section">
-      <p class="app-sidebar__label">My Trips</p>
-      <RouterLink
-        v-for="trip in trips.slice(0, 3)"
-        :key="trip.id"
-        class="app-sidebar__trip"
-        :to="{ name: 'trip-board', params: { tripId: trip.id } }"
-      >
-        <span class="app-sidebar__trip-dot" :style="{ backgroundColor: trip.color }" />
-        <span class="app-sidebar__trip-name">{{ trip.title }}</span>
-      </RouterLink>
-    </div>
-
     <div class="app-sidebar__user">
       <span class="app-sidebar__avatar">AK</span>
       <div>
@@ -46,9 +33,5 @@
 </template>
 
 <script setup lang="ts">
-import { storeToRefs } from 'pinia'
-import { useTripsStore } from '../../stores/trips'
 import AppIcon from '../ui/AppIcon.vue'
-
-const { trips } = storeToRefs(useTripsStore())
 </script>

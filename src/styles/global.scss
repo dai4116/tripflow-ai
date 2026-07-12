@@ -274,30 +274,6 @@ h3 {
   text-transform: uppercase;
 }
 
-.app-sidebar__trip {
-  min-height: 36px !important;
-  font-weight: 600 !important;
-}
-
-.app-sidebar__trip.router-link-active {
-  background: $color-surface-soft !important;
-  color: $color-ink !important;
-  box-shadow: none !important;
-}
-
-.app-sidebar__trip-dot {
-  flex: 0 0 auto;
-  width: 8px;
-  height: 8px;
-  border-radius: $radius-pill;
-}
-
-.app-sidebar__trip-name {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
 .app-sidebar__user {
   display: flex;
   align-items: center;
@@ -580,24 +556,39 @@ h3 {
   font-weight: 650;
 }
 
+.date-range-field {
+  // Same grid-item auto-min-width issue as .form-card, one level deeper.
+  min-width: 0;
+}
+
 .date-range-field__row {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .date-range-field__control {
   flex: 1;
   min-width: 0;
+  cursor: pointer;
+}
+
+// Native date inputs have a browser-enforced intrinsic minimum width (the
+// mm/dd/yyyy segments can't wrap) — without this, the input ignores its
+// flex container's min-width: 0 and refuses to shrink, overflowing the
+// row past the viewport on narrow screens.
+.date-range-field__control input[type='date'] {
+  min-width: 0;
 }
 
 // Native date inputs render their own calendar-icon affordance on the
-// right — hide it since AppIcon's calendar glyph on the left already
-// signals what the field is, and two icons per box reads as clutter.
+// right — hide it entirely since AppIcon's calendar glyph on the left
+// already signals what the field is (two icons per box read as clutter),
+// and the whole box now opens the picker via JS (see openPicker in
+// BaseDateRangeInput.vue) so the indicator isn't needed as a click target.
 .date-range-field__control input[type='date']::-webkit-calendar-picker-indicator {
-  margin-left: auto;
-  cursor: pointer;
-  opacity: 0.55;
+  display: none;
 }
 
 .date-range-field__arrow {
@@ -1354,6 +1345,10 @@ h3 {
   display: grid;
   gap: 14px;
   padding: 20px;
+  // As a grid item, a card's automatic minimum width defaults to its
+  // content's min-content size — an unshrinkable child (e.g. a native date
+  // input) would otherwise blow the card past its column's actual width.
+  min-width: 0;
 }
 
 .form-card h3 {

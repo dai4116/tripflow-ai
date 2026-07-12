@@ -23,10 +23,6 @@
             <AppIcon name="pin" :size="15" />
           </button>
         </div>
-        <BaseButton v-if="!isMobile" variant="secondary" size="sm">
-          <AppIcon name="filter" :size="13" />
-          Filter
-        </BaseButton>
       </template>
     </PageHeader>
 
@@ -449,18 +445,33 @@ const legendCategories = [
   { key: 'stay', label: 'Stay' },
 ]
 
-const emptyColumns: TripColumn[] = [
-  { id: 'day-1', title: 'Day 1', dayNumber: 1, placeIds: [] },
-  { id: 'day-2', title: 'Day 2', dayNumber: 2, placeIds: [] },
-  { id: 'day-3', title: 'Day 3', dayNumber: 3, placeIds: [] },
-]
-
 const activeTrip = computed(() => {
   const tripId = String(route.params.tripId ?? 'tokyo-explorer')
 
   return trips.value.find((trip) => trip.id === tripId) ?? trips.value[0]
 })
-const displayedColumns = computed(() => (activeTrip.value.columns.length > 0 ? activeTrip.value.columns : emptyColumns))
+
+// Seed trips ship with `columns: []` until someone actually opens the board.
+// Materialize real day columns onto the trip itself (rather than just
+// rendering a placeholder) so id-based lookups — like adding a place, which
+// finds the column by id on the trip's actual data — have something real to
+// write into.
+function ensureColumns() {
+  const trip = activeTrip.value
+  if (trip.columns.length > 0) return
+
+  const dayCount = Math.max(1, trip.days || 3)
+  trip.columns = Array.from({ length: dayCount }, (_, index) => ({
+    id: `day-${index + 1}`,
+    title: `Day ${index + 1}`,
+    dayNumber: index + 1,
+    placeIds: [],
+  }))
+}
+
+ensureColumns()
+
+const displayedColumns = computed(() => activeTrip.value.columns)
 const tripPlaces = computed(() => places.value.filter((place) => place.tripId === activeTrip.value.id))
 // On mobile, only the focused day's cards render at a time (tap a day tab to
 // switch) instead of horizontally scrolling between columns — swiping the
@@ -536,6 +547,7 @@ watch(
     isMoveMenuOpen.value = false
     isEditingPlace.value = false
     showAddModal.value = false
+    ensureColumns()
     focusedColumnId.value = resolveDefaultColumnId(displayedColumns.value)
   },
 )
@@ -630,9 +642,6 @@ function onAddPlace(payload: { columnId: string; name: string; category: PlaceCa
   tripsStore.addPlace({ tripId: activeTrip.value.id, ...payload })
 }
 
-// Trips with no real columns yet render the emptyColumns fallback (see
-// displayedColumns) — build on top of whatever is currently shown so adding
-// or removing a day never silently drops the fallback's other days.
 function addDay() {
   const nextDayNumber = displayedColumns.value.length + 1
   // nanoid rather than `day-${nextDayNumber}` — after a mid-list day is

@@ -11,6 +11,7 @@
     <form v-if="!isGenerating" class="trip-form" @submit.prevent="generateTrip">
       <BaseCard class="form-card">
         <BaseInput
+          ref="destinationInputRef"
           v-model="form.destination"
           label="Where are you going?"
           placeholder="e.g. Tokyo, Japan"
@@ -118,7 +119,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import PageHeader from '../components/layout/PageHeader.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
@@ -138,6 +139,7 @@ const isGenerating = ref(false)
 const currentStageIndex = ref(0)
 const destinationError = ref('')
 const dateRangeError = ref('')
+const destinationInputRef = ref<InstanceType<typeof BaseInput> | null>(null)
 const selectedPreferences = ref(['Museums', 'Local Food', 'Architecture'])
 
 // YYYY-MM-DD in local time — Date#toISOString() is UTC and can land on the
@@ -162,6 +164,25 @@ const form = reactive({
   travelStyle: 'Cultural',
   avoidPlaces: '',
 })
+
+// Clear each error as soon as its own field is actually fixed, rather than
+// only on the next full submit — otherwise a red border can sit there
+// looking wrong even after the user has already typed a valid value.
+watch(
+  () => form.destination,
+  (value) => {
+    if (value.trim()) destinationError.value = ''
+  },
+)
+
+watch(
+  [() => form.startDate, () => form.endDate],
+  ([start, end]) => {
+    if (start && end && new Date(end).getTime() > new Date(start).getTime()) {
+      dateRangeError.value = ''
+    }
+  },
+)
 
 const cityLabel = computed(() => form.destination.split(',')[0].trim() || 'your')
 const stages = computed(() => [
@@ -204,6 +225,7 @@ function generateTrip() {
 
   if (!form.destination.trim()) {
     destinationError.value = 'Tell us where you are going first.'
+    destinationInputRef.value?.focus()
     return
   }
 

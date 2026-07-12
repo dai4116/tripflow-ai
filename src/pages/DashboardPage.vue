@@ -31,12 +31,12 @@
       <div class="section-head">
         <h2>Recent trips</h2>
         <span class="section-head__count">{{ trips.length }}</span>
-        <BaseButton variant="ghost" size="sm">View all →</BaseButton>
+        <BaseButton :to="{ name: 'trips' }" variant="ghost" size="sm">View all →</BaseButton>
       </div>
 
       <div class="trip-grid">
         <RouterLink
-          v-for="trip in trips"
+          v-for="trip in recentTrips"
           :key="trip.id"
           :to="{ name: 'trip-board', params: { tripId: trip.id } }"
         >
@@ -60,6 +60,7 @@
 
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
+import { computed } from 'vue'
 import PageHeader from '../components/layout/PageHeader.vue'
 import TripCard from '../components/trips/TripCard.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
@@ -71,4 +72,8 @@ import { useTripsStore } from '../stores/trips'
 
 const isMobile = useIsMobile()
 const { trips } = storeToRefs(useTripsStore())
+// Trips have no createdAt field — newly created ones are simply pushed to
+// the end of the array (see tripsStore.createTrip), so "recent" means the
+// last few entries, newest first, matching the 4-column trip-grid exactly.
+const recentTrips = computed(() => [...trips.value].slice(-4).reverse())
 </script>

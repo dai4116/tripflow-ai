@@ -3,14 +3,14 @@
     <span v-if="label">{{ label }}</span>
 
     <div class="date-range-field__row">
-      <div class="base-field__control date-range-field__control">
+      <div class="base-field__control date-range-field__control" @click="openPicker(startInputEl)">
         <AppIcon name="calendar" :size="15" />
-        <input type="date" :min="min" :value="start" @input="onStartInput" />
+        <input ref="startInputEl" type="date" :min="min" :value="start" @input="onStartInput" />
       </div>
       <AppIcon name="arrow-right" :size="13" class="date-range-field__arrow" />
-      <div class="base-field__control date-range-field__control">
+      <div class="base-field__control date-range-field__control" @click="openPicker(endInputEl)">
         <AppIcon name="calendar" :size="15" />
-        <input type="date" :min="start || min" :value="end" @input="onEndInput" />
+        <input ref="endInputEl" type="date" :min="start || min" :value="end" @input="onEndInput" />
       </div>
     </div>
 
@@ -20,7 +20,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import AppIcon from './AppIcon.vue'
 
 const props = defineProps<{
@@ -36,12 +36,33 @@ const emit = defineEmits<{
   'update:end': [value: string]
 }>()
 
+const startInputEl = ref<HTMLInputElement | null>(null)
+const endInputEl = ref<HTMLInputElement | null>(null)
+
 function onStartInput(event: Event) {
   emit('update:start', (event.target as HTMLInputElement).value)
 }
 
 function onEndInput(event: Event) {
   emit('update:end', (event.target as HTMLInputElement).value)
+}
+
+// The native picker-indicator icon is hidden (see CSS) so there's only one
+// calendar glyph per box — clicking anywhere in the box has to open the
+// picker itself, not just focus the input, or there'd be no way to open it.
+function openPicker(input: HTMLInputElement | null) {
+  if (!input) return
+
+  if (typeof input.showPicker === 'function') {
+    try {
+      input.showPicker()
+      return
+    } catch {
+      // Some browsers throw if showPicker() isn't allowed here — fall through to focus().
+    }
+  }
+
+  input.focus()
 }
 
 // Both dates must parse and land in order for a range to mean anything —
