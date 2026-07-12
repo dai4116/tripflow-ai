@@ -91,7 +91,7 @@
               :aria-label="`新增地點到 ${column.title}`"
               @click="openAddPlaceModal(column.id)"
             >
-              <AppIcon name="plus" :size="12" />
+              <AppIcon name="plus" :size="15" />
             </button>
             <button
               type="button"
@@ -100,7 +100,7 @@
               :disabled="displayedColumns.length <= 1"
               @click="confirmDeleteDay(column)"
             >
-              <AppIcon name="trash" :size="12" />
+              <AppIcon name="trash" :size="15" />
             </button>
           </header>
 

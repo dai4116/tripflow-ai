@@ -1,7 +1,7 @@
 <template>
   <section class="dashboard-page">
     <PageHeader
-      eyebrow="週二・2025年3月11日"
+      :eyebrow="todayLabel"
       title="早安，柏翰！👋"
       description="有 3 個行程進行中——東京行程 4 天後出發。"
     />
@@ -63,6 +63,14 @@ import { stats } from '../data/mockStats'
 import { useTripsStore } from '../stores/trips'
 
 const { trips } = storeToRefs(useTripsStore())
+// Header eyebrow shows the current date, e.g. "週日・2026年7月12日" — matches
+// the project's native toLocaleDateString('zh-TW') convention (no dayjs).
+const todayLabel = computed(() => {
+  const now = new Date()
+  const weekday = now.toLocaleDateString('zh-TW', { weekday: 'short' })
+  const date = now.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' })
+  return `${weekday}・${date}`
+})
 // Trips have no createdAt field — newly created ones are simply pushed to
 // the end of the array (see tripsStore.createTrip), so "recent" means the
 // last few entries, newest first, matching the 4-column trip-grid exactly.

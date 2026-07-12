@@ -1,7 +1,6 @@
 <template>
   <section class="trips-page">
     <PageHeader
-      eyebrow="工作區"
       title="我的行程"
       description="瀏覽你規劃中的所有行程。"
     >

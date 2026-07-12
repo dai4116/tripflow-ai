@@ -1,7 +1,6 @@
 <template>
   <section class="new-trip-page">
     <PageHeader
-      eyebrow="新增行程"
       title="規劃新行程 ✈️"
       description="填寫細節，AI 會幫你打造專屬行程。"
       :back-to="{ name: 'dashboard' }"

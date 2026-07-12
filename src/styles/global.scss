@@ -55,8 +55,8 @@ p {
 }
 
 h1 {
-  font-size: clamp(32px, 4vw, $font-size-3xl);
-  line-height: 1;
+  font-size: $fs-h1;
+  line-height: $lh-tight;
   letter-spacing: -0.02em;
 }
 
@@ -105,7 +105,7 @@ h3 {
   width: fit-content;
   padding: 3px 9px;
   border-radius: $radius-pill;
-  font-size: 10px;
+  font-size: $fs-micro;
   font-weight: 800;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -247,7 +247,7 @@ h3 {
   padding: 0 13px;
   border-radius: $radius-md;
   color: $color-muted;
-  font-size: 13.5px;
+  font-size: $fs-ui;
   font-weight: 650;
   transition:
     background 140ms ease,
@@ -268,7 +268,7 @@ h3 {
 .app-sidebar__label {
   padding: 0 13px;
   color: $color-subtle;
-  font-size: 10.5px;
+  font-size: $fs-micro;
   font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -308,12 +308,12 @@ h3 {
 }
 
 .app-sidebar__user strong {
-  font-size: 12.5px;
+  font-size: $fs-small;
 }
 
 .app-sidebar__user small {
   color: $color-subtle;
-  font-size: 11px;
+  font-size: $fs-caption;
 }
 
 // ---------------------------------------------------------------------------
@@ -345,7 +345,7 @@ h3 {
   display: block;
   margin-bottom: 5px;
   color: $color-subtle;
-  font-size: 11px;
+  font-size: $fs-caption;
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -358,8 +358,8 @@ h3 {
 }
 
 .page-header__title-row h1 {
-  font-size: 25px;
-  line-height: 1.15;
+  font-size: $fs-h1;
+  line-height: $lh-heading;
   font-weight: 800;
 }
 
@@ -411,7 +411,7 @@ h3 {
 .base-button--md {
   min-height: 40px;
   padding: 0 18px;
-  font-size: 13.5px;
+  font-size: $fs-ui;
 }
 
 .base-button--sm {
@@ -532,7 +532,7 @@ h3 {
   outline: 0;
   background: transparent;
   color: $color-text;
-  font-size: 13.5px;
+  font-size: $fs-ui;
   font-weight: 550;
 }
 
@@ -721,7 +721,7 @@ h3 {
 
 .trip-card__title strong {
   display: block;
-  font-size: 15px;
+  font-size: $fs-title;
   letter-spacing: -0.01em;
 }
 
@@ -730,7 +730,7 @@ h3 {
   align-items: center;
   gap: 4px;
   opacity: 0.9;
-  font-size: 11.5px;
+  font-size: $fs-caption;
 }
 
 .trip-card__body {
@@ -787,7 +787,7 @@ h3 {
 }
 
 .place-card__content h3 {
-  font-size: 13.5px;
+  font-size: $fs-ui;
   font-weight: 750;
   letter-spacing: -0.01em;
 }
@@ -796,7 +796,7 @@ h3 {
   display: flex;
   gap: 12px;
   color: $color-muted;
-  font-size: 11.5px;
+  font-size: $fs-caption;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
 }
@@ -816,7 +816,7 @@ h3 {
   border-radius: $radius-sm;
   background: $color-accent-soft;
   color: $color-accent-text;
-  font-size: 11px;
+  font-size: $fs-caption;
   font-style: italic;
 }
 
@@ -886,15 +886,15 @@ h3 {
 
 .landing-hero__copy h1 {
   max-width: 420px;
-  font-size: clamp(42px, 4vw, 52px);
-  line-height: 1.02;
+  font-size: $fs-display;
+  line-height: $lh-tight;
 }
 
 .landing-hero__copy p {
   max-width: 390px;
   color: $color-muted;
   font-size: $font-size-sm;
-  line-height: 1.65;
+  line-height: $lh-body;
 }
 
 .landing-hero__actions {
@@ -959,7 +959,7 @@ h3 {
   border-radius: $radius-pill;
   background: $color-surface-soft;
   color: $color-subtle;
-  font-size: 9px;
+  font-size: $fs-micro;
   font-weight: 800;
 }
 
@@ -978,7 +978,7 @@ h3 {
 
 .product-preview__column strong {
   color: $color-muted;
-  font-size: 10px;
+  font-size: $fs-micro;
   text-transform: uppercase;
 }
 
@@ -1078,7 +1078,7 @@ h3 {
 }
 
 .landing-section__header h2 {
-  font-size: 26px;
+  font-size: $fs-h2;
 }
 
 .landing-section__header p {
@@ -1100,7 +1100,7 @@ h3 {
 
 .workflow-step > strong {
   color: rgba($color-primary, 0.35);
-  font-size: 34px;
+  font-size: rem(36);
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
@@ -1109,7 +1109,7 @@ h3 {
   margin-top: 7px;
   color: $color-muted;
   font-size: $font-size-xs;
-  line-height: 1.55;
+  line-height: $lh-body;
 }
 
 .testimonial-grid {
@@ -1134,7 +1134,7 @@ h3 {
 .testimonial-card p {
   color: $color-text;
   font-size: $font-size-sm;
-  line-height: 1.6;
+  line-height: $lh-body;
 }
 
 .testimonial-card small {
@@ -1156,7 +1156,7 @@ h3 {
 }
 
 .landing-cta h2 {
-  font-size: 30px;
+  font-size: $fs-h1;
 }
 
 .landing-cta p {
@@ -1217,7 +1217,7 @@ h3 {
 }
 
 .section-head h2 {
-  font-size: 17px;
+  font-size: $fs-title;
   font-weight: 800;
 }
 
@@ -1282,7 +1282,7 @@ h3 {
 .stat-card__value {
   grid-area: value;
   margin-top: 3px;
-  font-size: 27px;
+  font-size: rem(30);
   font-weight: 800;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
@@ -1291,7 +1291,7 @@ h3 {
 .stat-card__label {
   grid-area: label;
   color: $color-muted;
-  font-size: 12.5px;
+  font-size: $fs-small;
   font-weight: 600;
 }
 
@@ -1302,7 +1302,7 @@ h3 {
   width: fit-content;
   padding: 4px 10px;
   border-radius: $radius-pill;
-  font-size: 11px;
+  font-size: $fs-caption;
   font-weight: 750;
   line-height: 1.2;
   text-align: right;
@@ -1349,13 +1349,13 @@ h3 {
 
 .cta-band h2 {
   margin-bottom: 4px;
-  font-size: 18px;
+  font-size: $fs-title;
   font-weight: 800;
 }
 
 .cta-band p {
   color: #aeb3c7;
-  font-size: 13px;
+  font-size: $fs-ui;
 }
 
 .cta-band .base-button {
@@ -1394,7 +1394,7 @@ h3 {
 }
 
 .form-card h3 {
-  font-size: 14.5px;
+  font-size: $fs-title;
   font-weight: 800;
 }
 
@@ -1428,7 +1428,7 @@ h3 {
   border-radius: $radius-md;
   background: $color-surface;
   color: $color-muted;
-  font-size: 13px;
+  font-size: $fs-ui;
   font-weight: 650;
   transition:
     background 140ms ease,
@@ -1475,7 +1475,7 @@ h3 {
   border-radius: $radius-pill;
   background: $color-surface;
   color: $color-muted;
-  font-size: 12.5px;
+  font-size: $fs-small;
   font-weight: 650;
   transition:
     background 140ms ease,
@@ -1493,13 +1493,13 @@ h3 {
   width: 100%;
   min-height: 50px;
   margin-top: -2px;
-  font-size: 15px;
+  font-size: $fs-body;
 }
 
 .trip-form__note {
   margin-top: -4px;
   color: $color-subtle;
-  font-size: 11.5px;
+  font-size: $fs-caption;
   font-weight: 600;
   text-align: center;
 }
@@ -1540,7 +1540,7 @@ h3 {
 }
 
 .generating__title {
-  font-size: 19px;
+  font-size: $fs-h3;
   font-weight: 800;
   letter-spacing: -0.01em;
 }
@@ -1548,7 +1548,7 @@ h3 {
 .generating__subtitle {
   margin: 0;
   color: $color-muted;
-  font-size: 13px;
+  font-size: $fs-ui;
 }
 
 .generating__stages {
@@ -1568,7 +1568,7 @@ h3 {
   gap: 10px;
   padding: 9px 4px;
   color: $color-subtle;
-  font-size: 13.5px;
+  font-size: $fs-ui;
   font-weight: 600;
   transition: color 200ms ease;
 }
@@ -1632,7 +1632,7 @@ h3 {
 }
 
 .trip-board-page .page-header__title-row h1 {
-  font-size: 19px;
+  font-size: $fs-h3;
 }
 
 .trip-view-toggle {
@@ -1683,7 +1683,7 @@ h3 {
   border-radius: $radius-pill;
   background: $color-surface;
   color: $color-muted;
-  font-size: 12.5px;
+  font-size: $fs-small;
   font-weight: 750;
   white-space: nowrap;
 }
@@ -1819,7 +1819,7 @@ h3 {
   gap: 4px;
   padding: 4px 12px 4px 4px;
   color: $color-muted;
-  font-size: 11px;
+  font-size: $fs-ui;
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -1876,6 +1876,7 @@ h3 {
 .kanban-column__date {
   margin-left: 4px;
   color: $color-subtle;
+  font-size: $fs-small;
   font-weight: 700;
   letter-spacing: normal;
   text-transform: none;
@@ -1884,14 +1885,14 @@ h3 {
 
 .kanban-column__count {
   display: inline-grid;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 6px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
   place-items: center;
   border: 1px solid $color-border;
   border-radius: $radius-pill;
   background: $color-surface;
-  font-size: 10.5px;
+  font-size: $fs-small;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1899,8 +1900,8 @@ h3 {
 .kanban-column__delete-day {
   display: grid;
   flex: none;
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   place-items: center;
   border: 0;
   border-radius: $radius-sm;
@@ -1938,7 +1939,7 @@ h3 {
   border-radius: $radius-lg;
   background: $color-surface;
   color: $color-subtle;
-  font-size: 11px;
+  font-size: $fs-caption;
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -1973,7 +1974,7 @@ h3 {
   border: 1.5px dashed $color-border;
   border-radius: $radius-lg;
   color: $color-subtle;
-  font-size: 12px;
+  font-size: $fs-small;
   font-weight: 650;
 }
 
@@ -2026,7 +2027,7 @@ h3 {
 
 .map-panel__header span {
   color: $color-subtle;
-  font-size: 11.5px;
+  font-size: $fs-caption;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -2065,7 +2066,7 @@ h3 {
   bottom: 10px;
   color: $color-muted;
   font-family: $font-family-mono;
-  font-size: 10px;
+  font-size: $fs-micro;
   letter-spacing: 0.08em;
 }
 
@@ -2109,7 +2110,7 @@ h3 {
   top: 34%;
   left: 50%;
   color: currentColor;
-  font-size: 10px;
+  font-size: $fs-micro;
   font-weight: 800;
   line-height: 1;
   pointer-events: none;
@@ -2125,7 +2126,7 @@ h3 {
   padding: 10px 16px;
   border-top: 1px solid $color-border;
   color: $color-muted;
-  font-size: 11px;
+  font-size: $fs-caption;
   font-weight: 700;
 }
 
@@ -2242,7 +2243,7 @@ h3 {
   position: relative;
   z-index: 1;
   color: inherit;
-  font-size: 17px;
+  font-size: $fs-title;
   font-weight: 800;
 }
 
@@ -2265,7 +2266,7 @@ h3 {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 13px;
+  font-size: $fs-ui;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
@@ -2281,8 +2282,8 @@ h3 {
 
 .place-drawer__description {
   color: $color-muted;
-  font-size: 13px;
-  line-height: 1.55;
+  font-size: $fs-body;
+  line-height: $lh-body;
 }
 
 .place-drawer__facts {
@@ -2301,14 +2302,14 @@ h3 {
 
 .place-drawer__fact span {
   color: $color-subtle;
-  font-size: 10.5px;
+  font-size: $fs-micro;
   font-weight: 750;
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
 .place-drawer__fact strong {
-  font-size: 13.5px;
+  font-size: $fs-ui;
   font-variant-numeric: tabular-nums;
   text-transform: capitalize;
 }
@@ -2320,7 +2321,7 @@ h3 {
   border-radius: $radius-md;
   background: $color-accent-soft;
   color: $color-accent-text;
-  font-size: 12.5px;
+  font-size: $fs-small;
 }
 
 .place-drawer__tip .app-icon {
@@ -2329,7 +2330,7 @@ h3 {
 
 .place-drawer__tip b {
   display: block;
-  font-size: 10.5px;
+  font-size: $fs-micro;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -2401,7 +2402,7 @@ h3 {
   border-radius: $radius-sm;
   background: transparent;
   color: $color-ink;
-  font-size: 12.5px;
+  font-size: $fs-small;
   font-weight: 650;
   text-align: left;
 }
@@ -2479,14 +2480,14 @@ h3 {
 }
 
 .add-place-modal__header h3 {
-  font-size: 15.5px;
+  font-size: $fs-title;
   font-weight: 800;
 }
 
 .add-place-modal__subtitle {
   margin-top: 2px;
   color: $color-subtle;
-  font-size: 12px;
+  font-size: $fs-small;
   font-weight: 650;
 }
 
@@ -2513,7 +2514,7 @@ h3 {
 
 .add-place-modal__label {
   color: $color-subtle;
-  font-size: 10.5px;
+  font-size: $fs-micro;
   font-weight: 750;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -2536,7 +2537,7 @@ h3 {
 .add-place-modal__empty {
   padding: 20px 0;
   color: $color-subtle;
-  font-size: 12.5px;
+  font-size: $fs-small;
   text-align: center;
 }
 
@@ -2571,13 +2572,13 @@ h3 {
 }
 
 .add-place-suggestion__body strong {
-  font-size: 13px;
+  font-size: $fs-ui;
 }
 
 .add-place-suggestion__body small {
   overflow: hidden;
   color: $color-muted;
-  font-size: 11.5px;
+  font-size: $fs-caption;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -2622,14 +2623,14 @@ h3 {
 }
 
 .confirm-modal__title {
-  font-size: 15.5px;
+  font-size: $fs-title;
   font-weight: 800;
 }
 
 .confirm-modal__message {
   color: $color-muted;
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: $fs-ui;
+  line-height: $lh-body;
 }
 
 .confirm-modal__actions {
@@ -2717,7 +2718,7 @@ h3 {
   align-items: center;
   gap: 7px;
   color: $color-ink;
-  font-size: 13px;
+  font-size: $fs-ui;
   font-weight: 800;
 }
 
@@ -2754,7 +2755,7 @@ h3 {
   max-width: 86%;
   padding: 10px 13px;
   border-radius: $radius-md;
-  font-size: 12.5px;
+  font-size: $fs-small;
   line-height: 1.5;
 }
 
@@ -2784,7 +2785,7 @@ h3 {
   padding: 6px 12px;
   border: 0;
   border-radius: $radius-pill;
-  font-size: 11.5px;
+  font-size: $fs-caption;
   font-weight: 750;
 }
 
@@ -2804,7 +2805,7 @@ h3 {
   align-items: center;
   gap: 4px;
   color: $color-primary-text;
-  font-size: 11px;
+  font-size: $fs-caption;
   font-weight: 750;
 }
 
@@ -2860,7 +2861,7 @@ h3 {
   border: 1px solid $color-border;
   border-radius: $radius-pill;
   background: $color-bg;
-  font-size: 12.5px;
+  font-size: $fs-small;
 }
 
 .ask-ai-panel__input input:focus-visible {
@@ -3084,11 +3085,11 @@ h3 {
   }
 
   h1 {
-    font-size: 32px;
+    font-size: $fs-h1-mobile;
   }
 
   h2 {
-    font-size: 22px;
+    font-size: $fs-h2-mobile;
   }
 
   .brand-mark {
@@ -3169,7 +3170,7 @@ h3 {
   }
 
   .mobile-bottom-nav small {
-    font-size: 10px;
+    font-size: $fs-micro;
   }
 
   .mobile-bottom-nav a.router-link-active {
@@ -3217,7 +3218,7 @@ h3 {
   }
 
   .page-header__title-row h1 {
-    font-size: 22px;
+    font-size: $fs-h1-mobile;
   }
 
   .page-header p {
@@ -3243,7 +3244,7 @@ h3 {
 
   .landing-hero__copy h1 {
     max-width: 320px;
-    font-size: 31px;
+    font-size: $fs-display-mobile;
     line-height: 1.08;
   }
 
@@ -3303,7 +3304,7 @@ h3 {
   }
 
   .landing-section__header h2 {
-    font-size: 22px;
+    font-size: $fs-h2-mobile;
   }
 
   .section-grid,
@@ -3322,7 +3323,7 @@ h3 {
   }
 
   .landing-cta h2 {
-    font-size: 24px;
+    font-size: $fs-h1-mobile;
   }
 
   .dashboard-page {
@@ -3347,7 +3348,7 @@ h3 {
   }
 
   .stat-card__value {
-    font-size: 23px;
+    font-size: rem(26);
   }
 
   .stat-card__label {
@@ -3357,7 +3358,7 @@ h3 {
   .stat-card__delta {
     max-width: 100%;
     padding-inline: 8px;
-    font-size: 10.5px;
+    font-size: $fs-micro;
     white-space: normal;
   }
 
@@ -3434,7 +3435,7 @@ h3 {
   .preference-chip {
     min-height: 30px;
     padding-inline: 11px;
-    font-size: 11px;
+    font-size: $fs-caption;
   }
 
   .trip-form__submit {
@@ -3467,7 +3468,7 @@ h3 {
   }
 
   .trip-board-page .page-header__title-row h1 {
-    font-size: 18px;
+    font-size: $fs-h3;
     line-height: 1.2;
   }
 
