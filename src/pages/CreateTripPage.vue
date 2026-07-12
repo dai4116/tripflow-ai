@@ -22,10 +22,7 @@
       <BaseCard class="form-card">
         <h3>行程細節</h3>
         <BaseDateRangeInput label="旅遊日期" v-model:start="form.startDate" v-model:end="form.endDate" :error="dateRangeError" />
-        <div class="form-grid">
-          <BaseInput v-model="form.budget" label="預算（USD）" placeholder="3,000" icon="dollar" />
-          <BaseInput v-model="form.travelers" label="旅伴人數" type="number" icon="users" :min="1" :max="12" />
-        </div>
+        <BaseInput v-model="form.travelers" label="旅伴人數" type="number" icon="users" :min="1" :max="12" />
       </BaseCard>
 
       <BaseCard class="form-card">
@@ -158,7 +155,6 @@ const form = reactive({
   destination: '',
   startDate: toDateInputValue(defaultStart),
   endDate: toDateInputValue(defaultEnd),
-  budget: '',
   travelers: '2',
   travelStyle: '文化',
   avoidPlaces: '',
@@ -261,7 +257,6 @@ function finishGeneration() {
     destination: form.destination.trim(),
     startDate: form.startDate,
     endDate: form.endDate,
-    budget: form.budget,
     travelers: Number(form.travelers) || 1,
     travelStyle: form.travelStyle,
     avoidPlaces: form.avoidPlaces,

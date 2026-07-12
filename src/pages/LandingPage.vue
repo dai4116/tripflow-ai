@@ -35,7 +35,6 @@
           </div>
         </div>
         <div class="product-preview__map">
-          <div class="product-preview__budget">$3,200 預算<br><span>已分配 65%</span></div>
           <span class="map-dot" style="top: 24%; left: 38%" />
           <span class="map-dot" style="top: 48%; left: 62%" />
           <span class="map-dot" style="top: 68%; left: 44%" />
@@ -162,7 +161,7 @@ const workflow = [
   {
     number: '01',
     title: '描述你的行程',
-    description: '輸入目的地、日期、預算、旅遊風格，以及任何偏好或想避開的地方。',
+    description: '輸入目的地、日期、旅遊風格，以及任何偏好或想避開的地方。',
   },
   {
     number: '02',

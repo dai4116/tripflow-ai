@@ -28,13 +28,4 @@ export const stats: Stat[] = [
     tone: 'coral',
     icon: 'pin',
   },
-  {
-    id: 'budget',
-    label: '總預算',
-    value: '$24.8k',
-    helper: '所有行程加總',
-    helperTone: 'neutral',
-    tone: 'stay',
-    icon: 'dollar',
-  },
 ]

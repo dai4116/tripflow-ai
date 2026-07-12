@@ -1001,7 +1001,6 @@ h3 {
   background-size: 24px 24px, 24px 24px, cover;
 }
 
-.product-preview__budget,
 .product-preview__toast {
   position: absolute;
   z-index: 1;
@@ -1009,16 +1008,6 @@ h3 {
   font-weight: 800;
 }
 
-.product-preview__budget {
-  top: 28px;
-  right: 14px;
-  padding: 9px 11px;
-  border-radius: $radius-lg;
-  background: $color-surface;
-  box-shadow: $shadow-md;
-}
-
-.product-preview__budget span,
 .product-preview__toast span {
   color: $color-muted;
   font-weight: 700;
@@ -1234,7 +1223,7 @@ h3 {
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
 }
 

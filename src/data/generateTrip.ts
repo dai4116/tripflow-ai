@@ -97,13 +97,6 @@ function slugify(text: string): string {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'trip'
 }
 
-function formatBudget(raw: string): string {
-  const trimmed = raw.trim()
-  if (!trimmed) return '彈性'
-  if (trimmed.startsWith('$')) return trimmed
-  return /^[\d,.]+$/.test(trimmed) ? `$${trimmed}` : trimmed
-}
-
 // Trip length is nights, not inclusive calendar days — Mar 15 to Mar 22 is a
 // 7-day trip, matching the seed data's `days` field.
 function nightsBetween(startDate: string, endDate: string): number {
@@ -182,7 +175,6 @@ export function generateTrip(input: CreateTripInput, existingTripIds: string[]):
     destination: input.destination,
     days,
     travelers: input.travelers,
-    budget: formatBudget(input.budget),
     placeCount: places.length,
     color: palette.color,
     imageGradient: palette.imageGradient,

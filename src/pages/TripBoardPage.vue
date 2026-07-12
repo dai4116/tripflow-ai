@@ -492,7 +492,7 @@ const routePathD = computed(() => {
 const tripHeaderDescription = computed(() => {
   if (isMobile.value) return activeTrip.value.destination
 
-  return `${activeTrip.value.destination} · ${activeTrip.value.dateRange} · ${activeTrip.value.travelers} 位旅伴 · ${activeTrip.value.budget} 預算`
+  return `${activeTrip.value.destination} · ${activeTrip.value.dateRange} · ${activeTrip.value.travelers} 位旅伴`
 })
 const drawerPlace = computed(() => tripPlaces.value.find((place) => place.id === drawerPlaceId.value))
 const shouldLockBodyScroll = computed(() => isMobile.value && Boolean(drawerPlace.value))

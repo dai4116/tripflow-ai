@@ -41,7 +41,7 @@
     <section class="cta-band">
       <div class="cta-band__copy">
         <h2>開始規劃你的下一場冒險 🌴</h2>
-        <p>描述你的行程，AI 會自動產生看板、路線和預算。</p>
+        <p>描述你的行程，AI 會自動產生看板和路線。</p>
       </div>
       <BaseButton :to="{ name: 'trip-create' }" variant="accent">
         <AppIcon name="sparkle" :size="14" />

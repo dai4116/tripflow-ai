@@ -20,5 +20,4 @@
 
 <script setup lang="ts">
 import AppIcon from '../ui/AppIcon.vue'
-import BaseButton from '../ui/BaseButton.vue'
 </script>

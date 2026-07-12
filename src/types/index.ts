@@ -25,7 +25,6 @@ export type TripSummary = {
   destination: string
   days: number
   travelers: number
-  budget: string
   placeCount: number
   color: string
   imageGradient: string
@@ -65,7 +64,6 @@ export type CreateTripInput = {
   // rather than collected as its own field.
   startDate: string
   endDate: string
-  budget: string
   travelers: number
   travelStyle: string
   avoidPlaces: string
