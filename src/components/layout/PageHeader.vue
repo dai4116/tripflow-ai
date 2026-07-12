@@ -32,7 +32,7 @@ withDefaults(
     backLabel?: string
   }>(),
   {
-    backLabel: 'Back',
+    backLabel: '返回',
   },
 )
 </script>

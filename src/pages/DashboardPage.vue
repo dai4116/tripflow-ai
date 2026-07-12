@@ -1,17 +1,10 @@
 <template>
   <section class="dashboard-page">
     <PageHeader
-      eyebrow="Tue · Mar 11 2025"
-      title="Good morning, Alex! 👋"
-      description="3 trips in motion — Tokyo departs in 4 days."
-    >
-      <template v-if="!isMobile" #actions>
-        <BaseButton :to="{ name: 'trip-create' }">
-          <AppIcon name="plus" :size="14" />
-          New trip
-        </BaseButton>
-      </template>
-    </PageHeader>
+      eyebrow="週二・2025年3月11日"
+      title="早安，柏翰！👋"
+      description="有 3 個行程進行中——東京行程 4 天後出發。"
+    />
 
     <div class="stats-grid">
       <BaseCard v-for="stat in stats" :key="stat.id" class="stat-card">
@@ -29,9 +22,9 @@
 
     <section class="dashboard-section">
       <div class="section-head">
-        <h2>Recent trips</h2>
+        <h2>最近的行程</h2>
         <span class="section-head__count">{{ trips.length }}</span>
-        <BaseButton :to="{ name: 'trips' }" variant="ghost" size="sm">View all →</BaseButton>
+        <BaseButton :to="{ name: 'trips' }" variant="ghost" size="sm">查看全部 →</BaseButton>
       </div>
 
       <div class="trip-grid">
@@ -47,12 +40,12 @@
 
     <section class="cta-band">
       <div class="cta-band__copy">
-        <h2>Start planning your next adventure 🌴</h2>
-        <p>Describe the trip — AI drafts the board, the route, and the budget.</p>
+        <h2>開始規劃你的下一場冒險 🌴</h2>
+        <p>描述你的行程，AI 會自動產生看板、路線和預算。</p>
       </div>
       <BaseButton :to="{ name: 'trip-create' }" variant="accent">
         <AppIcon name="sparkle" :size="14" />
-        Create trip
+        建立行程
       </BaseButton>
     </section>
   </section>
@@ -66,11 +59,9 @@ import TripCard from '../components/trips/TripCard.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
 import BaseButton from '../components/ui/BaseButton.vue'
 import BaseCard from '../components/ui/BaseCard.vue'
-import { useIsMobile } from '../composables/useIsMobile'
 import { stats } from '../data/mockStats'
 import { useTripsStore } from '../stores/trips'
 
-const isMobile = useIsMobile()
 const { trips } = storeToRefs(useTripsStore())
 // Trips have no createdAt field — newly created ones are simply pushed to
 // the end of the array (see tripsStore.createTrip), so "recent" means the

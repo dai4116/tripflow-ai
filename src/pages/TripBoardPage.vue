@@ -5,11 +5,11 @@
       :description="tripHeaderDescription"
     >
       <template #actions>
-        <div class="trip-view-toggle" aria-label="Trip board view">
+        <div class="trip-view-toggle" aria-label="行程看板檢視">
           <button
             type="button"
             :class="{ 'trip-view-toggle__button--active': mobileView === 'board' }"
-            aria-label="Board view"
+            aria-label="看板檢視"
             @click="mobileView = 'board'"
           >
             <AppIcon name="list" :size="15" />
@@ -17,7 +17,7 @@
           <button
             type="button"
             :class="{ 'trip-view-toggle__button--active': mobileView === 'map' }"
-            aria-label="Map view"
+            aria-label="地圖檢視"
             @click="mobileView = 'map'"
           >
             <AppIcon name="pin" :size="15" />
@@ -32,7 +32,7 @@
         key="skeleton"
         class="kanban-skeleton"
         role="status"
-        aria-label="Generating your itinerary board"
+        aria-label="正在生成你的行程看板"
       >
         <div v-for="column in displayedColumns" :key="column.id" class="kanban-skeleton__column">
           <div class="kanban-skeleton__header" />
@@ -55,7 +55,7 @@
             {{ column.title }}
           </button>
         </div>
-        <button type="button" class="mobile-day-tabs__add" aria-label="Add a day" @click="addDay">
+        <button type="button" class="mobile-day-tabs__add" aria-label="新增一天" @click="addDay">
           <AppIcon name="plus" :size="13" />
         </button>
       </div>
@@ -76,7 +76,7 @@
               type="button"
               class="kanban-column__focus"
               :aria-pressed="focusedColumnId === column.id"
-              :aria-label="`Show ${column.title} on the map`"
+              :aria-label="`在地圖上顯示 ${column.title}`"
               @click="focusColumn(column.id)"
             >
               <span class="kanban-column__title">
@@ -88,7 +88,7 @@
             <button
               type="button"
               class="kanban-column__add-place"
-              :aria-label="`Add a place to ${column.title}`"
+              :aria-label="`新增地點到 ${column.title}`"
               @click="openAddPlaceModal(column.id)"
             >
               <AppIcon name="plus" :size="12" />
@@ -96,7 +96,7 @@
             <button
               type="button"
               class="kanban-column__delete-day"
-              :aria-label="`Delete ${column.title}`"
+              :aria-label="`刪除 ${column.title}`"
               :disabled="displayedColumns.length <= 1"
               @click="confirmDeleteDay(column)"
             >
@@ -131,24 +131,24 @@
             >
               <PlaceCard :place="place" />
             </button>
-            <p v-if="column.placeIds.length === 0" class="kanban-column__empty">Drag a place here</p>
+            <p v-if="column.placeIds.length === 0" class="kanban-column__empty">把地點拖曳到這裡</p>
           </VueDraggable>
         </section>
 
         <button v-if="!isMobile" type="button" class="kanban-add-day" @click="addDay">
           <AppIcon name="plus" :size="12" />
-          Add day
+          新增天數
         </button>
       </div>
 
       <aside
         v-if="!isMobile || mobileView === 'map'"
         class="map-panel"
-        aria-label="Static map preview"
+        aria-label="靜態地圖預覽"
       >
         <div class="map-panel__header">
-          <strong>Map view</strong>
-          <span>{{ tripPlaces.length }} places</span>
+          <strong>地圖檢視</strong>
+          <span>{{ tripPlaces.length }} 個地點</span>
         </div>
         <div class="map-panel__canvas">
           <svg class="map-panel__route" viewBox="0 0 340 560" preserveAspectRatio="none" aria-hidden="true">
@@ -168,7 +168,7 @@
             type="button"
             :style="markerPosition(index)"
             :title="place.name"
-            :aria-label="`Open ${place.name} details`"
+            :aria-label="`開啟 ${place.name} 詳細資料`"
             @click="openPlaceDrawer(place.id)"
           >
             <AppIcon name="pin-solid" :size="24" />
@@ -188,7 +188,7 @@
           v-if="drawerPlace && isMobile"
           class="mobile-sheet-overlay"
           type="button"
-          aria-label="Close place details"
+          aria-label="關閉地點詳情"
           @click="closeDrawer"
         />
       </Transition>
@@ -198,16 +198,16 @@
           v-if="drawerPlace"
           class="place-drawer"
           :class="{ 'place-drawer--sheet': isMobile }"
-          aria-label="Place detail drawer"
+          aria-label="地點詳細資料面板"
         >
-          <button class="place-drawer__close" type="button" aria-label="Close drawer" @click="closeDrawer">
+          <button class="place-drawer__close" type="button" aria-label="關閉面板" @click="closeDrawer">
             <AppIcon name="close" :size="13" />
           </button>
           <button
             v-if="!isEditingPlace"
             class="place-drawer__edit-toggle"
             type="button"
-            aria-label="Edit place details"
+            aria-label="編輯地點詳情"
             @click="startEdit"
           >
             <AppIcon name="edit" :size="13" />
@@ -230,35 +230,35 @@
 
               <div class="place-drawer__facts">
                 <div class="place-drawer__fact">
-                  <span>Duration</span>
-                  <strong>{{ drawerPlace.estimatedTime }}h</strong>
+                  <span>時長</span>
+                  <strong>{{ drawerPlace.estimatedTime }} 小時</strong>
                 </div>
                 <div class="place-drawer__fact">
-                  <span>Price</span>
+                  <span>價格</span>
                   <strong>{{ drawerPlace.estimatedCost }}</strong>
                 </div>
                 <div class="place-drawer__fact">
-                  <span>Day</span>
+                  <span>天數</span>
                   <strong>{{ getPlaceDay(drawerPlace.columnId) }}</strong>
                 </div>
                 <div class="place-drawer__fact">
-                  <span>Category</span>
-                  <strong>{{ drawerPlace.category }}</strong>
+                  <span>類別</span>
+                  <strong>{{ categoryLabels[drawerPlace.category] }}</strong>
                 </div>
               </div>
 
               <div v-if="drawerPlace.travelTip" class="place-drawer__tip">
                 <AppIcon name="sparkle" :size="15" />
                 <div>
-                  <b>Travel tip</b>
+                  <b>旅遊小提示</b>
                   {{ drawerPlace.travelTip }}
                 </div>
               </div>
 
               <div class="place-drawer__actions">
-                <BaseButton @click="viewOnMap">View on map</BaseButton>
+                <BaseButton @click="viewOnMap">在地圖上查看</BaseButton>
                 <div class="place-drawer__move-wrap">
-                  <BaseButton variant="secondary" @click="isMoveMenuOpen = !isMoveMenuOpen">Move day</BaseButton>
+                  <BaseButton variant="secondary" @click="isMoveMenuOpen = !isMoveMenuOpen">移動天數</BaseButton>
                   <div v-if="isMoveMenuOpen" class="place-drawer__move-menu" role="menu">
                     <button
                       v-for="column in displayedColumns"
@@ -273,19 +273,19 @@
                     </button>
                   </div>
                 </div>
-                <BaseButton class="place-drawer__remove" variant="ghost" @click="removeDrawerPlace">Remove place</BaseButton>
+                <BaseButton class="place-drawer__remove" variant="ghost" @click="removeDrawerPlace">移除地點</BaseButton>
               </div>
               <button
                 v-if="isMoveMenuOpen"
                 class="place-drawer__move-backdrop"
                 type="button"
-                aria-label="Close move menu"
+                aria-label="關閉移動選單"
                 @click="isMoveMenuOpen = false"
               />
             </template>
 
             <div v-else class="place-drawer__edit-form">
-              <BaseInput v-model="editForm.name" label="Name" placeholder="Place name" />
+              <BaseInput v-model="editForm.name" label="名稱" placeholder="地點名稱" />
 
               <div class="add-place-modal__pills">
                 <button
@@ -301,16 +301,16 @@
               </div>
 
               <div class="place-drawer__edit-row">
-                <BaseInput v-model="editForm.estimatedTime" type="number" label="Duration (h)" :min="0" />
-                <BaseInput v-model="editForm.estimatedCost" label="Price" placeholder="$$" />
+                <BaseInput v-model="editForm.estimatedTime" type="number" label="時長（小時）" :min="0" />
+                <BaseInput v-model="editForm.estimatedCost" label="價格" placeholder="$$" />
               </div>
 
-              <BaseInput v-model="editForm.description" label="Description" multiline :rows="3" />
-              <BaseInput v-model="editForm.travelTip" label="Travel tip (optional)" placeholder="Optional tip" />
+              <BaseInput v-model="editForm.description" label="描述" multiline :rows="3" />
+              <BaseInput v-model="editForm.travelTip" label="旅遊小提示（選填）" placeholder="選填提示" />
 
               <div class="place-drawer__edit-actions">
-                <BaseButton variant="secondary" @click="cancelEdit">Cancel</BaseButton>
-                <BaseButton :disabled="!editForm.name.trim()" @click="saveEdit">Save changes</BaseButton>
+                <BaseButton variant="secondary" @click="cancelEdit">取消</BaseButton>
+                <BaseButton :disabled="!editForm.name.trim()" @click="saveEdit">儲存變更</BaseButton>
               </div>
             </div>
           </div>
@@ -396,7 +396,7 @@ const confirmDialog = reactive<{
   open: false,
   title: '',
   message: '',
-  confirmLabel: 'Confirm',
+  confirmLabel: '確認',
   danger: false,
   onConfirm: null,
 })
@@ -405,7 +405,7 @@ function openConfirm(options: { title: string; message: string; confirmLabel?: s
   confirmDialog.open = true
   confirmDialog.title = options.title
   confirmDialog.message = options.message
-  confirmDialog.confirmLabel = options.confirmLabel ?? 'Confirm'
+  confirmDialog.confirmLabel = options.confirmLabel ?? '確認'
   confirmDialog.danger = options.danger ?? false
   confirmDialog.onConfirm = options.onConfirm
 }
@@ -436,13 +436,13 @@ const editForm = reactive({
 })
 
 const legendCategories = [
-  { key: 'culture', label: 'Culture' },
-  { key: 'food', label: 'Food' },
-  { key: 'nature', label: 'Nature' },
-  { key: 'shopping', label: 'Shopping' },
-  { key: 'activity', label: 'Activity' },
-  { key: 'transport', label: 'Transport' },
-  { key: 'stay', label: 'Stay' },
+  { key: 'culture', label: '文化' },
+  { key: 'food', label: '美食' },
+  { key: 'nature', label: '自然' },
+  { key: 'shopping', label: '購物' },
+  { key: 'activity', label: '活動' },
+  { key: 'transport', label: '交通' },
+  { key: 'stay', label: '住宿' },
 ]
 
 const activeTrip = computed(() => {
@@ -463,7 +463,7 @@ function ensureColumns() {
   const dayCount = Math.max(1, trip.days || 3)
   trip.columns = Array.from({ length: dayCount }, (_, index) => ({
     id: `day-${index + 1}`,
-    title: `Day ${index + 1}`,
+    title: `第${index + 1}天`,
     dayNumber: index + 1,
     placeIds: [],
   }))
@@ -524,11 +524,11 @@ const routePathD = computed(() => {
 const tripHeaderDescription = computed(() => {
   if (isMobile.value) return activeTrip.value.destination
 
-  return `${activeTrip.value.destination} · ${activeTrip.value.dateRange} · ${activeTrip.value.travelers} travelers · ${activeTrip.value.budget} budget`
+  return `${activeTrip.value.destination} · ${activeTrip.value.dateRange} · ${activeTrip.value.travelers} 位旅伴 · ${activeTrip.value.budget} 預算`
 })
 const drawerPlace = computed(() => tripPlaces.value.find((place) => place.id === drawerPlaceId.value))
 const shouldLockBodyScroll = computed(() => isMobile.value && Boolean(drawerPlace.value))
-const cityName = computed(() => activeTrip.value.destination.split(',')[0].trim() || activeTrip.value.destination)
+const cityName = computed(() => activeTrip.value.destination.split(/[,，]/)[0].trim() || activeTrip.value.destination)
 
 watch(
   shouldLockBodyScroll,
@@ -647,7 +647,7 @@ function addDay() {
   // nanoid rather than `day-${nextDayNumber}` — after a mid-list day is
   // removed and the rest renumbered, a position-based id could collide with
   // a survivor that kept its original id.
-  const newColumn: TripColumn = { id: `day-${nanoid(6)}`, dayNumber: nextDayNumber, title: `Day ${nextDayNumber}`, placeIds: [] }
+  const newColumn: TripColumn = { id: `day-${nanoid(6)}`, dayNumber: nextDayNumber, title: `第${nextDayNumber}天`, placeIds: [] }
   activeTrip.value.columns = [...displayedColumns.value, newColumn]
   activeTrip.value.days = activeTrip.value.columns.length
 
@@ -692,7 +692,7 @@ function removeDay(columnId: string) {
 
   activeTrip.value.columns = current
     .filter((item) => item.id !== columnId)
-    .map((item, index) => ({ ...item, dayNumber: index + 1, title: `Day ${index + 1}` }))
+    .map((item, index) => ({ ...item, dayNumber: index + 1, title: `第${index + 1}天` }))
   activeTrip.value.days = activeTrip.value.columns.length
 
   if (drawerPlaceId.value && placeIdsToRemove.has(drawerPlaceId.value)) closeDrawer()
@@ -704,9 +704,9 @@ function removeDrawerPlace() {
   const place = drawerPlace.value
 
   openConfirm({
-    title: `Remove "${place.name}"?`,
-    message: 'This place will be removed from your itinerary. This can\'t be undone.',
-    confirmLabel: 'Remove',
+    title: `移除「${place.name}」？`,
+    message: '這個地點會從行程中移除，此動作無法復原。',
+    confirmLabel: '移除',
     danger: true,
     onConfirm: () => {
       tripsStore.removePlace(place.id)
@@ -775,7 +775,7 @@ function viewOnMap() {
 function getPlaceDay(columnId: string) {
   const column = displayedColumns.value.find((item) => item.id === columnId)
 
-  return column?.title ?? 'Planning'
+  return column?.title ?? '規劃中'
 }
 
 const CURATED_MARKER_POSITIONS = [

@@ -78,8 +78,8 @@ const summary = computed(() => {
   const nights = Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
   if (nights <= 0) return ''
 
-  const format = (date: Date) => date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  const format = (date: Date) => date.toLocaleDateString('zh-TW', { month: 'long', day: 'numeric' })
 
-  return `${format(startDate)} – ${format(endDate)} · ${nights} ${nights === 1 ? 'night' : 'nights'}`
+  return `${format(startDate)} – ${format(endDate)} · ${nights} 晚`
 })
 </script>

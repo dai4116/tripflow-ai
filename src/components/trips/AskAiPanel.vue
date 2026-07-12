@@ -5,11 +5,11 @@
     class="ask-ai-launcher"
     :class="{ 'ask-ai-launcher--open': isOpen }"
     :aria-expanded="isOpen"
-    aria-label="Ask AI to adjust your itinerary"
+    aria-label="詢問 AI 調整行程"
     @click="toggleOpen"
   >
     <AppIcon :name="isOpen ? 'close' : 'chat-sparkle'" :size="isMobile ? 19 : 17" />
-    <span v-if="!isMobile">{{ isOpen ? 'Close' : 'Ask AI' }}</span>
+    <span v-if="!isMobile">{{ isOpen ? '關閉' : '問問 AI' }}</span>
   </button>
 
   <Transition name="mobile-sheet-fade">
@@ -17,7 +17,7 @@
       v-if="isOpen && isMobile"
       class="ask-ai-overlay"
       type="button"
-      aria-label="Close Ask AI panel"
+      aria-label="關閉 AI 助手面板"
       @click="closePanel"
     />
   </Transition>
@@ -27,14 +27,14 @@
       v-if="isOpen"
       class="ask-ai-panel"
       :class="{ 'ask-ai-panel--sheet': isMobile }"
-      aria-label="Ask AI to adjust itinerary"
+      aria-label="詢問 AI 調整行程"
     >
       <header class="ask-ai-panel__header">
         <span class="ask-ai-panel__title">
           <AppIcon name="sparkle" :size="14" />
-          Ask AI to adjust
+          問 AI 幫你調整
         </span>
-        <button type="button" class="ask-ai-panel__close" aria-label="Close panel" @click="closePanel">
+        <button type="button" class="ask-ai-panel__close" aria-label="關閉面板" @click="closePanel">
           <AppIcon name="close" :size="13" />
         </button>
       </header>
@@ -63,7 +63,7 @@
 
           <span v-else-if="message.resolved" class="ask-ai-message__resolved">
             <AppIcon v-if="message.resolved === 'applied'" name="check" :size="10" />
-            {{ message.resolved === 'applied' ? 'Applied' : 'Dismissed' }}
+            {{ message.resolved === 'applied' ? '已套用' : '已略過' }}
           </span>
         </div>
 
@@ -76,10 +76,10 @@
         <input
           v-model="draft"
           type="text"
-          placeholder="e.g. Move the museum to Day 1..."
-          aria-label="Message to AI"
+          placeholder="例如：把博物館搬到第 1 天..."
+          aria-label="傳送訊息給 AI"
         />
-        <button type="submit" class="ask-ai-panel__send" :disabled="!draft.trim()" aria-label="Send message">
+        <button type="submit" class="ask-ai-panel__send" :disabled="!draft.trim()" aria-label="送出訊息">
           <AppIcon name="arrow-right" :size="15" />
         </button>
       </form>
@@ -129,8 +129,8 @@ const tripPlaces = computed(() => places.value.filter((place) => place.tripId ==
 
 function suggestionActions(): AiAction[] {
   return [
-    { label: 'Apply change', variant: 'primary' },
-    { label: 'Not now', variant: 'secondary' },
+    { label: '套用變更', variant: 'primary' },
+    { label: '先不要', variant: 'secondary' },
   ]
 }
 
@@ -156,7 +156,7 @@ function computeRebalanceSuggestion(): { place: Place; fromColumn: TripColumn; t
 
 function rebalanceMessage(suggestion: { place: Place; fromColumn: TripColumn; toColumn: TripColumn }): Omit<AiMessage, 'id' | 'role'> {
   return {
-    text: `Day ${suggestion.fromColumn.dayNumber} has ${suggestion.fromColumn.placeIds.length} stops — I'd move "${suggestion.place.name}" to Day ${suggestion.toColumn.dayNumber}, which only has ${suggestion.toColumn.placeIds.length}. Want me to apply this?`,
+    text: `第 ${suggestion.fromColumn.dayNumber} 天有 ${suggestion.fromColumn.placeIds.length} 個景點——我會把「${suggestion.place.name}」搬到第 ${suggestion.toColumn.dayNumber} 天，那天只有 ${suggestion.toColumn.placeIds.length} 個景點。要套用這個變更嗎？`,
     actions: suggestionActions(),
     intent: { type: 'move', placeId: suggestion.place.id, toColumnId: suggestion.toColumn.id },
   }
@@ -179,16 +179,16 @@ const messages = ref<AiMessage[]>([
   {
     id: nanoid(),
     role: 'ai',
-    text: 'I can help you rearrange your trip, swap places, or adjust the pace. What would you like to change?',
+    text: '我可以幫你調整行程順序、更換地點，或調整節奏。你想改什麼呢？',
   },
   {
     id: nanoid(),
     role: 'user',
-    text: 'This day feels too packed, can you spread it out?',
+    text: '這天感覺排太滿了，可以幫我分散一下嗎？',
   },
   initialSuggestion
     ? { id: nanoid(), role: 'ai', ...rebalanceMessage(initialSuggestion) }
-    : { id: nanoid(), role: 'ai', text: 'Your days already look evenly balanced — nice work!' },
+    : { id: nanoid(), role: 'ai', text: '你的行程天數已經很平均了，安排得不錯！' },
 ])
 
 let thinkingTimer: number | undefined
@@ -216,7 +216,7 @@ function resolveSuggestion(message: AiMessage, action: AiAction) {
   if (action.variant !== 'primary' || !message.intent) return
 
   applyIntent(message.intent)
-  messages.value.push({ id: nanoid(), role: 'ai', text: 'Done — updated your itinerary.' })
+  messages.value.push({ id: nanoid(), role: 'ai', text: '完成，已經更新你的行程了。' })
   scrollToBottom()
 }
 
@@ -238,11 +238,11 @@ function buildAiResponse(text: string): Omit<AiMessage, 'id' | 'role'> {
 
   if (mentionedPlace && dayNumber) {
     const toColumn = activeTrip.value?.columns.find((column) => column.dayNumber === dayNumber)
-    if (!toColumn) return { text: `I couldn't find Day ${dayNumber} on this trip.` }
-    if (toColumn.id === mentionedPlace.columnId) return { text: `"${mentionedPlace.name}" is already on Day ${dayNumber}.` }
+    if (!toColumn) return { text: `這個行程沒有找到第 ${dayNumber} 天。` }
+    if (toColumn.id === mentionedPlace.columnId) return { text: `「${mentionedPlace.name}」已經在第 ${dayNumber} 天了。` }
 
     return {
-      text: `Sure — I'll move "${mentionedPlace.name}" to Day ${dayNumber}. Want me to apply this?`,
+      text: `好的，我會把「${mentionedPlace.name}」搬到第 ${dayNumber} 天。要套用這個變更嗎？`,
       actions: suggestionActions(),
       intent: { type: 'move', placeId: mentionedPlace.id, toColumnId: toColumn.id },
     }
@@ -250,7 +250,7 @@ function buildAiResponse(text: string): Omit<AiMessage, 'id' | 'role'> {
 
   if (mentionedPlace && /remove|delete|刪除|移除/.test(lower)) {
     return {
-      text: `I'll remove "${mentionedPlace.name}" from your trip. Want me to apply this?`,
+      text: `我會把「${mentionedPlace.name}」從行程中移除。要套用這個變更嗎？`,
       actions: suggestionActions(),
       intent: { type: 'remove', placeId: mentionedPlace.id },
     }
@@ -258,10 +258,10 @@ function buildAiResponse(text: string): Omit<AiMessage, 'id' | 'role'> {
 
   if (/pack|busy|太趕|太滿|太多/.test(lower)) {
     const suggestion = computeRebalanceSuggestion()
-    return suggestion ? rebalanceMessage(suggestion) : { text: 'Your days already look evenly balanced to me!' }
+    return suggestion ? rebalanceMessage(suggestion) : { text: '我看你的行程天數已經很平均了！' }
   }
 
-  return { text: "Got it — I'll factor that into your itinerary." }
+  return { text: '了解，我會把這個納入你的行程考量。' }
 }
 
 function sendMessage() {

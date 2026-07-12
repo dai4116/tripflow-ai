@@ -1,18 +1,18 @@
-export const travelStyles = ['Adventure', 'Relaxation', 'Cultural', 'Food & Drink', 'Photography', 'Nature']
+export const travelStyles = ['冒險', '放鬆', '文化', '美食', '攝影', '自然']
 
 export const preferences = [
-  'Museums',
-  'Beaches',
-  'Hiking',
-  'Local Food',
-  'Nightlife',
-  'Shopping',
-  'Art Galleries',
-  'Architecture',
-  'Street Food',
-  'Temples',
-  'Parks',
-  'Markets',
-  'Cafes',
-  'Viewpoints',
+  '博物館',
+  '海灘',
+  '健行',
+  '在地美食',
+  '夜生活',
+  '購物',
+  '藝廊',
+  '建築',
+  '街頭小吃',
+  '廟宇',
+  '公園',
+  '市集',
+  '咖啡廳',
+  '觀景點',
 ]

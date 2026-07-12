@@ -1,11 +1,11 @@
 <template>
   <section class="new-trip-page">
     <PageHeader
-      eyebrow="New itinerary"
-      title="Plan a new trip ✈️"
-      description="Fill in the details and AI will build your itinerary."
+      eyebrow="新增行程"
+      title="規劃新行程 ✈️"
+      description="填寫細節，AI 會幫你打造專屬行程。"
       :back-to="{ name: 'dashboard' }"
-      back-label="Back to dashboard"
+      back-label="返回首頁"
     />
 
     <form v-if="!isGenerating" class="trip-form" @submit.prevent="generateTrip">
@@ -13,24 +13,24 @@
         <BaseInput
           ref="destinationInputRef"
           v-model="form.destination"
-          label="Where are you going?"
-          placeholder="e.g. Tokyo, Japan"
+          label="你想去哪裡？"
+          placeholder="例如：東京，日本"
           icon="search"
           :error="destinationError"
         />
       </BaseCard>
 
       <BaseCard class="form-card">
-        <h3>Trip details</h3>
-        <BaseDateRangeInput label="Travel dates" v-model:start="form.startDate" v-model:end="form.endDate" :error="dateRangeError" />
+        <h3>行程細節</h3>
+        <BaseDateRangeInput label="旅遊日期" v-model:start="form.startDate" v-model:end="form.endDate" :error="dateRangeError" />
         <div class="form-grid">
-          <BaseInput v-model="form.budget" label="Budget (USD)" placeholder="3,000" icon="dollar" />
-          <BaseInput v-model="form.travelers" label="Travelers" type="number" icon="users" :min="1" :max="12" />
+          <BaseInput v-model="form.budget" label="預算（USD）" placeholder="3,000" icon="dollar" />
+          <BaseInput v-model="form.travelers" label="旅伴人數" type="number" icon="users" :min="1" :max="12" />
         </div>
       </BaseCard>
 
       <BaseCard class="form-card">
-        <h3>Travel style</h3>
+        <h3>旅遊風格</h3>
         <div class="choice-grid">
           <button
             v-for="style in travelStyles"
@@ -48,8 +48,8 @@
       </BaseCard>
 
       <BaseCard class="form-card">
-        <h3>Preferences</h3>
-        <p class="form-card__hint">Select what you enjoy</p>
+        <h3>興趣偏好</h3>
+        <p class="form-card__hint">選擇你喜歡的類型</p>
         <div class="preference-list">
           <button
             v-for="preference in preferences"
@@ -73,18 +73,18 @@
       <BaseCard class="form-card">
         <BaseInput
           v-model="form.avoidPlaces"
-          label="Places to avoid"
+          label="想避開的地方"
           multiline
-          placeholder="e.g. Avoid Shibuya on weekends, skip tourist-trap ramen chains..."
+          placeholder="例如：週末避開澀谷、跳過觀光客拉麵店..."
         />
       </BaseCard>
 
       <BaseButton class="trip-form__submit" type="submit">
         <AppIcon name="sparkle" :size="15" />
-        Generate with AI
+        用 AI 生成行程
       </BaseButton>
       <p class="trip-form__note">
-        AI builds a 7-day board · curated places · optimized route
+        AI 會產生 7 天行程看板・精選地點・優化路線
       </p>
     </form>
 
@@ -93,8 +93,8 @@
         <span class="generating__badge">
           <AppIcon name="sparkle" :size="22" />
         </span>
-        <h2 class="generating__title">Building your {{ cityLabel }} itinerary</h2>
-        <p class="generating__subtitle">This usually takes a few seconds…</p>
+        <h2 class="generating__title">正在為你打造 {{ cityLabel }} 行程</h2>
+        <p class="generating__subtitle">通常只需要幾秒鐘…</p>
 
         <ol class="generating__stages">
           <li
@@ -140,7 +140,7 @@ const currentStageIndex = ref(0)
 const destinationError = ref('')
 const dateRangeError = ref('')
 const destinationInputRef = ref<InstanceType<typeof BaseInput> | null>(null)
-const selectedPreferences = ref(['Museums', 'Local Food', 'Architecture'])
+const selectedPreferences = ref(['博物館', '在地美食', '建築'])
 
 // YYYY-MM-DD in local time — Date#toISOString() is UTC and can land on the
 // wrong calendar day depending on the visitor's timezone offset.
@@ -161,7 +161,7 @@ const form = reactive({
   endDate: toDateInputValue(defaultEnd),
   budget: '',
   travelers: '2',
-  travelStyle: 'Cultural',
+  travelStyle: '文化',
   avoidPlaces: '',
 })
 
@@ -184,12 +184,12 @@ watch(
   },
 )
 
-const cityLabel = computed(() => form.destination.split(',')[0].trim() || 'your')
+const cityLabel = computed(() => form.destination.split(/[,，]/)[0].trim() || '你的')
 const stages = computed(() => [
-  'Reading your preferences',
-  `Scouting places in ${cityLabel.value}`,
-  'Building your day-by-day plan',
-  'Optimizing your route',
+  '讀取你的偏好設定',
+  `搜尋${cityLabel.value}的景點`,
+  '規劃每日行程',
+  '優化路線',
 ])
 
 let stageTimer: number | undefined
@@ -209,12 +209,12 @@ function togglePreference(preference: string) {
 
 function getStyleIcon(style: string): IconName {
   const icons: Record<string, IconName> = {
-    Adventure: 'mountain',
-    Relaxation: 'coffee',
-    Cultural: 'museum',
-    'Food & Drink': 'cutlery',
-    Photography: 'camera',
-    Nature: 'leaf',
+    冒險: 'mountain',
+    放鬆: 'coffee',
+    文化: 'museum',
+    美食: 'cutlery',
+    攝影: 'camera',
+    自然: 'leaf',
   }
 
   return icons[style] ?? 'sparkle'
@@ -224,18 +224,18 @@ function generateTrip() {
   if (isGenerating.value) return
 
   if (!form.destination.trim()) {
-    destinationError.value = 'Tell us where you are going first.'
+    destinationError.value = '請先告訴我們你要去哪裡。'
     destinationInputRef.value?.focus()
     return
   }
 
   if (!form.startDate || !form.endDate) {
-    dateRangeError.value = 'Pick your travel dates.'
+    dateRangeError.value = '請選擇旅遊日期。'
     return
   }
 
   if (new Date(form.endDate).getTime() <= new Date(form.startDate).getTime()) {
-    dateRangeError.value = 'End date must be after start date.'
+    dateRangeError.value = '結束日期必須晚於開始日期。'
     return
   }
 

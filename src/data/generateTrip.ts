@@ -18,67 +18,67 @@ export const PLACE_GRADIENTS = [
 ]
 
 const PREFERENCE_CATEGORY: Record<string, PlaceCategory> = {
-  Museums: 'culture',
-  Beaches: 'nature',
-  Hiking: 'nature',
-  'Local Food': 'food',
-  Nightlife: 'activity',
-  Shopping: 'shopping',
-  'Art Galleries': 'culture',
-  Architecture: 'culture',
-  'Street Food': 'food',
-  Temples: 'culture',
-  Parks: 'nature',
-  Markets: 'shopping',
-  Cafes: 'cafe',
-  Viewpoints: 'nature',
+  博物館: 'culture',
+  海灘: 'nature',
+  健行: 'nature',
+  在地美食: 'food',
+  夜生活: 'activity',
+  購物: 'shopping',
+  藝廊: 'culture',
+  建築: 'culture',
+  街頭小吃: 'food',
+  廟宇: 'culture',
+  公園: 'nature',
+  市集: 'shopping',
+  咖啡廳: 'cafe',
+  觀景點: 'nature',
 }
 
 const TRAVEL_STYLE_CATEGORY: Record<string, PlaceCategory> = {
-  Adventure: 'activity',
-  Relaxation: 'nature',
-  Cultural: 'culture',
-  'Food & Drink': 'food',
-  Photography: 'culture',
-  Nature: 'nature',
+  冒險: 'activity',
+  放鬆: 'nature',
+  文化: 'culture',
+  美食: 'food',
+  攝影: 'culture',
+  自然: 'nature',
 }
 
 const TRAVEL_STYLE_PACE: Record<string, TripPace> = {
-  Relaxation: 'relaxed',
-  Adventure: 'packed',
+  放鬆: 'relaxed',
+  冒險: 'packed',
 }
 
 type CategoryTemplate = { name: string; description: string }
 
 const CATEGORY_TEMPLATES: Partial<Record<PlaceCategory, (city: string) => CategoryTemplate[]>> = {
   culture: (city) => [
-    { name: `${city} Old Town Walk`, description: `Wander the historic streets and landmark architecture of ${city}.` },
-    { name: `${city} History Museum`, description: `A deep dive into the story and culture of ${city}.` },
-    { name: `Landmark Cathedral of ${city}`, description: `One of ${city}'s most photographed architectural icons.` },
+    { name: `${city}舊城區散步`, description: `漫遊${city}的歷史街道與地標建築。` },
+    { name: `${city}歷史博物館`, description: `深入了解${city}的故事與文化。` },
+    { name: `${city}地標大教堂`, description: `${city}最多人拍照打卡的建築地標之一。` },
   ],
   food: (city) => [
-    { name: `${city} Night Food Market`, description: `Street stalls and local specialties after dark in ${city}.` },
-    { name: `Local Favorite Restaurant in ${city}`, description: 'A well-loved spot locals actually eat at.' },
-    { name: `${city} Street Food Alley`, description: 'Quick bites and regional flavors, block by block.' },
+    { name: `${city}夜市`, description: `${city}入夜後的路邊攤與在地美食。` },
+    { name: `${city}在地人氣餐廳`, description: '當地人真心推薦、常去吃的店。' },
+    { name: `${city}街頭小吃巷弄`, description: '一條街吃遍在地小吃與特色風味。' },
   ],
   nature: (city) => [
-    { name: `${city} Scenic Viewpoint`, description: `Panoramic views over ${city} — best around sunset.` },
-    { name: `${city} Botanical Gardens`, description: `A quiet green escape in the middle of ${city}.` },
-    { name: `Coastal Walk near ${city}`, description: 'Fresh air and open water views just outside the city.' },
+    { name: `${city}景觀台`, description: `俯瞰${city}全景，日落時分最美。` },
+    { name: `${city}植物園`, description: `${city}市中心的靜謐綠洲。` },
+    { name: `${city}近郊海岸步道`, description: '城市外圍的新鮮空氣與遼闊海景。' },
   ],
   shopping: (city) => [
-    { name: `${city} Central Market`, description: 'Local goods, souvenirs, and produce under one roof.' },
-    { name: `${city} Shopping District`, description: 'Boutiques and flagship stores along the main strip.' },
-    { name: `Artisan Market in ${city}`, description: 'Handmade goods from local makers.' },
+    { name: `${city}中央市場`, description: '在地特產、紀念品與新鮮食材一次逛齊。' },
+    { name: `${city}購物商圈`, description: '精品小店與品牌旗艦店林立的主要街道。' },
+    { name: `${city}手作市集`, description: '在地職人手作的獨特商品。' },
   ],
   cafe: (city) => [
-    { name: `Cozy Café in ${city}`, description: 'A relaxed spot to recharge between stops.' },
-    { name: `${city} Specialty Coffee House`, description: 'Locally roasted coffee worth the detour.' },
+    { name: `${city}溫馨咖啡廳`, description: '行程中場休息、放鬆充電的好地方。' },
+    { name: `${city}精品咖啡館`, description: '值得繞路造訪的在地烘焙咖啡。' },
   ],
   activity: (city) => [
-    { name: `${city} Rooftop Bar`, description: 'Evening drinks with a skyline view.' },
-    { name: `Evening Cruise in ${city}`, description: 'See the city from the water as the sun sets.' },
-    { name: `${city} Live Music Venue`, description: 'Local sounds and a lively late-night crowd.' },
+    { name: `${city}屋頂酒吧`, description: '邊喝一杯邊欣賞城市天際線。' },
+    { name: `${city}夜間遊船`, description: '在日落時分從水上欣賞城市風景。' },
+    { name: `${city}現場音樂展演空間`, description: '在地樂手演出與熱鬧的深夜氛圍。' },
   ],
 }
 
@@ -99,7 +99,7 @@ function slugify(text: string): string {
 
 function formatBudget(raw: string): string {
   const trimmed = raw.trim()
-  if (!trimmed) return 'Flexible'
+  if (!trimmed) return '彈性'
   if (trimmed.startsWith('$')) return trimmed
   return /^[\d,.]+$/.test(trimmed) ? `$${trimmed}` : trimmed
 }
@@ -117,11 +117,11 @@ function nightsBetween(startDate: string, endDate: string): number {
 function formatDateRange(startDate: string, endDate: string): string {
   const start = new Date(startDate)
   const end = new Date(endDate)
-  const startLabel = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const startLabel = start.toLocaleDateString('zh-TW', { month: 'long', day: 'numeric' })
   const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()
-  const endLabel = sameMonth ? `${end.getDate()}` : end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const endLabel = sameMonth ? `${end.getDate()}日` : end.toLocaleDateString('zh-TW', { month: 'long', day: 'numeric' })
 
-  return `${startLabel} - ${endLabel}, ${end.getFullYear()}`
+  return `${end.getFullYear()}年${startLabel} - ${endLabel}`
 }
 
 function resolveCategories(input: CreateTripInput): PlaceCategory[] {
@@ -133,7 +133,7 @@ function resolveCategories(input: CreateTripInput): PlaceCategory[] {
 }
 
 export function generateTrip(input: CreateTripInput, existingTripIds: string[]): { trip: Trip; places: Place[] } {
-  const city = input.destination.split(',')[0].trim() || input.destination
+  const city = input.destination.split(/[,，]/)[0].trim() || input.destination
   const days = Math.max(1, Math.min(30, nightsBetween(input.startDate, input.endDate) || 7))
   const tripId = `${slugify(input.destination)}-${nanoid(6)}`
   const palette = TRIP_PALETTE[existingTripIds.length % TRIP_PALETTE.length]
@@ -154,7 +154,7 @@ export function generateTrip(input: CreateTripInput, existingTripIds: string[]):
       name: template.name,
       category,
       estimatedTime: [1.5, 2, 2.5][places.length % 3],
-      estimatedCost: ['Free', '$', '$$'][places.length % 3],
+      estimatedCost: ['免費', '$', '$$'][places.length % 3],
       address: input.destination,
       // Real coordinates aren't looked up yet — the map still positions pins by index, not lat/lng.
       lat: 0,
@@ -173,12 +173,12 @@ export function generateTrip(input: CreateTripInput, existingTripIds: string[]):
     const columnId = `day-${dayNumber}`
     const placeIds = [0, 1].map((i) => addPlace(categories[(index * 2 + i) % categories.length], columnId).id)
 
-    return { id: columnId, title: `Day ${dayNumber}`, dayNumber, placeIds }
+    return { id: columnId, title: `第${dayNumber}天`, dayNumber, placeIds }
   })
 
   const trip: Trip = {
     id: tripId,
-    title: `${city} Trip`,
+    title: `${city}之旅`,
     destination: input.destination,
     days,
     travelers: input.travelers,

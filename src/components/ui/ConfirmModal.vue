@@ -26,8 +26,8 @@ withDefaults(
     danger?: boolean
   }>(),
   {
-    confirmLabel: 'Confirm',
-    cancelLabel: 'Cancel',
+    confirmLabel: '確認',
+    cancelLabel: '取消',
     danger: false,
   },
 )

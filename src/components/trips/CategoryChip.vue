@@ -23,16 +23,16 @@ export const categoryIcons: Record<PlaceCategory, IconName> = {
 }
 
 export const categoryLabels: Record<PlaceCategory, string> = {
-  food: 'Food',
-  cafe: 'Cafe',
-  shopping: 'Shopping',
-  culture: 'Culture',
-  nature: 'Nature',
-  museum: 'Museum',
-  transport: 'Transport',
-  stay: 'Stay',
-  activity: 'Activity',
-  other: 'Other',
+  food: '美食',
+  cafe: '咖啡廳',
+  shopping: '購物',
+  culture: '文化',
+  nature: '自然',
+  museum: '博物館',
+  transport: '交通',
+  stay: '住宿',
+  activity: '活動',
+  other: '其他',
 }
 
 export const allPlaceCategories = Object.keys(categoryLabels) as PlaceCategory[]

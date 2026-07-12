@@ -5,27 +5,27 @@
       <span>TripFlow AI</span>
     </RouterLink>
 
-    <nav class="app-sidebar__section" aria-label="Workspace navigation">
-      <p class="app-sidebar__label">Menu</p>
+    <nav class="app-sidebar__section" aria-label="工作區導覽">
+      <p class="app-sidebar__label">選單</p>
       <RouterLink :to="{ name: 'dashboard' }">
         <AppIcon name="grid" />
-        <span>Dashboard</span>
+        <span>首頁</span>
       </RouterLink>
       <RouterLink :to="{ name: 'trips' }">
         <AppIcon name="list" />
-        <span>Trips</span>
+        <span>行程</span>
       </RouterLink>
       <RouterLink :to="{ name: 'trip-create' }">
         <AppIcon name="plus" />
-        <span>New Trip</span>
+        <span>新增行程</span>
       </RouterLink>
     </nav>
 
     <div class="app-sidebar__user">
-      <span class="app-sidebar__avatar">AK</span>
+      <span class="app-sidebar__avatar">柏</span>
       <div>
-        <strong>Alex Kim</strong>
-        <small>alex@tripflow.ai</small>
+        <strong>陳柏翰</strong>
+        <small>bohan@tripflow.ai</small>
       </div>
       <AppIcon class="app-sidebar__settings" name="gear" :size="15" />
     </div>

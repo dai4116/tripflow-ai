@@ -1,16 +1,10 @@
 <template>
   <section class="trips-page">
     <PageHeader
-      eyebrow="Workspace"
-      title="My trips"
-      description="Browse every trip in your planning workspace."
+      eyebrow="工作區"
+      title="我的行程"
+      description="瀏覽你規劃中的所有行程。"
     >
-      <template v-if="!isMobile" #actions>
-        <BaseButton :to="{ name: 'trip-create' }">
-          <AppIcon name="plus" :size="14" />
-          New trip
-        </BaseButton>
-      </template>
     </PageHeader>
 
     <div class="trips-list">

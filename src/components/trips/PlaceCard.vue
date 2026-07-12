@@ -5,7 +5,7 @@
       <CategoryChip :category="place.category" />
       <h3>{{ place.name }}</h3>
       <div class="place-card__meta">
-        <span><AppIcon name="clock" :size="11" />{{ place.estimatedTime }}h</span>
+        <span><AppIcon name="clock" :size="11" />{{ place.estimatedTime }} 小時</span>
         <span class="place-card__rating"><AppIcon name="star" :size="11" />{{ place.rating }}</span>
         <span>{{ place.estimatedCost }}</span>
       </div>

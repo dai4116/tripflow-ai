@@ -1,19 +1,19 @@
 <template>
   <Teleport to="body">
     <div class="add-place-modal-overlay" role="presentation" @click.self="close">
-      <section class="add-place-modal" role="dialog" aria-modal="true" aria-label="Add a place">
+      <section class="add-place-modal" role="dialog" aria-modal="true" aria-label="新增地點">
         <header class="add-place-modal__header">
           <div>
-            <h3>Add a place</h3>
-            <p class="add-place-modal__subtitle">to {{ columnTitle }}</p>
+            <h3>新增地點</h3>
+            <p class="add-place-modal__subtitle">到{{ columnTitle }}</p>
           </div>
-          <button type="button" class="add-place-modal__close" aria-label="Close" @click="close">
+          <button type="button" class="add-place-modal__close" aria-label="關閉" @click="close">
             <AppIcon name="close" :size="13" />
           </button>
         </header>
 
         <div class="add-place-modal__section">
-          <BaseInput v-model="search" icon="search" placeholder="Search suggestions..." />
+          <BaseInput v-model="search" icon="search" placeholder="搜尋建議地點..." />
           <div class="add-place-modal__pills">
             <button
               type="button"
@@ -21,7 +21,7 @@
               :class="{ 'preference-chip--selected': activeCategory === 'all' }"
               @click="activeCategory = 'all'"
             >
-              All
+              全部
             </button>
             <button
               v-for="category in availableCategories"
@@ -53,13 +53,13 @@
           </button>
 
           <p v-if="filteredSuggestions.length === 0" class="add-place-modal__empty">
-            No suggestions match — try the custom place form below.
+            沒有符合的建議地點，請用下方的自訂地點表單新增。
           </p>
         </div>
 
         <div class="add-place-modal__section add-place-custom">
-          <span class="add-place-modal__label">Custom place</span>
-          <BaseInput v-model="customName" placeholder="Place name" />
+          <span class="add-place-modal__label">自訂地點</span>
+          <BaseInput v-model="customName" placeholder="地點名稱" />
           <div class="add-place-modal__pills">
             <button
               v-for="category in availableCategories"
@@ -74,7 +74,7 @@
           </div>
           <BaseButton size="sm" :disabled="!customName.trim()" @click="addCustom">
             <AppIcon name="plus" :size="13" />
-            Add custom place
+            新增自訂地點
           </BaseButton>
         </div>
       </section>
@@ -142,7 +142,7 @@ function addCustom() {
     columnId: props.columnId,
     name,
     category: customCategory.value,
-    description: `Added to your trip — fill in more details from the drawer.`,
+    description: `已加入行程，可以到側邊欄補充更多細節。`,
   })
   customName.value = ''
 }
