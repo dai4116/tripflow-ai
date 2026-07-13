@@ -1,5 +1,10 @@
 import Anthropic from '@anthropic-ai/sdk'
 
+// Vercel's default Node function duration (10s) is too tight for a cold
+// start + first-use structured-output schema compilation + generation time
+// combined — extend it to match the client's 30s timeout in aiTripClient.ts.
+export const config = { maxDuration: 30 }
+
 // Loosely typed on purpose — Vercel's Node runtime augments these at runtime
 // (req.body parsing, res.status/json helpers) without needing @vercel/node's
 // type package, which pulls in a large, vulnerability-flagged dependency

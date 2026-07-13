@@ -1,7 +1,10 @@
 import type { CreateTripInput } from '../types'
 import type { PlaceSuggestion } from './generateTrip'
 
-const REQUEST_TIMEOUT_MS = 12000
+// Generous on purpose — a cold Vercel function start + first-use structured
+// output schema compilation + Haiku's own generation time can combine to
+// well over 10s on an infrequently-hit serverless function.
+const REQUEST_TIMEOUT_MS = 30000
 
 // Talks to /api/generate-trip (a Vercel serverless function calling Claude
 // Haiku). Returns undefined — never throws — on any failure: no route in
