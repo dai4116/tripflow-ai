@@ -9,7 +9,14 @@ export const config = { maxDuration: 30 }
 // (req.body parsing, res.status/json helpers) without needing @vercel/node's
 // type package, which pulls in a large, vulnerability-flagged dependency
 // tree just for this one small function.
-type VercelLikeRequest = { method?: string; body?: unknown }
+type VercelLikeRequest = {
+  method?: string
+  body?: unknown
+  // Real Node IncomingMessage method — used to detect the client giving up
+  // (e.g. aiTripClient.ts's own timeout) so we can cancel the in-flight
+  // Claude call instead of paying for tokens nobody will read the result of.
+  on?: (event: 'close', listener: () => void) => void
+}
 type VercelLikeResponse = {
   status: (code: number) => VercelLikeResponse
   json: (body: unknown) => void
@@ -90,14 +97,23 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
     .filter(Boolean)
     .join('\n')
 
+  // If the client disconnects (its own timeout fired, tab closed, etc.),
+  // stop generating — otherwise Claude finishes the response and we're
+  // billed for tokens whose result nobody will ever read.
+  const controller = new AbortController()
+  req.on?.('close', () => controller.abort())
+
   try {
     const client = new Anthropic({ apiKey })
-    const response = await client.messages.create({
-      model: 'claude-haiku-4-5',
-      max_tokens: 8192,
-      output_config: { format: { type: 'json_schema', schema: PLACE_SCHEMA } },
-      messages: [{ role: 'user', content: prompt }],
-    })
+    const response = await client.messages.create(
+      {
+        model: 'claude-haiku-4-5',
+        max_tokens: 8192,
+        output_config: { format: { type: 'json_schema', schema: PLACE_SCHEMA } },
+        messages: [{ role: 'user', content: prompt }],
+      },
+      { signal: controller.signal },
+    )
 
     const textBlock = response.content.find((block) => block.type === 'text')
     if (!textBlock || textBlock.type !== 'text') {
