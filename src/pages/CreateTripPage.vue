@@ -252,8 +252,8 @@ function advanceStage() {
   }, STAGE_DURATION)
 }
 
-function finishGeneration() {
-  const trip = tripsStore.createTrip({
+async function finishGeneration() {
+  const trip = await tripsStore.createTrip({
     destination: form.destination.trim(),
     startDate: form.startDate,
     endDate: form.endDate,

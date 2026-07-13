@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.111.0",
     "@vueuse/core": "^14.3.0",
     "dayjs": "^1.11.21",
     "leaflet": "^1.9.4",

@@ -1,7 +1,8 @@
 import { useStorage } from '@vueuse/core'
 import { nanoid } from 'nanoid'
 import { defineStore } from 'pinia'
-import { generateTrip, PLACE_GRADIENTS } from '../data/generateTrip'
+import { fetchAiPlaces } from '../data/aiTripClient'
+import { computeTripDays, generateTrip, PLACE_GRADIENTS } from '../data/generateTrip'
 import { places as seedPlaces } from '../data/mockPlaces'
 import { trips as seedTrips } from '../data/mockTrips'
 import type { CreateTripInput, Place, PlaceCategory, Trip } from '../types'
@@ -31,10 +32,13 @@ export const useTripsStore = defineStore('trips', () => {
     return places.value.filter((place) => place.tripId === tripId)
   }
 
-  function createTrip(input: CreateTripInput): Trip {
+  async function createTrip(input: CreateTripInput): Promise<Trip> {
+    const days = computeTripDays(input)
+    const aiPlaces = await fetchAiPlaces(input, days * 2)
     const { trip, places: newPlaces } = generateTrip(
       input,
       trips.value.map((existing) => existing.id),
+      aiPlaces,
     )
     trips.value.push(trip)
     places.value.push(...newPlaces)

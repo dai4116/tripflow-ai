@@ -82,7 +82,7 @@ const CATEGORY_TEMPLATES: Partial<Record<PlaceCategory, (city: string) => Catego
   ],
 }
 
-export type PlaceSuggestion = { category: PlaceCategory; name: string; description: string }
+export type PlaceSuggestion = { category: PlaceCategory; name: string; description: string; travelTip?: string }
 
 // Same curated templates AI generation draws from — reused so manually added
 // places read consistently with generated ones instead of needing a second
@@ -107,6 +107,12 @@ function nightsBetween(startDate: string, endDate: string): number {
   return Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
 }
 
+// Exported so callers can size an AI place request (days * 2) before the
+// deterministic trip scaffolding runs, without duplicating the clamp logic.
+export function computeTripDays(input: CreateTripInput): number {
+  return Math.max(1, Math.min(30, nightsBetween(input.startDate, input.endDate) || 7))
+}
+
 function formatDateRange(startDate: string, endDate: string): string {
   const start = new Date(startDate)
   const end = new Date(endDate)
@@ -125,9 +131,19 @@ function resolveCategories(input: CreateTripInput): PlaceCategory[] {
   return mapped.length > 0 ? mapped : [TRAVEL_STYLE_CATEGORY[input.travelStyle] ?? 'culture']
 }
 
-export function generateTrip(input: CreateTripInput, existingTripIds: string[]): { trip: Trip; places: Place[] } {
+// aiPlaces (when provided by the /api/generate-trip endpoint) supplies the
+// name/category/description/travelTip for each place, in visit order — all
+// other bookkeeping (ids, palette, gradients, estimatedTime/cost, rating,
+// lat/lng) stays local rather than trusting the model for facts it can't
+// actually know. Falls back to the local CATEGORY_TEMPLATES picker per-slot
+// whenever aiPlaces is absent or runs short.
+export function generateTrip(
+  input: CreateTripInput,
+  existingTripIds: string[],
+  aiPlaces?: PlaceSuggestion[],
+): { trip: Trip; places: Place[] } {
   const city = input.destination.split(/[,，]/)[0].trim() || input.destination
-  const days = Math.max(1, Math.min(30, nightsBetween(input.startDate, input.endDate) || 7))
+  const days = computeTripDays(input)
   const tripId = `${slugify(input.destination)}-${nanoid(6)}`
   const palette = TRIP_PALETTE[existingTripIds.length % TRIP_PALETTE.length]
   const categories = resolveCategories(input)
@@ -135,10 +151,15 @@ export function generateTrip(input: CreateTripInput, existingTripIds: string[]):
   const places: Place[] = []
   const usedNames = new Set<string>()
 
-  function addPlace(category: PlaceCategory, columnId: string): Place {
-    const templates = CATEGORY_TEMPLATES[category] ?? CATEGORY_TEMPLATES.culture!
-    const options = templates(city)
-    const template = options.find((option) => !usedNames.has(option.name)) ?? options[places.length % options.length]
+  function addPlace(category: PlaceCategory, columnId: string, suggestion?: PlaceSuggestion): Place {
+    let template: CategoryTemplate
+    if (suggestion) {
+      template = suggestion
+    } else {
+      const templates = CATEGORY_TEMPLATES[category] ?? CATEGORY_TEMPLATES.culture!
+      const options = templates(city)
+      template = options.find((option) => !usedNames.has(option.name)) ?? options[places.length % options.length]
+    }
     usedNames.add(template.name)
 
     const place: Place = {
@@ -154,6 +175,7 @@ export function generateTrip(input: CreateTripInput, existingTripIds: string[]):
       lng: 0,
       rating: ['4.5', '4.6', '4.7', '4.8'][places.length % 4],
       description: template.description,
+      travelTip: suggestion?.travelTip,
       columnId,
       imageGradient: PLACE_GRADIENTS[places.length % PLACE_GRADIENTS.length],
     }
@@ -164,7 +186,12 @@ export function generateTrip(input: CreateTripInput, existingTripIds: string[]):
   const columns: TripColumn[] = Array.from({ length: days }, (_, index) => {
     const dayNumber = index + 1
     const columnId = `day-${dayNumber}`
-    const placeIds = [0, 1].map((i) => addPlace(categories[(index * 2 + i) % categories.length], columnId).id)
+    const placeIds = [0, 1].map((i) => {
+      const flatIndex = index * 2 + i
+      const suggestion = aiPlaces?.[flatIndex]
+      const category = suggestion?.category ?? categories[flatIndex % categories.length]
+      return addPlace(category, columnId, suggestion).id
+    })
 
     return { id: columnId, title: `第${dayNumber}天`, dayNumber, placeIds }
   })
