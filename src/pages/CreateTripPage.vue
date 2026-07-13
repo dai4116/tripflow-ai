@@ -241,14 +241,20 @@ function generateTrip() {
   advanceStage()
 }
 
+// The first N-1 stages are purely cosmetic (fixed-duration, just to show
+// motion) — but the *last* stage stays active/spinning past its own timer
+// tick instead of auto-completing, because it's the one stage whose real
+// duration depends on the AI network call. Auto-checking it on a fixed
+// timer would show "done" while finishGeneration() is still awaiting a
+// response, which reads as the UI hanging with no feedback.
 function advanceStage() {
   stageTimer = window.setTimeout(() => {
-    currentStageIndex.value += 1
-    if (currentStageIndex.value >= stages.value.length) {
+    if (currentStageIndex.value >= stages.value.length - 1) {
       finishGeneration()
-    } else {
-      advanceStage()
+      return
     }
+    currentStageIndex.value += 1
+    advanceStage()
   }, STAGE_DURATION)
 }
 
@@ -262,6 +268,7 @@ async function finishGeneration() {
     avoidPlaces: form.avoidPlaces,
     preferences: selectedPreferences.value,
   })
+  currentStageIndex.value = stages.value.length
   router.push({ name: 'trip-board', params: { tripId: trip.id }, query: { fresh: '1' } })
 }
 

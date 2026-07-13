@@ -1503,6 +1503,14 @@ h3 {
   animation: generating-pulse 1.6s ease-in-out infinite;
 }
 
+// Runs on the icon glyph itself, nested inside the badge's own pulse — the
+// combined rotate/scale/opacity reads as a twinkle rather than a plain
+// breathing dot, reinforcing "still working" for however long the real AI
+// call in finishGeneration() takes.
+.generating__badge .app-icon {
+  animation: generating-sparkle 1.8s ease-in-out infinite;
+}
+
 @keyframes generating-pulse {
   0%,
   100% {
@@ -1511,6 +1519,19 @@ h3 {
 
   50% {
     transform: scale(1.08);
+  }
+}
+
+@keyframes generating-sparkle {
+  0%,
+  100% {
+    transform: rotate(0deg) scale(1);
+    opacity: 1;
+  }
+
+  50% {
+    transform: rotate(18deg) scale(1.2);
+    opacity: 0.65;
   }
 }
 
