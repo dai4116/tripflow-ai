@@ -318,8 +318,15 @@ function messageFromAskAiResult(result: AskAiResult): Omit<AiMessage, 'id' | 'ro
     }
   }
 
+  // The confirmation sentence is built entirely here, not from a Claude-
+  // generated message — that was inconsistent about whether it actually
+  // named the places, so the user couldn't always tell what "套用變更" would
+  // do. Building it from `places` guarantees the names show up exactly once.
+  const column = activeTrip.value?.columns.find((item) => item.id === result.columnId)
+  const dayLabel = column ? `第 ${column.dayNumber} 天` : '這一天'
+  const placeNames = result.places.map((place) => `「${place.name}」`).join('、')
   return {
-    text: result.message,
+    text: `我已爲${dayLabel}推薦了 ${result.places.length} 個景點：${placeNames}。你可以選擇是否加入行程，或告訴我你想要其他類型的景點！`,
     actions: suggestionActions(),
     intent: { type: 'add', columnId: result.columnId, places: result.places },
   }

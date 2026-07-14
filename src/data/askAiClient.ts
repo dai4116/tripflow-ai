@@ -16,7 +16,10 @@ export type AskAiColumnSummary = {
 export type AskAiResult =
   | { type: 'move_place'; placeId: string; toColumnId: string; message: string }
   | { type: 'remove_place'; placeId: string; message: string }
-  | { type: 'suggest_places'; columnId: string; places: PlaceSuggestion[]; message: string }
+  // No `message` — the confirmation sentence is built deterministically from
+  // `places` on the client (see AskAiPanel.vue) instead of trusting the
+  // model to consistently name them in free-form text.
+  | { type: 'suggest_places'; columnId: string; places: PlaceSuggestion[] }
   | { type: 'text'; text: string }
 
 // Talks to /api/ask-ai (a Vercel serverless function using Claude tool use
@@ -58,7 +61,7 @@ export async function fetchAskAiResult(
       return { type: 'remove_place', placeId: input.placeId, message: message_ }
     }
     if (data.name === 'suggest_places' && typeof input.columnId === 'string' && Array.isArray(input.places)) {
-      return { type: 'suggest_places', columnId: input.columnId, places: input.places as PlaceSuggestion[], message: message_ }
+      return { type: 'suggest_places', columnId: input.columnId, places: input.places as PlaceSuggestion[] }
     }
 
     return undefined

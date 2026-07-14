@@ -84,9 +84,12 @@ const TOOLS: Anthropic.Tool[] = [
             additionalProperties: false,
           },
         },
-        message: { type: 'string', description: '用繁體中文向使用者確認這個變更的一句話' },
+        // No `message` field here on purpose — the client builds the
+        // confirmation sentence itself from `places`, so the names always
+        // show up exactly once instead of depending on whether Claude's own
+        // phrasing happens to mention them (it was inconsistent).
       },
-      required: ['columnId', 'places', 'message'],
+      required: ['columnId', 'places'],
       additionalProperties: false,
     },
     strict: true,
@@ -125,7 +128,8 @@ function buildPrompt(message: string, destination: string, columns: ColumnSummar
     `使用者的訊息：「${message}」`,
     '',
     '請根據使用者的意圖，判斷是否該呼叫其中一個工具（move_place / remove_place / suggest_places）。',
-    '如果使用者的訊息不屬於任何一種明確的編輯請求（例如閒聊、問候、內容不清楚），不要呼叫任何工具，只需要用一句簡短的繁體中文文字回覆。',
+    '如果使用者的訊息不屬於任何一種明確的編輯請求（例如閒聊、問候、不清楚的內容、或是開放式的規劃建議問題），不要呼叫任何工具，改用文字回覆。',
+    '文字回覆的規則：這裡是聊天視窗的對話氣泡，不是報告，一律限制在 1-2 句話以內，用自然口語的繁體中文；絕對不要使用 markdown 語法（不要 **粗體**、不要條列符號、不要標題），因為顯示畫面不會解析這些符號，只會照樣印出星號。',
     '地點與天數請一律使用上面提供的 id，不要自己編造。',
   ].join('\n')
 }
