@@ -13,6 +13,7 @@ export type NewPlaceInput = {
   name: string
   category: PlaceCategory
   description: string
+  travelTip?: string
 }
 
 export const useTripsStore = defineStore('trips', () => {
@@ -68,6 +69,7 @@ export const useTripsStore = defineStore('trips', () => {
       lng: 0,
       rating: '4.5',
       description: input.description,
+      travelTip: input.travelTip,
       columnId: input.columnId,
       imageGradient: PLACE_GRADIENTS[places.value.length % PLACE_GRADIENTS.length],
     }

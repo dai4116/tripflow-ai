@@ -90,11 +90,18 @@
 <script setup lang="ts">
 import { nanoid } from 'nanoid'
 import { storeToRefs } from 'pinia'
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useIsMobile } from '../../composables/useIsMobile'
+import type { AskAiColumnSummary, AskAiResult } from '../../data/askAiClient'
+import { fetchAskAiResult } from '../../data/askAiClient'
+import type { PlaceSuggestion } from '../../data/generateTrip'
 import { useTripsStore } from '../../stores/trips'
 import type { Place, TripColumn } from '../../types'
 import AppIcon from '../ui/AppIcon.vue'
+
+// Shown while waiting for the AI reply (or the keyword-mock fallback) so a
+// near-instant fallback doesn't flash the typing indicator on and off.
+const MIN_THINKING_MS = 500
 
 const props = defineProps<{
   tripId: string
@@ -106,7 +113,10 @@ const emit = defineEmits<{
 
 type AiActionVariant = 'primary' | 'secondary'
 type AiAction = { label: string; variant: AiActionVariant }
-type AiIntent = { type: 'move'; placeId: string; toColumnId: string } | { type: 'remove'; placeId: string }
+type AiIntent =
+  | { type: 'move'; placeId: string; toColumnId: string }
+  | { type: 'remove'; placeId: string }
+  | { type: 'add'; columnId: string; places: PlaceSuggestion[] }
 type AiMessage = {
   id: string
   role: 'ai' | 'user'
@@ -134,9 +144,9 @@ function suggestionActions(): AiAction[] {
   ]
 }
 
-// This is a mock: keyword/regex matching against the demo trip's own data,
-// not a real language model. It's enough to make the panel feel alive and
-// to prove out "chat edits the board" as a product idea.
+// Seeds the panel's opening demo conversation and doubles as the fallback
+// heuristic in buildAiResponse() below when the real AI call in
+// sendMessage() fails — keyword/regex matching, not a language model.
 function computeRebalanceSuggestion(): { place: Place; fromColumn: TripColumn; toColumn: TripColumn } | null {
   const columns = activeTrip.value?.columns ?? []
   if (columns.length < 2) return null
@@ -191,8 +201,6 @@ const messages = ref<AiMessage[]>([
     : { id: nanoid(), role: 'ai', text: '你的行程天數已經很平均了，安排得不錯！' },
 ])
 
-let thinkingTimer: number | undefined
-
 function toggleOpen() {
   isOpen.value = !isOpen.value
 }
@@ -205,6 +213,21 @@ function applyIntent(intent: AiIntent) {
   if (intent.type === 'move') {
     tripsStore.movePlaceToColumn(intent.placeId, intent.toColumnId)
     emit('applied', intent.toColumnId)
+    return
+  }
+
+  if (intent.type === 'add') {
+    for (const place of intent.places) {
+      tripsStore.addPlace({
+        tripId: props.tripId,
+        columnId: intent.columnId,
+        name: place.name,
+        category: place.category,
+        description: place.description,
+        travelTip: place.travelTip,
+      })
+    }
+    emit('applied', intent.columnId)
     return
   }
 
@@ -264,7 +287,45 @@ function buildAiResponse(text: string): Omit<AiMessage, 'id' | 'role'> {
   return { text: '了解，我會把這個納入你的行程考量。' }
 }
 
-function sendMessage() {
+function buildColumnSummaries(): AskAiColumnSummary[] {
+  return (activeTrip.value?.columns ?? []).map((column) => ({
+    id: column.id,
+    dayNumber: column.dayNumber,
+    title: column.title,
+    places: column.placeIds
+      .map((placeId) => tripPlaces.value.find((place) => place.id === placeId))
+      .filter((place): place is Place => Boolean(place))
+      .map((place) => ({ id: place.id, name: place.name, category: place.category })),
+  }))
+}
+
+function messageFromAskAiResult(result: AskAiResult): Omit<AiMessage, 'id' | 'role'> {
+  if (result.type === 'text') return { text: result.text }
+
+  if (result.type === 'move_place') {
+    return {
+      text: result.message,
+      actions: suggestionActions(),
+      intent: { type: 'move', placeId: result.placeId, toColumnId: result.toColumnId },
+    }
+  }
+
+  if (result.type === 'remove_place') {
+    return {
+      text: result.message,
+      actions: suggestionActions(),
+      intent: { type: 'remove', placeId: result.placeId },
+    }
+  }
+
+  return {
+    text: result.message,
+    actions: suggestionActions(),
+    intent: { type: 'add', columnId: result.columnId, places: result.places },
+  }
+}
+
+async function sendMessage() {
   const text = draft.value.trim()
   if (!text) return
 
@@ -273,18 +334,18 @@ function sendMessage() {
   scrollToBottom()
 
   isThinking.value = true
-  thinkingTimer = window.setTimeout(() => {
-    isThinking.value = false
-    messages.value.push({ id: nanoid(), role: 'ai', ...buildAiResponse(text) })
-    scrollToBottom()
-  }, 900)
+  const [result] = await Promise.all([
+    fetchAskAiResult(text, activeTrip.value?.destination ?? '', buildColumnSummaries()),
+    new Promise((resolve) => window.setTimeout(resolve, MIN_THINKING_MS)),
+  ])
+  isThinking.value = false
+
+  const reply = result ? messageFromAskAiResult(result) : buildAiResponse(text)
+  messages.value.push({ id: nanoid(), role: 'ai', ...reply })
+  scrollToBottom()
 }
 
 watch(isOpen, (open) => {
   if (open) scrollToBottom()
-})
-
-onBeforeUnmount(() => {
-  if (thinkingTimer) window.clearTimeout(thinkingTimer)
 })
 </script>
