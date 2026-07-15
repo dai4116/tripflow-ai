@@ -379,6 +379,30 @@ h3 {
   font-weight: 800;
 }
 
+.trip-settings-trigger {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: $radius-pill;
+  background: transparent;
+  color: $color-subtle;
+  transition:
+    color 140ms ease,
+    background 140ms ease;
+}
+
+.trip-settings-trigger:hover {
+  background: $color-primary-soft;
+  color: $color-primary-text;
+}
+
+.trip-settings-trigger:focus-visible {
+  @include focus-ring;
+}
+
 .page-header p {
   margin-top: 5px;
   color: $color-muted;
@@ -2596,6 +2620,95 @@ h3 {
   padding-bottom: 18px;
   border-top: 1px solid $color-border;
   margin-top: 4px;
+}
+
+// ---------------------------------------------------------------------------
+// Trip settings modal
+// ---------------------------------------------------------------------------
+
+.trip-settings-modal-overlay {
+  position: fixed;
+  inset: 0;
+  // One below .add-place-modal-overlay/.confirm-modal-overlay (both 70) so a
+  // destructive confirm (e.g. shortening the date range over days that still
+  // have places) always paints on top of this modal rather than fighting it
+  // for stacking order.
+  z-index: 68;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba($color-dusk, 0.42);
+}
+
+.trip-settings-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(560px, 100%);
+  max-height: min(680px, 90vh);
+  overflow: hidden;
+  border-radius: $radius-lg;
+  background: $color-bg;
+  box-shadow: $shadow-lg;
+}
+
+.trip-settings-modal__header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px;
+  background: $color-surface;
+  border-bottom: 1px solid $color-border;
+}
+
+.trip-settings-modal__header h3 {
+  font-size: $fs-title;
+  font-weight: 800;
+}
+
+.trip-settings-modal__close {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 0;
+  border-radius: $radius-pill;
+  background: $color-surface-soft;
+  color: $color-ink;
+}
+
+.trip-settings-modal__close:focus-visible {
+  @include focus-ring;
+}
+
+.trip-settings-modal__cover {
+  flex: none;
+  height: 140px;
+}
+
+.trip-settings-modal__form {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.trip-settings-modal__body {
+  display: grid;
+  gap: 14px;
+  padding: 18px 20px;
+  overflow-y: auto;
+}
+
+.trip-settings-modal__footer {
+  display: grid;
+  flex: none;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 14px 20px calc(14px + env(safe-area-inset-bottom));
+  border-top: 1px solid $color-border;
+  background: $color-bg;
 }
 
 // ---------------------------------------------------------------------------

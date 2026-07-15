@@ -97,14 +97,16 @@ function slugify(text: string): string {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'trip'
 }
 
-// Trip length is nights, not inclusive calendar days — Mar 15 to Mar 22 is a
-// 7-day trip, matching the seed data's `days` field.
-function nightsBetween(startDate: string, endDate: string): number {
+// Trip length counts inclusive calendar days, not nights — Mar 15 to Mar 22
+// is an 8-day trip (both ends count), matching how each day gets its own
+// kanban column (see columnDate in TripBoardPage.vue, which dates column N
+// as startDate + (N - 1) — the same +1-inclusive convention).
+function daysBetween(startDate: string, endDate: string): number {
   const start = new Date(startDate)
   const end = new Date(endDate)
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0
 
-  return Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+  return Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
 }
 
 // Exported so callers can size an AI place request (days * 2) before the
@@ -112,10 +114,19 @@ function nightsBetween(startDate: string, endDate: string): number {
 // Takes just the date fields (not the full CreateTripInput) so the create-trip
 // form can also use it to preview the day count before submitting.
 export function computeTripDays(input: Pick<CreateTripInput, 'startDate' | 'endDate'>): number {
-  return Math.max(1, Math.min(30, nightsBetween(input.startDate, input.endDate) || 7))
+  return Math.max(1, Math.min(30, daysBetween(input.startDate, input.endDate) || 7))
 }
 
-function formatDateRange(startDate: string, endDate: string): string {
+// YYYY-MM-DD in local time — Date#toISOString() is UTC and can land on the
+// wrong calendar day depending on the caller's timezone offset.
+export function toDateInputValue(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+export function formatDateRange(startDate: string, endDate: string): string {
   const start = new Date(startDate)
   const end = new Date(endDate)
   const startLabel = start.toLocaleDateString('zh-TW', { month: 'long', day: 'numeric' })

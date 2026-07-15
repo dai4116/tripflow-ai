@@ -4,6 +4,17 @@
       :title="activeTrip.title"
       :description="tripHeaderDescription"
     >
+      <template #badge>
+        <button
+          type="button"
+          class="trip-settings-trigger"
+          aria-label="編輯旅程設定"
+          @click="showTripSettingsModal = true"
+        >
+          <AppIcon name="gear" :size="13" />
+        </button>
+      </template>
+
       <template #actions>
         <div class="trip-view-toggle" aria-label="行程看板檢視">
           <button
@@ -317,6 +328,13 @@
         </aside>
       </Transition>
 
+      <TripSettingsModal
+        v-if="showTripSettingsModal"
+        :trip="activeTrip"
+        @close="showTripSettingsModal = false"
+        @save="onSaveTripSettings"
+      />
+
       <AddPlaceModal
         v-if="showAddModal"
         :column-id="addModalColumnId"
@@ -355,12 +373,14 @@ import AddPlaceModal from '../components/trips/AddPlaceModal.vue'
 import AskAiPanel from '../components/trips/AskAiPanel.vue'
 import CategoryChip, { allPlaceCategories, categoryLabels } from '../components/trips/CategoryChip.vue'
 import PlaceCard from '../components/trips/PlaceCard.vue'
+import TripSettingsModal from '../components/trips/TripSettingsModal.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
 import BaseButton from '../components/ui/BaseButton.vue'
 import BaseInput from '../components/ui/BaseInput.vue'
 import ConfirmModal from '../components/ui/ConfirmModal.vue'
 import { useConfirmDialog } from '../composables/useConfirmDialog'
 import { useIsMobile } from '../composables/useIsMobile'
+import { computeTripDays, formatDateRange } from '../data/generateTrip'
 import { buildRoutePath, markerPosition } from '../data/mapMarkers'
 import { useTripsStore } from '../stores/trips'
 import type { Place, PlaceCategory, TripColumn } from '../types'
@@ -390,6 +410,7 @@ function setDayTabRef(columnId: string, el: Element | ComponentPublicInstance | 
 const { confirmDialog, openConfirm, closeConfirm, acceptConfirm } = useConfirmDialog()
 
 const showAddModal = ref(false)
+const showTripSettingsModal = ref(false)
 const addModalColumnId = ref('')
 const newlyAddedColumnId = ref('')
 const NEW_COLUMN_ENTER_DURATION = 400
@@ -502,6 +523,7 @@ watch(
     isMoveMenuOpen.value = false
     isEditingPlace.value = false
     showAddModal.value = false
+    showTripSettingsModal.value = false
     ensureColumns()
     focusedColumnId.value = resolveDefaultColumnId(displayedColumns.value)
   },
@@ -652,6 +674,67 @@ function removeDay(columnId: string) {
 
   if (drawerPlaceId.value && placeIdsToRemove.has(drawerPlaceId.value)) closeDrawer()
   if (focusedColumnId.value === columnId) focusedColumnId.value = resolveDefaultColumnId(displayedColumns.value)
+}
+
+// Editing the trip's date range in the settings modal can change how many
+// day-columns the trip needs. Growing just appends empty days (safe);
+// shrinking can orphan places sitting in the trailing days it drops, so that
+// path goes through the same confirm dialog as deleting a day by hand.
+function onSaveTripSettings(payload: { title: string; startDate: string; endDate: string }) {
+  const trip = activeTrip.value
+  const newDays = computeTripDays({ startDate: payload.startDate, endDate: payload.endDate })
+  const currentDays = displayedColumns.value.length
+
+  function applyMeta() {
+    trip.title = payload.title
+    trip.startDate = payload.startDate
+    trip.dateRange = formatDateRange(payload.startDate, payload.endDate)
+    trip.days = newDays
+    showTripSettingsModal.value = false
+  }
+
+  if (newDays === currentDays) {
+    applyMeta()
+    return
+  }
+
+  if (newDays > currentDays) {
+    const additions: TripColumn[] = Array.from({ length: newDays - currentDays }, (_, index) => {
+      const dayNumber = currentDays + index + 1
+      return { id: `day-${nanoid(6)}`, dayNumber, title: `第${dayNumber}天`, placeIds: [] }
+    })
+    trip.columns = [...displayedColumns.value, ...additions]
+    applyMeta()
+    return
+  }
+
+  const survivors = displayedColumns.value.slice(0, newDays)
+  const dropped = displayedColumns.value.slice(newDays)
+  const placeIdsToRemove = new Set(dropped.flatMap((column) => column.placeIds))
+
+  function applyShrink() {
+    if (placeIdsToRemove.size > 0) {
+      places.value = places.value.filter((place) => !placeIdsToRemove.has(place.id))
+    }
+    trip.columns = survivors
+    if (drawerPlaceId.value && placeIdsToRemove.has(drawerPlaceId.value)) closeDrawer()
+    if (focusedColumnId.value && !survivors.some((column) => column.id === focusedColumnId.value)) {
+      focusedColumnId.value = resolveDefaultColumnId(survivors)
+    }
+    applyMeta()
+  }
+
+  if (placeIdsToRemove.size > 0) {
+    openConfirm({
+      title: '縮短行程天數？',
+      message: `新的日期範圍少了 ${dropped.length} 天，這幾天裡的 ${placeIdsToRemove.size} 個地點會一併刪除，刪除後無法復原喔。`,
+      confirmLabel: '確定縮短',
+      danger: true,
+      onConfirm: applyShrink,
+    })
+  } else {
+    applyShrink()
+  }
 }
 
 function removeDrawerPlace() {

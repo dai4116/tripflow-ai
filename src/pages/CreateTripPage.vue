@@ -124,7 +124,7 @@ import BaseCard from '../components/ui/BaseCard.vue'
 import BaseDateRangeInput from '../components/ui/BaseDateRangeInput.vue'
 import BaseInput from '../components/ui/BaseInput.vue'
 import type { IconName } from '../components/ui/icons'
-import { computeTripDays } from '../data/generateTrip'
+import { computeTripDays, toDateInputValue } from '../data/generateTrip'
 import { preferences, travelStyles } from '../data/mockPreferences'
 import { useTripsStore } from '../stores/trips'
 
@@ -139,18 +139,11 @@ const dateRangeError = ref('')
 const destinationInputRef = ref<InstanceType<typeof BaseInput> | null>(null)
 const selectedPreferences = ref(['博物館', '在地美食', '建築'])
 
-// YYYY-MM-DD in local time — Date#toISOString() is UTC and can land on the
-// wrong calendar day depending on the visitor's timezone offset.
-function toDateInputValue(date: Date): string {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
 const defaultStart = new Date()
 const defaultEnd = new Date()
-defaultEnd.setDate(defaultEnd.getDate() + 7)
+// +6, not +7 — computeTripDays counts both ends inclusively, so a 7-day
+// default trip spans start..start+6 (7 calendar days), not start..start+7.
+defaultEnd.setDate(defaultEnd.getDate() + 6)
 
 const form = reactive({
   destination: '',

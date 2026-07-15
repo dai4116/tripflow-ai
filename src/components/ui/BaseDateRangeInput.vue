@@ -67,7 +67,8 @@ function openPicker(input: HTMLInputElement | null) {
 
 // Both dates must parse and land in order for a range to mean anything —
 // a half-picked or reversed range just shows no summary rather than a
-// nonsense one (e.g. "-3 nights").
+// nonsense one (e.g. "-3 days"). Counts inclusive calendar days (both ends
+// count), matching computeTripDays in generateTrip.ts — not nights.
 const summary = computed(() => {
   if (!props.start || !props.end) return ''
 
@@ -75,11 +76,11 @@ const summary = computed(() => {
   const endDate = new Date(props.end)
   if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return ''
 
-  const nights = Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
-  if (nights <= 0) return ''
+  const days = Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
+  if (days <= 0) return ''
 
   const format = (date: Date) => date.toLocaleDateString('zh-TW', { month: 'long', day: 'numeric' })
 
-  return `${format(startDate)} – ${format(endDate)} · ${nights} 晚`
+  return `${format(startDate)} – ${format(endDate)} · ${days} 天`
 })
 </script>
