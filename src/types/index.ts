@@ -53,13 +53,15 @@ export type Place = {
   name: string
   category: PlaceCategory
   estimatedTime: number
-  estimatedCost: string
   address: string
   lat: number
   lng: number
   rating: string
   description: string
   travelTip?: string
+  // Manual arrival-time override ('HH:mm'). When unset, the effective
+  // arrival time cascades from the place before it — see computeArrivalTimes.
+  arrivalTime?: string
   columnId: string
   imageGradient: string
 }

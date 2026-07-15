@@ -181,7 +181,6 @@ export function generateTrip(
       name: template.name,
       category,
       estimatedTime: [1.5, 2, 2.5][places.length % 3],
-      estimatedCost: ['免費', '$', '$$'][places.length % 3],
       address: input.destination,
       // Real coordinates aren't looked up yet — the map still positions pins by index, not lat/lng.
       lat: 0,

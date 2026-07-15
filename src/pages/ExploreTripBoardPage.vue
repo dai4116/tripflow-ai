@@ -57,21 +57,28 @@
               :aria-label="`在地圖上顯示 ${column.title}`"
               @click="focusColumn(column.id)"
             >
-              <span class="kanban-column__title">{{ column.title }}</span>
+              <span class="kanban-column__title">
+                <span class="kanban-column__title-text">{{ column.title }}</span>
+              </span>
               <span class="kanban-column__count">{{ column.placeIds.length }}</span>
             </button>
           </header>
 
           <div class="kanban-column__cards">
             <button
-              v-for="place in getColumnPlaces(column.placeIds)"
-              :key="place.id"
+              v-for="card in getColumnCards(column.placeIds)"
+              :key="card.place.id"
               class="place-card-button"
-              :class="{ 'place-card-button--selected': selectedPlaceId === place.id }"
+              :class="{ 'place-card-button--selected': selectedPlaceId === card.place.id }"
               type="button"
-              @click="openPlaceDrawer(place.id)"
+              @click="openPlaceDrawer(card.place.id)"
             >
-              <PlaceCard :place="place" />
+              <PlaceCard
+                :place="card.place"
+                :order="card.order"
+                :arrival-time="card.arrivalTime"
+                :arrival-time-is-manual="card.arrivalTimeIsManual"
+              />
             </button>
           </div>
         </section>
@@ -157,12 +164,8 @@
 
             <div class="place-drawer__facts">
               <div class="place-drawer__fact">
-                <span>時長</span>
+                <span>停留時間</span>
                 <strong>{{ drawerPlace.estimatedTime }} 小時</strong>
-              </div>
-              <div class="place-drawer__fact">
-                <span>價格</span>
-                <strong>{{ drawerPlace.estimatedCost }}</strong>
               </div>
               <div class="place-drawer__fact">
                 <span>天數</span>
@@ -203,6 +206,7 @@ import BaseButton from '../components/ui/BaseButton.vue'
 import { useIsMobile } from '../composables/useIsMobile'
 import { explorePlacesForTemplate, exploreTemplates } from '../data/exploreTrips'
 import { buildRoutePath, markerPosition } from '../data/mapMarkers'
+import { computeArrivalTimes } from '../data/placeSchedule'
 import { useTripsStore } from '../stores/trips'
 import type { Place } from '../types'
 
@@ -265,6 +269,21 @@ function getColumnPlaces(placeIds: string[]) {
   return placeIds
     .map((placeId) => templatePlaces.value.find((place) => place.id === placeId))
     .filter((place): place is Place => place !== undefined)
+}
+
+// Bundles each place with its 1-based order and its resolved arrival time so
+// the template does one pass per column instead of recomputing the whole
+// day's cascade once per card.
+function getColumnCards(placeIds: string[]) {
+  const places = getColumnPlaces(placeIds)
+  const schedule = computeArrivalTimes(places)
+
+  return places.map((place, index) => ({
+    place,
+    order: index + 1,
+    arrivalTime: schedule[index]!.time,
+    arrivalTimeIsManual: schedule[index]!.isManual,
+  }))
 }
 
 const focusedPlaces = computed(() => {

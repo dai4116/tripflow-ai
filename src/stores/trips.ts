@@ -64,7 +64,6 @@ export const useTripsStore = defineStore('trips', () => {
       name: input.name,
       category: input.category,
       estimatedTime: 1.5,
-      estimatedCost: '$',
       address: trip.destination,
       lat: 0,
       lng: 0,
@@ -109,7 +108,7 @@ export const useTripsStore = defineStore('trips', () => {
     recalcPlaceCount(trip)
   }
 
-  function updatePlace(placeId: string, patch: Partial<Pick<Place, 'name' | 'category' | 'estimatedTime' | 'estimatedCost' | 'description' | 'travelTip'>>) {
+  function updatePlace(placeId: string, patch: Partial<Pick<Place, 'name' | 'category' | 'estimatedTime' | 'description' | 'travelTip'>>) {
     const place = places.value.find((item) => item.id === placeId)
     if (place) Object.assign(place, patch)
   }

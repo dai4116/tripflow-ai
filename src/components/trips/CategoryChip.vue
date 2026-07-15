@@ -1,7 +1,11 @@
 <template>
-  <span class="category-chip" :class="`category-chip--${category}`">
+  <span
+    class="category-chip"
+    :class="[`category-chip--${category}`, { 'category-chip--icon-only': iconOnly }]"
+    :aria-label="iconOnly ? categoryLabel : undefined"
+  >
     <AppIcon :name="categoryIcon" :size="11" />
-    {{ categoryLabel }}
+    <template v-if="!iconOnly">{{ categoryLabel }}</template>
   </span>
 </template>
 
@@ -45,6 +49,7 @@ import AppIcon from '../ui/AppIcon.vue'
 
 const props = defineProps<{
   category: PlaceCategoryProp
+  iconOnly?: boolean
 }>()
 
 const categoryIcon = computed(() => categoryIcons[props.category])
