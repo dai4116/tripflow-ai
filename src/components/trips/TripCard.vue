@@ -13,6 +13,7 @@
       <div class="trip-card__title">
         <strong>{{ trip.title }}</strong>
         <small><AppIcon name="pin" :size="11" />{{ trip.destination }}</small>
+        <small v-if="trip.dateRange"><AppIcon name="calendar" :size="11" />{{ trip.dateRange }}</small>
       </div>
     </div>
 
@@ -32,7 +33,9 @@ import AppIcon from '../ui/AppIcon.vue'
 import BaseCard from '../ui/BaseCard.vue'
 
 defineProps<{
-  trip: TripSummary
+  // dateRange is optional here (not part of TripSummary) because this card
+  // also renders Explore templates, which aren't scheduled yet.
+  trip: TripSummary & { dateRange?: string }
   deletable?: boolean
 }>()
 

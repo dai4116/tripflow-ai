@@ -2,6 +2,7 @@ import { useStorage } from '@vueuse/core'
 import { nanoid } from 'nanoid'
 import { defineStore } from 'pinia'
 import { fetchAiPlaces } from '../data/aiTripClient'
+import { explorePlacesForTemplate, exploreTemplates } from '../data/exploreTrips'
 import { computeTripDays, generateTrip, PLACE_GRADIENTS } from '../data/generateTrip'
 import { places as seedPlaces } from '../data/mockPlaces'
 import { trips as seedTrips } from '../data/mockTrips'
@@ -118,6 +119,46 @@ export const useTripsStore = defineStore('trips', () => {
     trips.value = trips.value.filter((trip) => trip.id !== tripId)
   }
 
+  // Clones an Explore template into the user's own trips/places with fresh
+  // ids, so editing the copy can never mutate the shared template data.
+  function copyTemplateTrip(templateId: string): Trip | undefined {
+    const template = exploreTemplates.find((item) => item.id === templateId)
+    if (!template) return undefined
+
+    const tripId = `${template.id}-${nanoid(6)}`
+    const idMap = new Map<string, string>()
+
+    const newPlaces: Place[] = explorePlacesForTemplate(template.id).map((place) => {
+      const newId = nanoid(8)
+      idMap.set(place.id, newId)
+      return { ...place, id: newId, tripId }
+    })
+
+    const columns = template.columns.map((column) => ({
+      ...column,
+      placeIds: column.placeIds.map((id) => idMap.get(id)).filter((id): id is string => Boolean(id)),
+    }))
+
+    const trip: Trip = {
+      id: tripId,
+      title: template.title,
+      destination: template.destination,
+      days: template.days,
+      travelers: template.travelers,
+      placeCount: newPlaces.length,
+      color: template.color,
+      imageGradient: template.imageGradient,
+      dateRange: '尚未安排日期',
+      preferences: template.preferences,
+      pace: template.pace,
+      columns,
+    }
+
+    trips.value.push(trip)
+    places.value.push(...newPlaces)
+    return trip
+  }
+
   return {
     trips,
     places,
@@ -130,5 +171,6 @@ export const useTripsStore = defineStore('trips', () => {
     updatePlace,
     recalcPlaceCount,
     removeTrip,
+    copyTemplateTrip,
   }
 })

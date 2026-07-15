@@ -5,19 +5,20 @@
       <span>TripFlow AI</span>
     </RouterLink>
 
+    <RouterLink class="app-sidebar__cta" :to="{ name: 'trip-create' }">
+      <AppIcon name="sparkle" />
+      <span>AI 規劃行程</span>
+    </RouterLink>
+
     <nav class="app-sidebar__section" aria-label="工作區導覽">
       <p class="app-sidebar__label">選單</p>
       <RouterLink :to="{ name: 'dashboard' }">
-        <AppIcon name="grid" />
+        <AppIcon name="home" />
         <span>首頁</span>
       </RouterLink>
       <RouterLink :to="{ name: 'trips' }">
         <AppIcon name="list" />
         <span>行程</span>
-      </RouterLink>
-      <RouterLink :to="{ name: 'trip-create' }">
-        <AppIcon name="plus" />
-        <span>新增行程</span>
       </RouterLink>
     </nav>
 

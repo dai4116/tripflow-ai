@@ -8,6 +8,9 @@ export const icons = {
   grid: {
     body: `<rect x="4" y="4" width="7" height="7" rx="1.6" ${STROKE}/><rect x="13" y="4" width="7" height="7" rx="1.6" ${STROKE}/><rect x="4" y="13" width="7" height="7" rx="1.6" ${STROKE}/><rect x="13" y="13" width="7" height="7" rx="1.6" ${STROKE}/>`,
   },
+  home: {
+    body: `<path d="M4 11l8-7 8 7M6 10v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9" ${STROKE}/><path d="M10 20v-5h4v5" ${STROKE}/>`,
+  },
   plus: {
     body: `<path d="M12 5v14M5 12h14" ${STROKE} stroke-width="1.9"/>`,
   },

@@ -41,6 +41,12 @@ export type Trip = TripSummary & {
   columns: TripColumn[]
 }
 
+// A curated sample itinerary shown on the Explore page — same shape as Trip
+// minus the date fields (templates aren't scheduled), plus a one-line pitch.
+export type ExploreTemplate = Omit<Trip, 'dateRange' | 'startDate'> & {
+  tagline: string
+}
+
 export type Place = {
   id: string
   tripId: string
@@ -68,14 +74,4 @@ export type CreateTripInput = {
   travelStyle: string
   avoidPlaces: string
   preferences: string[]
-}
-
-export type Stat = {
-  id: string
-  label: string
-  value: string
-  helper: string
-  helperTone: 'positive' | 'neutral'
-  tone: 'brand' | 'culture' | 'coral' | 'stay'
-  icon: 'compass' | 'calendar' | 'pin' | 'dollar'
 }

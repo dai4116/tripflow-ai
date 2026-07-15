@@ -1,7 +1,7 @@
 <template>
   <nav class="mobile-bottom-nav" aria-label="手機版導覽">
     <RouterLink :to="{ name: 'dashboard' }">
-      <AppIcon name="grid" :size="19" />
+      <AppIcon name="home" :size="19" />
       <small>首頁</small>
     </RouterLink>
     <RouterLink

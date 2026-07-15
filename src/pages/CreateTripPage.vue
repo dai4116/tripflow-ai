@@ -77,10 +77,10 @@
 
       <BaseButton class="trip-form__submit" type="submit">
         <AppIcon name="sparkle" :size="15" />
-        用 AI 生成行程
+        開始規劃
       </BaseButton>
       <p class="trip-form__note">
-        AI 會產生 7 天行程看板・精選地點・優化路線
+        AI 會產生 {{ tripDays }} 天行程看板・精選地點・優化路線
       </p>
     </form>
 
@@ -124,6 +124,7 @@ import BaseCard from '../components/ui/BaseCard.vue'
 import BaseDateRangeInput from '../components/ui/BaseDateRangeInput.vue'
 import BaseInput from '../components/ui/BaseInput.vue'
 import type { IconName } from '../components/ui/icons'
+import { computeTripDays } from '../data/generateTrip'
 import { preferences, travelStyles } from '../data/mockPreferences'
 import { useTripsStore } from '../stores/trips'
 
@@ -180,6 +181,7 @@ watch(
 )
 
 const cityLabel = computed(() => form.destination.split(/[,，]/)[0].trim() || '你的')
+const tripDays = computed(() => computeTripDays({ startDate: form.startDate, endDate: form.endDate }))
 const stages = computed(() => [
   '讀取你的偏好設定',
   `搜尋${cityLabel.value}的景點`,

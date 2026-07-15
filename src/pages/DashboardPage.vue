@@ -3,50 +3,52 @@
     <PageHeader
       :eyebrow="todayLabel"
       title="早安，柏翰！👋"
-      description="有 3 個行程進行中——東京行程 4 天後出發。"
+      :description="greetingDescription"
     />
 
-    <div class="stats-grid">
-      <BaseCard v-for="stat in stats" :key="stat.id" class="stat-card">
-        <span class="stat-card__icon" :class="`stat-card__icon--${stat.tone}`">
-          <AppIcon :name="stat.icon" :size="18" />
+    <section v-if="upcomingTrip" class="dashboard-section">
+      <div class="section-head">
+        <h2>即將到來的旅程</h2>
+      </div>
+
+      <RouterLink class="upcoming-trip" :to="{ name: 'trip-board', params: { tripId: upcomingTrip.id } }">
+        <div class="upcoming-trip__media" :style="{ background: upcomingTrip.imageGradient }">
+          <span class="upcoming-trip__countdown">{{ countdownLabel }}</span>
+        </div>
+        <div class="upcoming-trip__body">
+          <h3>{{ upcomingTrip.title }}</h3>
+          <p class="upcoming-trip__meta">
+            <AppIcon name="pin" :size="13" />{{ upcomingTrip.destination }}
+            <span class="upcoming-trip__dot">·</span>
+            {{ upcomingTrip.dateRange }}
+          </p>
+          <div class="upcoming-trip__stats">
+            <span><AppIcon name="calendar" :size="13" />{{ upcomingTrip.days }} 天</span>
+            <span><AppIcon name="users" :size="13" />{{ upcomingTrip.travelers }} 位旅伴</span>
+            <span><AppIcon name="pin" :size="13" />{{ upcomingTrip.placeCount }} 個地點</span>
+          </div>
+        </div>
+        <span class="upcoming-trip__cta">
+          繼續規劃
+          <AppIcon name="arrow-right" :size="14" />
         </span>
-        <small
-          class="stat-card__delta"
-          :class="`stat-card__delta--${stat.helperTone}`"
-        >{{ stat.helper }}</small>
-        <strong class="stat-card__value">{{ stat.value }}</strong>
-        <span class="stat-card__label">{{ stat.label }}</span>
-      </BaseCard>
-    </div>
+      </RouterLink>
+    </section>
 
     <section class="dashboard-section">
       <div class="section-head">
-        <h2>最近的行程</h2>
-        <span class="section-head__count">{{ trips.length }}</span>
-        <BaseButton :to="{ name: 'trips' }" variant="ghost" size="sm">查看全部 →</BaseButton>
+        <h2>探索行程</h2>
       </div>
 
       <div class="trip-grid">
         <RouterLink
-          v-for="trip in recentTrips"
-          :key="trip.id"
-          :to="{ name: 'trip-board', params: { tripId: trip.id } }"
+          v-for="template in exploreTemplates"
+          :key="template.id"
+          :to="{ name: 'explore-trip', params: { templateId: template.id } }"
         >
-          <TripCard :trip="trip" />
+          <TripCard :trip="template" />
         </RouterLink>
       </div>
-    </section>
-
-    <section class="cta-band">
-      <div class="cta-band__copy">
-        <h2>開始規劃你的下一場冒險 🌴</h2>
-        <p>描述你的行程，AI 會自動產生看板和路線。</p>
-      </div>
-      <BaseButton :to="{ name: 'trip-create' }" variant="accent">
-        <AppIcon name="sparkle" :size="14" />
-        建立行程
-      </BaseButton>
     </section>
   </section>
 </template>
@@ -57,10 +59,9 @@ import { computed } from 'vue'
 import PageHeader from '../components/layout/PageHeader.vue'
 import TripCard from '../components/trips/TripCard.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
-import BaseButton from '../components/ui/BaseButton.vue'
-import BaseCard from '../components/ui/BaseCard.vue'
-import { stats } from '../data/mockStats'
+import { exploreTemplates } from '../data/exploreTrips'
 import { useTripsStore } from '../stores/trips'
+import type { Trip } from '../types'
 
 const { trips } = storeToRefs(useTripsStore())
 // Header eyebrow shows the current date, e.g. "週日・2026年7月12日" — matches
@@ -71,8 +72,39 @@ const todayLabel = computed(() => {
   const date = now.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' })
   return `${weekday}・${date}`
 })
-// Trips have no createdAt field — newly created ones are simply pushed to
-// the end of the array (see tripsStore.createTrip), so "recent" means the
-// last few entries, newest first, matching the 4-column trip-grid exactly.
-const recentTrips = computed(() => [...trips.value].slice(-4).reverse())
+const greetingDescription = computed(() => {
+  if (trips.value.length === 0) return '開始規劃你的第一趟旅程吧。'
+
+  return `有 ${trips.value.length} 個行程進行中。`
+})
+
+// Whole-day difference, ignoring time-of-day, so "today" still counts as 0
+// rather than a small negative number depending on the current hour.
+function daysUntil(dateStr: string): number {
+  const date = new Date(dateStr)
+  date.setHours(0, 0, 0, 0)
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return Math.round((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+}
+
+// Templates copied via copyTemplateTrip() have no startDate ('尚未安排日期'),
+// so they naturally fall out of this — only trips with a real, upcoming
+// start date are eligible for the spotlight.
+const upcomingTrip = computed(() => {
+  const upcoming = trips.value
+    .filter((trip): trip is Trip & { startDate: string } => Boolean(trip.startDate) && daysUntil(trip.startDate!) >= 0)
+    .sort((a, b) => daysUntil(a.startDate) - daysUntil(b.startDate))
+
+  return upcoming[0] ?? null
+})
+
+const countdownLabel = computed(() => {
+  if (!upcomingTrip.value?.startDate) return ''
+
+  const days = daysUntil(upcomingTrip.value.startDate)
+  if (days === 0) return '今天出發'
+  if (days === 1) return '明天出發'
+  return `${days} 天後出發`
+})
 </script>

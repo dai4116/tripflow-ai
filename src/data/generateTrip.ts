@@ -109,7 +109,9 @@ function nightsBetween(startDate: string, endDate: string): number {
 
 // Exported so callers can size an AI place request (days * 2) before the
 // deterministic trip scaffolding runs, without duplicating the clamp logic.
-export function computeTripDays(input: CreateTripInput): number {
+// Takes just the date fields (not the full CreateTripInput) so the create-trip
+// form can also use it to preview the day count before submitting.
+export function computeTripDays(input: Pick<CreateTripInput, 'startDate' | 'endDate'>): number {
   return Math.max(1, Math.min(30, nightsBetween(input.startDate, input.endDate) || 7))
 }
 

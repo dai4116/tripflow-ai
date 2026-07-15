@@ -27,6 +27,12 @@ const routes: RouteRecordRaw[] = [
     meta: { layout: 'workspace' },
   },
   {
+    path: '/explore/:templateId',
+    name: 'explore-trip',
+    component: () => import('../pages/ExploreTripBoardPage.vue'),
+    meta: { layout: 'workspace' },
+  },
+  {
     path: '/trips/:tripId',
     name: 'trip-board',
     component: () => import('../pages/TripBoardPage.vue'),
