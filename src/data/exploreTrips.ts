@@ -1,3 +1,4 @@
+import { PLACE_GRADIENTS } from './generateTrip'
 import type { ExploreTemplate, Place } from '../types'
 
 // Curated sample itineraries for the Explore page — independent of the
@@ -86,17 +87,8 @@ export const exploreTemplates: ExploreTemplate[] = [
   },
 ]
 
-const GRADIENTS = [
-  'linear-gradient(135deg, #18233c, #c23b5c 50%, #f1a15f)',
-  'linear-gradient(135deg, #183c5d, #4a7de0 55%, #ff7a59)',
-  'linear-gradient(135deg, #22465c, #d96b4b 45%, #f3d0bb)',
-  'linear-gradient(135deg, #9fbf8f, #d9ecc8 55%, #f2f7e6)',
-  'linear-gradient(135deg, #22303c, #8161e6 60%, #cbbcf2)',
-  'linear-gradient(135deg, #2a4562, #00c5ab 45%, #f26157)',
-]
-
 function gradientFor(index: number): string {
-  return GRADIENTS[index % GRADIENTS.length]
+  return PLACE_GRADIENTS[index % PLACE_GRADIENTS.length]
 }
 
 export const explorePlaces: Place[] = [

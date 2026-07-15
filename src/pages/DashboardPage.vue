@@ -80,9 +80,15 @@ const greetingDescription = computed(() => {
 
 // Whole-day difference, ignoring time-of-day, so "today" still counts as 0
 // rather than a small negative number depending on the current hour.
+//
+// dateStr is a plain "YYYY-MM-DD" — new Date(dateStr) would parse that as
+// UTC midnight per spec, then .setHours(0,0,0,0) re-reads it in the
+// viewer's *local* time, silently shifting it back a day for anyone west of
+// UTC. Building the Date from its numeric parts instead always constructs
+// in local time, so there's no UTC/local mismatch to correct for.
 function daysUntil(dateStr: string): number {
-  const date = new Date(dateStr)
-  date.setHours(0, 0, 0, 0)
+  const [year, month, day] = dateStr.split('-').map(Number)
+  const date = new Date(year, month - 1, day)
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   return Math.round((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
@@ -93,10 +99,12 @@ function daysUntil(dateStr: string): number {
 // start date are eligible for the spotlight.
 const upcomingTrip = computed(() => {
   const upcoming = trips.value
-    .filter((trip): trip is Trip & { startDate: string } => Boolean(trip.startDate) && daysUntil(trip.startDate!) >= 0)
-    .sort((a, b) => daysUntil(a.startDate) - daysUntil(b.startDate))
+    .filter((trip): trip is Trip & { startDate: string } => Boolean(trip.startDate))
+    .map((trip) => ({ trip, days: daysUntil(trip.startDate) }))
+    .filter(({ days }) => days >= 0)
+    .sort((a, b) => a.days - b.days)
 
-  return upcoming[0] ?? null
+  return upcoming[0]?.trip ?? null
 })
 
 const countdownLabel = computed(() => {

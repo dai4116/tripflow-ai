@@ -20,7 +20,7 @@
             <AppIcon name="pin" :size="15" />
           </button>
         </div>
-        <BaseButton variant="primary" @click="handleCopy">
+        <BaseButton variant="primary" :loading="isCopying" @click="handleCopy">
           <AppIcon name="plus" :size="14" />
           複製行程
         </BaseButton>
@@ -221,6 +221,7 @@ const template = computed(() => {
 const templatePlaces = computed(() => explorePlacesForTemplate(template.value.id))
 
 const mobileView = ref<'board' | 'map'>('board')
+const isCopying = ref(false)
 const selectedPlaceId = ref<string | null>(null)
 const drawerPlaceId = ref<string | null>(null)
 const focusedColumnId = ref('')
@@ -228,9 +229,11 @@ const focusedColumnId = ref('')
 const legendCategories = [
   { key: 'culture', label: '文化' },
   { key: 'food', label: '美食' },
+  { key: 'cafe', label: '咖啡廳' },
   { key: 'nature', label: '自然' },
   { key: 'shopping', label: '購物' },
   { key: 'activity', label: '活動' },
+  { key: 'museum', label: '博物館' },
   { key: 'transport', label: '交通' },
   { key: 'stay', label: '住宿' },
 ]
@@ -341,9 +344,21 @@ function getPlaceDay(columnId: string) {
 }
 
 function handleCopy() {
-  const trip = tripsStore.copyTemplateTrip(template.value.id)
-  if (!trip) return
+  if (isCopying.value) return
+  isCopying.value = true
 
-  router.push({ name: 'trip-board', params: { tripId: trip.id }, query: { fresh: '1' } })
+  const trip = tripsStore.copyTemplateTrip(template.value.id)
+  if (!trip) {
+    isCopying.value = false
+    return
+  }
+
+  // If navigation fails (e.g. a lazy-loaded chunk fetch error) the component
+  // never unmounts, so isCopying must reset — otherwise the button is stuck
+  // disabled with no way to retry. A successful push unmounts this page, so
+  // this is a no-op on the happy path.
+  router.push({ name: 'trip-board', params: { tripId: trip.id }, query: { fresh: '1' } }).catch(() => {
+    isCopying.value = false
+  })
 }
 </script>

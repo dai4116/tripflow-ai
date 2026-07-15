@@ -407,9 +407,11 @@ const editForm = reactive({
 const legendCategories = [
   { key: 'culture', label: '文化' },
   { key: 'food', label: '美食' },
+  { key: 'cafe', label: '咖啡廳' },
   { key: 'nature', label: '自然' },
   { key: 'shopping', label: '購物' },
   { key: 'activity', label: '活動' },
+  { key: 'museum', label: '博物館' },
   { key: 'transport', label: '交通' },
   { key: 'stay', label: '住宿' },
 ]

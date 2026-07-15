@@ -145,14 +145,15 @@ export const useTripsStore = defineStore('trips', () => {
       destination: template.destination,
       days: template.days,
       travelers: template.travelers,
-      placeCount: newPlaces.length,
+      placeCount: 0,
       color: template.color,
       imageGradient: template.imageGradient,
       dateRange: '尚未安排日期',
-      preferences: template.preferences,
+      preferences: [...template.preferences],
       pace: template.pace,
       columns,
     }
+    recalcPlaceCount(trip)
 
     trips.value.push(trip)
     places.value.push(...newPlaces)

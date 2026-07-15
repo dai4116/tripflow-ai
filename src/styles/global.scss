@@ -1230,13 +1230,6 @@ h3 {
   font-weight: 800;
 }
 
-.section-head__count {
-  color: $color-subtle;
-  font-size: $font-size-xs;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
 .section-head .base-button {
   margin-left: auto;
 }
@@ -1347,40 +1340,6 @@ h3 {
   display: grid;
   grid-template-columns: repeat(3, minmax(220px, 1fr));
   gap: 14px;
-}
-
-.cta-band {
-  display: flex;
-  position: relative;
-  align-items: center;
-  gap: 18px;
-  padding: 24px 28px;
-  border-radius: 20px;
-  overflow: hidden;
-  background: $color-dusk;
-  color: $color-surface;
-}
-
-.cta-band__copy {
-  position: relative;
-  z-index: 1;
-}
-
-.cta-band h2 {
-  margin-bottom: 4px;
-  font-size: $fs-title;
-  font-weight: 800;
-}
-
-.cta-band p {
-  color: #aeb3c7;
-  font-size: $fs-ui;
-}
-
-.cta-band .base-button {
-  position: relative;
-  z-index: 1;
-  margin-left: auto;
 }
 
 // ---------------------------------------------------------------------------
@@ -3426,18 +3385,6 @@ h3 {
   .upcoming-trip__cta {
     align-self: flex-start;
     margin: 12px 0 16px 16px;
-  }
-
-  .cta-band {
-    display: grid;
-    gap: 26px;
-    padding: 20px 16px;
-  }
-
-  .cta-band .base-button {
-    margin-left: 0;
-    width: 100%;
-    justify-self: stretch;
   }
 
   .new-trip-page {
