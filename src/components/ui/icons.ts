@@ -42,6 +42,9 @@ export const icons = {
   check: {
     body: `<path d="M5 12.5l4.5 4.5L19 7.5" ${STROKE} stroke-width="2"/>`,
   },
+  alert: {
+    body: `<path d="M10.3 4.6L3.2 17a2 2 0 0 0 1.7 3h14.2a2 2 0 0 0 1.7-3L13.7 4.6a2 2 0 0 0-3.4 0z" ${STROKE}/><path d="M12 9v4.5" ${STROKE} stroke-width="2"/><circle cx="12" cy="17" r="1" fill="currentColor" stroke="none"/>`,
+  },
   close: {
     body: `<path d="M6 6l12 12M18 6L6 18" ${STROKE} stroke-width="1.9"/>`,
   },

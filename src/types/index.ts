@@ -12,6 +12,8 @@ export type PlaceCategory =
   | 'activity'
   | 'other'
 
+export type PlaceScheduleMode = 'duration' | 'departure'
+
 export type TripColumn = {
   id: string
   title: string
@@ -62,6 +64,10 @@ export type Place = {
   // Manual arrival-time override ('HH:mm'). When unset, the effective
   // arrival time cascades from the place before it — see computeArrivalTimes.
   arrivalTime?: string
+  // The two values are stored independently. scheduleMode only chooses which
+  // one represents the place on its card and drives the following arrival.
+  scheduleMode?: PlaceScheduleMode
+  departureTime?: string
   columnId: string
   imageGradient: string
 }

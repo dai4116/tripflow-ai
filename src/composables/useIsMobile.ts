@@ -1,19 +1,22 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 
 export function useIsMobile(breakpoint = 768) {
-  const isMobile = ref(typeof window !== 'undefined' ? window.innerWidth < breakpoint : false)
+  const query = `(max-width: ${breakpoint}px)`
+  const isMobile = ref(typeof window !== 'undefined' ? window.matchMedia(query).matches : false)
+  let mediaQuery: MediaQueryList | null = null
 
-  function updateIsMobile() {
-    isMobile.value = window.innerWidth < breakpoint
+  function updateIsMobile(event: MediaQueryListEvent) {
+    isMobile.value = event.matches
   }
 
   onMounted(() => {
-    updateIsMobile()
-    window.addEventListener('resize', updateIsMobile)
+    mediaQuery = window.matchMedia(query)
+    isMobile.value = mediaQuery.matches
+    mediaQuery.addEventListener('change', updateIsMobile)
   })
 
   onBeforeUnmount(() => {
-    window.removeEventListener('resize', updateIsMobile)
+    mediaQuery?.removeEventListener('change', updateIsMobile)
   })
 
   return isMobile

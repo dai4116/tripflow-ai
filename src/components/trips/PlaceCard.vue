@@ -1,23 +1,46 @@
 <template>
-  <BaseCard class="place-card">
-    <div class="place-card__media" :style="{ background: place.imageGradient }">
-      <span class="place-card__index">{{ order }}</span>
-    </div>
-    <div class="place-card__content">
-      <div class="place-card__top-row">
-        <CategoryChip :category="place.category" icon-only />
-        <span class="place-card__arrival" :class="{ 'place-card__arrival--manual': arrivalTimeIsManual }">{{ arrivalTime }}</span>
+  <BaseCard
+    class="place-card"
+    :class="{
+      'place-card--has-warning': hasTimeOverlap,
+      'place-card--warning-open': overlapWarningOpen,
+    }"
+  >
+    <button type="button" class="place-card__open" @click="emit('open')">
+      <div class="place-card__media" :style="{ background: place.imageGradient }">
+        <span class="place-card__index">{{ order }}</span>
       </div>
-      <h3>{{ place.name }}</h3>
-      <div class="place-card__meta">
-        <span><AppIcon name="clock" :size="11" />停留 {{ stayLabel }}</span>
+      <div class="place-card__content">
+        <div class="place-card__top-row">
+          <CategoryChip :category="place.category" icon-only />
+          <span class="place-card__arrival">{{ arrivalTime }}</span>
+        </div>
+        <h3>{{ place.name }}</h3>
+        <div class="place-card__meta">
+          <span><AppIcon name="clock" :size="11" />{{ scheduleLabel }}</span>
+        </div>
       </div>
+    </button>
+
+    <div v-if="hasTimeOverlap" class="place-card__warning">
+      <button
+        type="button"
+        class="place-card__warning-trigger"
+        aria-label="顯示時間衝突提醒"
+        :aria-expanded="overlapWarningOpen"
+        @click.stop="emit('toggleOverlapWarning')"
+        @blur="emit('closeOverlapWarning')"
+      >
+        <AppIcon name="alert" :size="14" />
+      </button>
+      <span v-if="overlapWarningOpen" class="place-card__warning-tag" role="status">{{ warningMessage }}</span>
     </div>
   </BaseCard>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { formatStayDuration } from '../../data/placeSchedule'
 import type { Place } from '../../types'
 import AppIcon from '../ui/AppIcon.vue'
 import BaseCard from '../ui/BaseCard.vue'
@@ -32,15 +55,25 @@ const props = defineProps<{
   // computeArrivalTimes in data/placeSchedule.ts) — this component only
   // renders whatever effective time it's given.
   arrivalTime: string
-  arrivalTimeIsManual: boolean
+  hasTimeOverlap?: boolean
+  overlapWarningOpen?: boolean
+  overlapReason?: 'arrival' | 'departure'
 }>()
 
-// estimatedTime is stored as a decimal (e.g. 1.5) — once there's a
-// fractional part, render "N 時 M 分" instead of "1.5 小時".
-const stayLabel = computed(() => {
-  const hours = Math.floor(props.place.estimatedTime)
-  const minutes = Math.round((props.place.estimatedTime - hours) * 60)
+const emit = defineEmits<{
+  open: []
+  toggleOverlapWarning: []
+  closeOverlapWarning: []
+}>()
 
-  return minutes > 0 ? `${hours} 時 ${String(minutes).padStart(2, '0')} 分` : `${hours} 小時`
-})
+const warningMessage = computed(() =>
+  props.overlapReason === 'departure' ? '離開時間有重疊喔！' : '抵達時間有重疊喔！',
+)
+
+const stayLabel = computed(() => formatStayDuration(props.place.estimatedTime))
+const scheduleLabel = computed(() =>
+  props.place.scheduleMode === 'departure' && props.place.departureTime
+    ? `${props.place.departureTime}離開`
+    : `停留 ${stayLabel.value}`,
+)
 </script>

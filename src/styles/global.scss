@@ -22,6 +22,17 @@ body {
   margin: 0;
   color: $color-text;
   font-size: $font-size-sm;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+input,
+textarea,
+[contenteditable='true'],
+.place-drawer__description,
+.place-drawer__tip {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 html.is-mobile-sheet-open,
@@ -117,7 +128,10 @@ h3 {
 
 .category-chip--icon-only {
   flex: none;
-  padding: 6px;
+  width: 23px;
+  height: 23px;
+  justify-content: center;
+  padding: 0;
 }
 
 .category-chip i {
@@ -811,12 +825,25 @@ h3 {
 // with 6+ places needs to read as a scannable sequence, not a tall stack
 // that pushes most of the day below the fold.
 .place-card {
+  position: relative;
+  padding: 0;
+  overflow: visible;
+  text-align: left;
+}
+
+.place-card__open {
   display: grid;
+  width: 100%;
   grid-template-columns: 64px minmax(0, 1fr);
   column-gap: 10px;
   padding: 10px;
-  overflow: hidden;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  font: inherit;
   text-align: left;
+  cursor: grab;
 }
 
 .place-card__media {
@@ -853,6 +880,10 @@ h3 {
   min-width: 0;
 }
 
+.place-card--has-warning .place-card__content {
+  padding-right: 24px;
+}
+
 .place-card__content h3 {
   font-size: $fs-ui;
   font-weight: 750;
@@ -868,15 +899,10 @@ h3 {
 // The headline number: bigger than the place name below it, since arrival
 // time is the thing a glance at the day's cards is actually trying to answer.
 .place-card__arrival {
-  color: $color-muted;
-  font-size: $fs-ui;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
-.place-card__arrival--manual {
   color: $color-ink;
+  font-size: $fs-ui;
   font-weight: 800;
+  font-variant-numeric: tabular-nums;
 }
 
 .place-card__meta {
@@ -896,6 +922,51 @@ h3 {
   gap: 4px;
 }
 
+.place-card__warning {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  z-index: 3;
+}
+
+.place-card__warning-trigger {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: $radius-pill;
+  background: $color-danger-soft;
+  color: $color-danger;
+}
+
+.place-card__warning-trigger:focus-visible {
+  outline: 3px solid rgba($color-danger, 0.28);
+  outline-offset: 2px;
+}
+
+.place-card__warning-tag {
+  position: absolute;
+  top: calc(100% + 5px);
+  right: 0;
+  width: max-content;
+  padding: 5px 8px;
+  border: 1px solid rgba($color-danger, 0.22);
+  border-radius: $radius-sm;
+  background: $color-surface;
+  box-shadow: $shadow-md;
+  color: $color-danger;
+  font-size: $fs-micro;
+  font-weight: 750;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.place-card--warning-open {
+  z-index: 8;
+}
+
 
 .place-card-button {
   display: block;
@@ -907,9 +978,9 @@ h3 {
   color: inherit;
   text-align: left;
   cursor: grab;
-  // Without this, touch devices claim the gesture for native scrolling before
-  // Sortable's JS can take over, so a drag started inside a scrollable board never starts.
-  touch-action: none;
+  // Vertical swipes should keep scrolling the board. Sortable's touch delay
+  // still allows a stationary long-press to transition into card dragging.
+  touch-action: pan-y;
 }
 
 .place-card-button .place-card {
@@ -925,7 +996,7 @@ h3 {
   transform: translateY(-2px);
 }
 
-.place-card-button:focus-visible .place-card {
+.place-card-button:has(.place-card__open:focus-visible) .place-card {
   @include focus-ring;
 }
 
@@ -1691,6 +1762,11 @@ h3 {
   font-size: $fs-h3;
 }
 
+.trip-header__unscheduled-date {
+  color: $color-danger;
+  font-weight: 750;
+}
+
 .trip-view-toggle {
   display: none;
 }
@@ -1935,19 +2011,6 @@ h3 {
   font-weight: 700;
   letter-spacing: normal;
   text-transform: none;
-  font-variant-numeric: tabular-nums;
-}
-
-.kanban-column__count {
-  display: inline-grid;
-  min-width: 22px;
-  height: 22px;
-  padding: 0 7px;
-  place-items: center;
-  border: 1px solid $color-border;
-  border-radius: $radius-pill;
-  background: $color-surface;
-  font-size: $fs-small;
   font-variant-numeric: tabular-nums;
 }
 
@@ -2495,6 +2558,142 @@ h3 {
   gap: 12px;
 }
 
+.place-drawer__field-label {
+  color: $color-muted;
+  font-size: $font-size-xs;
+  font-weight: 700;
+}
+
+.place-drawer__toggle-field {
+  display: grid;
+  gap: 6px;
+}
+
+// One merged card (like a native settings group) instead of two separate
+// boxes — a dashed divider marks the seam, and only a trailing check dot
+// signals which row is active, so both rows read as equally weighted.
+// Shared by "抵達時間" (系統規劃／手動設定) and "此景點" (停留時間／離開時間).
+.place-drawer__toggle-card {
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+  background: $color-bg;
+  overflow: hidden;
+}
+
+.place-drawer__toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  cursor: pointer;
+}
+
+.place-drawer__toggle-divider {
+  margin: 0 12px;
+  border-top: 1px dashed $color-border;
+}
+
+.place-drawer__toggle-row-label {
+  flex: none;
+  color: $color-muted;
+  font-size: $fs-small;
+  font-weight: 700;
+}
+
+.place-drawer__toggle-row--active .place-drawer__toggle-row-label {
+  color: $color-ink;
+}
+
+// A fixed *width* (not min-width) on both, so their boxes match exactly —
+// a native time input has its own locale-dependent intrinsic minimum (room
+// for "上午 08:00"/"01:00 PM"-style segments) that's wider than a plain
+// value span needs, so min-width alone still let the two drift out of
+// alignment with each other.
+.place-drawer__toggle-row-value,
+.place-drawer__toggle-row-input {
+  margin-left: auto;
+  width: 140px;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: $radius-sm;
+  text-align: center;
+  font-family: inherit;
+  font-size: $fs-ui;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.place-drawer__toggle-row-value {
+  color: $color-subtle;
+}
+
+.place-drawer__toggle-row--active .place-drawer__toggle-row-value {
+  color: $color-ink;
+  font-weight: 800;
+}
+
+.place-drawer__toggle-row-input {
+  background: transparent;
+  color: $color-subtle;
+}
+
+// The 手動設定/離開時間 rows now open TimePickerSheet instead of a native
+// time input — same shared box, just resetting native <button> chrome.
+.place-drawer__toggle-row-button {
+  appearance: none;
+  cursor: pointer;
+}
+
+.place-drawer__toggle-row--active .place-drawer__toggle-row-input {
+  border-color: $color-border;
+  background: $color-surface;
+  color: $color-text;
+}
+
+.place-drawer__toggle-row-input:focus-visible {
+  outline: 0;
+  border-color: $color-primary;
+  box-shadow: 0 0 0 3px rgba($color-primary, 0.16);
+}
+
+.place-drawer__toggle-radio {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+}
+
+.place-drawer__toggle-radio input[type='radio'] {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.place-drawer__toggle-radio-dot {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid $color-border;
+  border-radius: $radius-pill;
+  background: $color-surface;
+  color: transparent;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease;
+}
+
+.place-drawer__toggle-row--active .place-drawer__toggle-radio-dot {
+  border-color: $color-primary;
+  background: $color-primary;
+  color: $color-surface;
+}
+
 .place-drawer__edit-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2741,6 +2940,103 @@ h3 {
   padding: 14px 20px calc(14px + env(safe-area-inset-bottom));
   border-top: 1px solid $color-border;
   background: $color-bg;
+}
+
+// ---------------------------------------------------------------------------
+// Time picker — compact anchored popover on every viewport
+// ---------------------------------------------------------------------------
+
+.time-picker-overlay {
+  position: absolute;
+  z-index: 70;
+  display: block;
+  background: transparent;
+}
+
+.time-picker-sheet {
+  display: grid;
+  gap: 12px;
+  width: min(188px, calc(100vw - 24px));
+  padding: 14px 14px 12px;
+  border-radius: $radius-lg;
+  background: $color-surface;
+  box-shadow: $shadow-lg;
+}
+
+.time-picker-sheet__title {
+  font-size: $fs-ui;
+  font-weight: 800;
+  text-align: center;
+}
+
+.time-picker-wheels {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  height: 140px;
+}
+
+.time-picker-wheels__highlight {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 28px;
+  transform: translateY(-50%);
+  border-radius: $radius-sm;
+  background: $color-primary-soft;
+  pointer-events: none;
+}
+
+.time-picker-wheel {
+  width: 64px;
+  height: 140px;
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none;
+  // Fades the top/bottom couple of rows toward the sheet's background,
+  // rather than hard-cropping them, so the wheel reads as continuous.
+  mask-image: linear-gradient(to bottom, transparent 0, black 48px, black 92px, transparent 140px);
+}
+
+.time-picker-wheel::-webkit-scrollbar {
+  display: none;
+}
+
+.time-picker-wheel__spacer {
+  flex: none;
+  height: 56px;
+}
+
+.time-picker-wheel__item {
+  display: flex;
+  width: 100%;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  scroll-snap-align: center;
+  border: 0;
+  background: transparent;
+  color: $color-subtle;
+  font-family: inherit;
+  font-size: $fs-ui;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.time-picker-wheel__item--selected {
+  color: $color-ink;
+  font-weight: 800;
+}
+
+.time-picker-sheet__confirm {
+  width: 100%;
+  min-height: 32px;
+  padding-inline: 12px;
+  font-size: $fs-small;
 }
 
 // ---------------------------------------------------------------------------
@@ -3153,6 +3449,12 @@ h3 {
     display: none;
   }
 
+  // Explore already exposes the selected day through the tab strip, so its
+  // in-column header would be an empty duplicate at this breakpoint.
+  .trip-board-page--explore .kanban-column__header {
+    display: none;
+  }
+
   .map-panel {
     flex: 1;
     width: 100%;
@@ -3556,6 +3858,20 @@ h3 {
   .form-card {
     gap: 14px;
     padding: 16px 14px;
+  }
+
+  .trip-settings-modal .date-range-field__row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .trip-settings-modal .date-range-field__control {
+    width: 100%;
+  }
+
+  .trip-settings-modal .date-range-field__arrow {
+    justify-self: center;
+    transform: rotate(90deg);
   }
 
   .form-grid {

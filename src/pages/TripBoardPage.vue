@@ -1,9 +1,14 @@
 <template>
   <section class="trip-board-page">
-    <PageHeader
-      :title="activeTrip.title"
-      :description="tripHeaderDescription"
-    >
+    <PageHeader :title="activeTrip.title">
+      <template #description>
+        {{ activeTrip.destination }} ·
+        <span :class="{ 'trip-header__unscheduled-date': !activeTrip.startDate }">
+          {{ activeTrip.dateRange }}
+        </span>
+        · {{ activeTrip.travelers }} 位旅伴
+      </template>
+
       <template #badge>
         <button
           type="button"
@@ -11,7 +16,7 @@
           aria-label="編輯旅程設定"
           @click="showTripSettingsModal = true"
         >
-          <AppIcon name="gear" :size="13" />
+          <AppIcon name="gear" :size="16" />
         </button>
       </template>
 
@@ -94,7 +99,6 @@
                 <span class="kanban-column__title-text">{{ column.title }}</span>
                 <span v-if="columnDate(column)" class="kanban-column__date">{{ columnDate(column) }}</span>
               </span>
-              <span class="kanban-column__count">{{ column.placeIds.length }}</span>
             </button>
             <button
               type="button"
@@ -122,32 +126,39 @@
             :animation="150"
             :delay="150"
             :delay-on-touch-only="true"
+            :touch-start-threshold="5"
             :force-fallback="true"
+            :fallback-tolerance="5"
             :scroll-sensitivity="80"
             :scroll-speed="16"
             :bubble-scroll="true"
             draggable=".place-card-button"
+            filter=".place-card__warning-trigger"
+            :prevent-on-filter="false"
             ghost-class="place-card-button--ghost"
             chosen-class="place-card-button--chosen"
             drag-class="place-card-button--dragging"
             @start="isDraggingCard = true"
             @end="onDragEnd"
           >
-            <button
+            <div
               v-for="card in getColumnCards(column.placeIds)"
               :key="card.place.id"
               class="place-card-button"
               :class="{ 'place-card-button--selected': selectedPlaceId === card.place.id }"
-              type="button"
-              @click="openPlaceDrawer(card.place.id)"
             >
               <PlaceCard
                 :place="card.place"
                 :order="card.order"
                 :arrival-time="card.arrivalTime"
-                :arrival-time-is-manual="card.arrivalTimeIsManual"
+                :has-time-overlap="card.hasTimeOverlap"
+                :overlap-reason="card.overlapReason"
+                :overlap-warning-open="overlapWarningPlaceId === card.place.id"
+                @open="openPlaceDrawer(card.place.id)"
+                @toggle-overlap-warning="toggleOverlapWarning(card.place.id)"
+                @close-overlap-warning="closeOverlapWarning"
               />
-            </button>
+            </div>
             <p v-if="column.placeIds.length === 0" class="kanban-column__empty">請新增景點</p>
           </VueDraggable>
         </section>
@@ -247,8 +258,20 @@
 
               <div class="place-drawer__facts">
                 <div class="place-drawer__fact">
-                  <span>停留時間</span>
-                  <strong>{{ drawerPlace.estimatedTime }} 小時</strong>
+                  <span>抵達時間</span>
+                  <strong>{{ drawerPlaceSchedule?.arrivalTime }}</strong>
+                </div>
+                <div class="place-drawer__fact">
+                  <span>
+                    {{ drawerPlace.scheduleMode === 'departure' && drawerPlace.departureTime ? '離開時間' : '停留時間' }}
+                  </span>
+                  <strong>
+                    {{
+                      drawerPlace.scheduleMode === 'departure' && drawerPlace.departureTime
+                        ? drawerPlace.departureTime
+                        : formatStayDuration(drawerPlace.estimatedTime)
+                    }}
+                  </strong>
                 </div>
                 <div class="place-drawer__fact">
                   <span>天數</span>
@@ -313,9 +336,93 @@
                 </button>
               </div>
 
-              <BaseInput v-model="editForm.estimatedTime" type="number" label="停留時間（小時）" :min="0" />
+              <div class="place-drawer__toggle-field">
+                <span class="place-drawer__field-label">抵達時間</span>
 
-              <BaseInput v-model="editForm.description" label="描述" multiline :rows="3" />
+                <div class="place-drawer__toggle-card">
+                  <div
+                    class="place-drawer__toggle-row"
+                    :class="{ 'place-drawer__toggle-row--active': editForm.arrivalTimeMode === 'auto' }"
+                    @click="editForm.arrivalTimeMode = 'auto'"
+                  >
+                    <span class="place-drawer__toggle-row-label">系統規劃</span>
+                    <span class="place-drawer__toggle-row-value">{{ editForm.arrivalTimeAuto }}</span>
+                    <label class="place-drawer__toggle-radio">
+                      <input v-model="editForm.arrivalTimeMode" type="radio" name="arrivalTimeMode" value="auto" />
+                      <span class="place-drawer__toggle-radio-dot"><AppIcon name="check" :size="10" /></span>
+                    </label>
+                  </div>
+
+                  <div class="place-drawer__toggle-divider" />
+
+                  <div
+                    class="place-drawer__toggle-row"
+                    :class="{ 'place-drawer__toggle-row--active': editForm.arrivalTimeMode === 'manual' }"
+                    @click="editForm.arrivalTimeMode = 'manual'"
+                  >
+                    <span class="place-drawer__toggle-row-label">手動設定</span>
+                    <button
+                      type="button"
+                      class="place-drawer__toggle-row-input place-drawer__toggle-row-button"
+                      @click.stop="openTimePicker('arrivalManual', $event)"
+                    >
+                      {{ editForm.arrivalTimeManual }}
+                    </button>
+                    <label class="place-drawer__toggle-radio" @click.stop>
+                      <input v-model="editForm.arrivalTimeMode" type="radio" name="arrivalTimeMode" value="manual" />
+                      <span class="place-drawer__toggle-radio-dot"><AppIcon name="check" :size="10" /></span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div class="place-drawer__toggle-field">
+                <span class="place-drawer__field-label">此景點</span>
+
+                <div class="place-drawer__toggle-card">
+                  <div
+                    class="place-drawer__toggle-row"
+                    :class="{ 'place-drawer__toggle-row--active': editForm.stayMode === 'duration' }"
+                    @click="selectStayMode('duration')"
+                  >
+                    <span class="place-drawer__toggle-row-label">停留時間</span>
+                    <button
+                      type="button"
+                      class="place-drawer__toggle-row-input place-drawer__toggle-row-button"
+                      @click.stop="openTimePicker('stayDuration', $event)"
+                    >
+                      {{ editForm.stayDuration }}
+                    </button>
+                    <label class="place-drawer__toggle-radio" @click.stop="selectStayMode('duration')">
+                      <input :checked="editForm.stayMode === 'duration'" type="radio" name="stayMode" value="duration" />
+                      <span class="place-drawer__toggle-radio-dot"><AppIcon name="check" :size="10" /></span>
+                    </label>
+                  </div>
+
+                  <div class="place-drawer__toggle-divider" />
+
+                  <div
+                    class="place-drawer__toggle-row"
+                    :class="{ 'place-drawer__toggle-row--active': editForm.stayMode === 'departure' }"
+                    @click="selectStayMode('departure')"
+                  >
+                    <span class="place-drawer__toggle-row-label">離開時間</span>
+                    <button
+                      type="button"
+                      class="place-drawer__toggle-row-input place-drawer__toggle-row-button"
+                      @click.stop="openTimePicker('stayDeparture', $event)"
+                    >
+                      {{ editForm.stayDeparture }}
+                    </button>
+                    <label class="place-drawer__toggle-radio" @click.stop="selectStayMode('departure')">
+                      <input :checked="editForm.stayMode === 'departure'" type="radio" name="stayMode" value="departure" />
+                      <span class="place-drawer__toggle-radio-dot"><AppIcon name="check" :size="10" /></span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <BaseInput v-model="editForm.description" label="筆記" multiline :rows="3" />
               <BaseInput v-model="editForm.travelTip" label="旅遊小提示（選填）" placeholder="選填提示" />
 
               <div class="place-drawer__edit-actions">
@@ -354,6 +461,16 @@
         @cancel="closeConfirm"
       />
 
+      <TimePickerSheet
+        v-if="timePickerTarget"
+        :key="timePickerTarget"
+        :model-value="timePickerInitialValue"
+        :title="timePickerTitle"
+        :anchor-el="timePickerAnchorEl"
+        @update:model-value="confirmTimePicker"
+        @close="closeTimePicker"
+      />
+
       <AskAiPanel :trip-id="activeTrip.id" @applied="focusColumn" />
       </div>
     </Transition>
@@ -377,13 +494,22 @@ import AppIcon from '../components/ui/AppIcon.vue'
 import BaseButton from '../components/ui/BaseButton.vue'
 import BaseInput from '../components/ui/BaseInput.vue'
 import ConfirmModal from '../components/ui/ConfirmModal.vue'
+import TimePickerSheet from '../components/ui/TimePickerSheet.vue'
+import { useColumnSchedule } from '../composables/useColumnSchedule'
 import { useConfirmDialog } from '../composables/useConfirmDialog'
 import { useIsMobile } from '../composables/useIsMobile'
 import { computeTripDays, formatDateRange } from '../data/generateTrip'
 import { buildRoutePath, markerPosition } from '../data/mapMarkers'
-import { computeArrivalTimes } from '../data/placeSchedule'
+import {
+  addMinutes,
+  computeArrivalTimes,
+  formatStayDuration,
+  hhmmToHours,
+  hoursToHHMM,
+  minutesBetween,
+} from '../data/placeSchedule'
 import { useTripsStore } from '../stores/trips'
-import type { Place, PlaceCategory, TripColumn } from '../types'
+import type { Place, PlaceCategory, PlaceScheduleMode, TripColumn } from '../types'
 
 const route = useRoute()
 const router = useRouter()
@@ -396,6 +522,11 @@ const { trips, places } = storeToRefs(tripsStore)
 const mobileView = ref<'board' | 'map'>('board')
 const selectedPlaceId = ref<string | null>(null)
 const drawerPlaceId = ref<string | null>(null)
+const overlapWarningPlaceId = ref<string | null>(null)
+const OVERLAP_WARNING_DURATION = 3000
+// iOS Safari doesn't focus a tapped <button>, so the tag's @blur close never
+// fires there — auto-dismissing on a timer works regardless of platform.
+let overlapWarningTimeoutId: ReturnType<typeof setTimeout> | null = null
 const isDraggingCard = ref(false)
 const focusedColumnId = ref('')
 const isFreshEntry = ref(route.query.fresh === '1')
@@ -419,9 +550,18 @@ const isEditingPlace = ref(false)
 const editForm = reactive({
   name: '',
   category: 'activity' as PlaceCategory,
-  estimatedTime: '1.5',
   description: '',
   travelTip: '',
+  arrivalTimeMode: 'auto' as 'auto' | 'manual',
+  arrivalTimeManual: '',
+  // Display-only — what "系統規劃" would show even while "手動設定" is
+  // active, so switching back doesn't lose track of the computed value.
+  arrivalTimeAuto: '',
+  // These remain independent values. stayMode only chooses which one is
+  // presented as the place's active schedule summary.
+  stayMode: 'duration' as PlaceScheduleMode,
+  stayDuration: '01:00',
+  stayDeparture: '',
 })
 
 const legendCategories = [
@@ -464,6 +604,10 @@ ensureColumns()
 
 const displayedColumns = computed(() => activeTrip.value.columns)
 const tripPlaces = computed(() => places.value.filter((place) => place.tripId === activeTrip.value.id))
+const { getColumnPlaces, getColumnCards, getPlaceSchedule } = useColumnSchedule(
+  () => tripPlaces.value,
+  () => displayedColumns.value,
+)
 // On mobile, only the focused day's cards render at a time (tap a day tab to
 // switch) instead of horizontally scrolling between columns — swiping the
 // board to change days fought with dragging a card to reorder it, since both
@@ -496,10 +640,8 @@ const focusedPlaces = computed(() => {
 const hasFocusHighlight = computed(() => focusedPlaces.value.length > 0)
 const routePathD = computed(() => buildRoutePath(focusedPlaces.value, tripPlaces.value))
 
-const tripHeaderDescription = computed(
-  () => `${activeTrip.value.destination} · ${activeTrip.value.dateRange} · ${activeTrip.value.travelers} 位旅伴`,
-)
 const drawerPlace = computed(() => tripPlaces.value.find((place) => place.id === drawerPlaceId.value))
+const drawerPlaceSchedule = computed(() => getPlaceSchedule(drawerPlace.value))
 const shouldLockBodyScroll = computed(() => isMobile.value && Boolean(drawerPlace.value))
 const cityName = computed(() => activeTrip.value.destination.split(/[,，]/)[0].trim() || activeTrip.value.destination)
 
@@ -517,10 +659,12 @@ watch(
   () => {
     selectedPlaceId.value = null
     drawerPlaceId.value = null
+    closeOverlapWarning()
     isMoveMenuOpen.value = false
     isEditingPlace.value = false
     showAddModal.value = false
     showTripSettingsModal.value = false
+    closeTimePicker()
     ensureColumns()
     focusedColumnId.value = resolveDefaultColumnId(displayedColumns.value)
   },
@@ -538,6 +682,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  if (overlapWarningTimeoutId !== null) clearTimeout(overlapWarningTimeoutId)
   window.removeEventListener('keydown', onKeydown)
   document.documentElement.classList.remove('is-mobile-sheet-open')
   document.body.classList.remove('is-mobile-sheet-open')
@@ -547,9 +692,8 @@ function onKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') closeDrawer()
 }
 
-// Trips without a real startDate (AI-generated ones, for now) just show no
-// date rather than a fabricated one — showing a made-up date would look like
-// the user's actual travel date.
+// Trips copied from Explore do not have a real date yet. Hide the date slot
+// until the user schedules one instead of showing placeholder text here.
 function columnDate(column: TripColumn): string {
   if (!activeTrip.value.startDate) return ''
 
@@ -560,25 +704,23 @@ function columnDate(column: TripColumn): string {
   return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`
 }
 
-function getColumnPlaces(placeIds: string[]) {
-  return placeIds
-    .map((placeId) => tripPlaces.value.find((place) => place.id === placeId))
-    .filter((place) => place !== undefined)
+function closeOverlapWarning() {
+  if (overlapWarningTimeoutId !== null) {
+    clearTimeout(overlapWarningTimeoutId)
+    overlapWarningTimeoutId = null
+  }
+  overlapWarningPlaceId.value = null
 }
 
-// Bundles each place with its 1-based order and its resolved arrival time so
-// the template does one pass per column instead of recomputing the whole
-// day's cascade once per card.
-function getColumnCards(placeIds: string[]) {
-  const places = getColumnPlaces(placeIds)
-  const schedule = computeArrivalTimes(places)
+function toggleOverlapWarning(placeId: string) {
+  if (overlapWarningPlaceId.value === placeId) {
+    closeOverlapWarning()
+    return
+  }
 
-  return places.map((place, index) => ({
-    place,
-    order: index + 1,
-    arrivalTime: schedule[index]!.time,
-    arrivalTimeIsManual: schedule[index]!.isManual,
-  }))
+  closeOverlapWarning()
+  overlapWarningPlaceId.value = placeId
+  overlapWarningTimeoutId = setTimeout(closeOverlapWarning, OVERLAP_WARNING_DURATION)
 }
 
 function syncPlaceColumns() {
@@ -591,12 +733,14 @@ function syncPlaceColumns() {
 }
 
 function onDragEnd() {
+  closeOverlapWarning()
   syncPlaceColumns()
   tripsStore.recalcPlaceCount(activeTrip.value)
   isDraggingCard.value = false
 }
 
 function openPlaceDrawer(placeId: string) {
+  closeOverlapWarning()
   selectedPlaceId.value = placeId
   drawerPlaceId.value = placeId
   isMoveMenuOpen.value = false
@@ -773,14 +917,101 @@ function moveDrawerPlaceTo(columnId: string) {
   isMoveMenuOpen.value = false
 }
 
-function startEdit() {
-  if (!drawerPlace.value) return
+const editFormEffectiveArrival = computed(() =>
+  editForm.arrivalTimeMode === 'manual' ? editForm.arrivalTimeManual : editForm.arrivalTimeAuto,
+)
 
-  editForm.name = drawerPlace.value.name
-  editForm.category = drawerPlace.value.category
-  editForm.estimatedTime = String(drawerPlace.value.estimatedTime)
-  editForm.description = drawerPlace.value.description
-  editForm.travelTip = drawerPlace.value.travelTip ?? ''
+const editFormStayHours = computed(() => hhmmToHours(editForm.stayDuration))
+
+// stayDuration/stayDeparture are two representations of the same underlying
+// gap. Switching stayMode without going through confirmTimePicker (i.e.
+// clicking the row/radio directly rather than picking a new value) must
+// still re-derive the side being switched TO from the other, or it saves
+// whatever stale snapshot was sitting there from when the form opened.
+function selectStayMode(mode: PlaceScheduleMode) {
+  if (editForm.stayMode === mode) return
+  if (mode === 'departure') {
+    editForm.stayDeparture = addMinutes(editFormEffectiveArrival.value, Math.round(hhmmToHours(editForm.stayDuration) * 60))
+  } else {
+    editForm.stayDuration = hoursToHHMM(minutesBetween(editFormEffectiveArrival.value, editForm.stayDeparture) / 60)
+  }
+  editForm.stayMode = mode
+}
+
+const timePickerTarget = ref<'arrivalManual' | 'stayDuration' | 'stayDeparture' | null>(null)
+const timePickerAnchorEl = ref<HTMLElement | null>(null)
+const timePickerTitle = computed(() => {
+  if (timePickerTarget.value === 'arrivalManual') return '選擇抵達時間'
+  if (timePickerTarget.value === 'stayDuration') return '選擇停留時間'
+  return '選擇離開時間'
+})
+const timePickerInitialValue = computed(() => {
+  if (timePickerTarget.value === 'arrivalManual') return editForm.arrivalTimeManual
+  if (timePickerTarget.value === 'stayDuration') return editForm.stayDuration
+  if (timePickerTarget.value === 'stayDeparture') return editForm.stayDeparture
+  return '00:00'
+})
+
+function openTimePicker(target: 'arrivalManual' | 'stayDuration' | 'stayDeparture', event: MouseEvent) {
+  if (timePickerTarget.value === target) {
+    closeTimePicker()
+    return
+  }
+
+  timePickerAnchorEl.value = event.currentTarget instanceof HTMLElement ? event.currentTarget : null
+  timePickerTarget.value = target
+}
+
+function closeTimePicker() {
+  timePickerTarget.value = null
+  timePickerAnchorEl.value = null
+}
+
+// Mode only switches once a value is actually confirmed — opening the
+// picker to look, then dismissing it, leaves 系統規劃/停留時間 untouched.
+function confirmTimePicker(value: string) {
+  if (timePickerTarget.value === 'arrivalManual') {
+    editForm.arrivalTimeMode = 'manual'
+    editForm.arrivalTimeManual = value
+  } else if (timePickerTarget.value === 'stayDuration') {
+    editForm.stayMode = 'duration'
+    editForm.stayDuration = value
+  } else if (timePickerTarget.value === 'stayDeparture') {
+    editForm.stayMode = 'departure'
+    editForm.stayDeparture = value
+  }
+  timePickerTarget.value = null
+  timePickerAnchorEl.value = null
+}
+
+function startEdit() {
+  const place = drawerPlace.value
+  if (!place) return
+
+  editForm.name = place.name
+  editForm.category = place.category
+  editForm.stayDuration = hoursToHHMM(place.estimatedTime)
+  editForm.description = place.description
+  editForm.travelTip = place.travelTip ?? ''
+
+  // What this place's arrival time would be with no manual override, even
+  // if one is currently set — so "系統規劃" always shows a real value to
+  // switch back to, not just whatever was last computed.
+  const column = displayedColumns.value.find((item) => item.id === place.columnId)
+  const placesWithoutOverride = column
+    ? getColumnPlaces(column.placeIds).map((item) => (item.id === place.id ? { ...item, arrivalTime: undefined } : item))
+    : []
+  const autoIndex = placesWithoutOverride.findIndex((item) => item.id === place.id)
+  const autoSchedule = computeArrivalTimes(placesWithoutOverride)
+  editForm.arrivalTimeAuto = (autoIndex === -1 ? undefined : autoSchedule[autoIndex]?.time) ?? '08:00'
+
+  editForm.arrivalTimeMode = place.arrivalTime ? 'manual' : 'auto'
+  editForm.arrivalTimeManual = place.arrivalTime ?? editForm.arrivalTimeAuto
+
+  editForm.stayMode = place.scheduleMode ?? 'duration'
+  editForm.stayDeparture =
+    place.departureTime ?? addMinutes(editFormEffectiveArrival.value, Math.round(place.estimatedTime * 60))
+
   isEditingPlace.value = true
 }
 
@@ -794,9 +1025,12 @@ function saveEdit() {
   tripsStore.updatePlace(drawerPlace.value.id, {
     name: editForm.name.trim(),
     category: editForm.category,
-    estimatedTime: Number(editForm.estimatedTime) || drawerPlace.value.estimatedTime,
+    estimatedTime: editFormStayHours.value,
     description: editForm.description.trim() || drawerPlace.value.description,
     travelTip: editForm.travelTip.trim() || undefined,
+    arrivalTime: editForm.arrivalTimeMode === 'manual' ? editForm.arrivalTimeManual || undefined : undefined,
+    scheduleMode: editForm.stayMode,
+    departureTime: editForm.stayDeparture || undefined,
   })
   isEditingPlace.value = false
 }

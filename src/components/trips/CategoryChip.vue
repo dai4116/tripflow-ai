@@ -4,7 +4,7 @@
     :class="[`category-chip--${category}`, { 'category-chip--icon-only': iconOnly }]"
     :aria-label="iconOnly ? categoryLabel : undefined"
   >
-    <AppIcon :name="categoryIcon" :size="11" />
+    <AppIcon :name="categoryIcon" :size="iconOnly ? 14 : 11" />
     <template v-if="!iconOnly">{{ categoryLabel }}</template>
   </span>
 </template>

@@ -10,7 +10,9 @@
         <h1>{{ title }}</h1>
         <slot name="badge" />
       </div>
-      <p v-if="description">{{ description }}</p>
+      <p v-if="$slots.description || description">
+        <slot name="description">{{ description }}</slot>
+      </p>
     </div>
 
     <div v-if="$slots.actions" class="page-header__actions">
