@@ -39,8 +39,21 @@
             <AppIcon name="pin" :size="15" />
           </button>
         </div>
+        <DayStepper
+          v-if="!isMobile"
+          :columns="displayedColumns"
+          show-labels
+          @add="addDay"
+          @delete="confirmDeleteDayById"
+        />
       </template>
     </PageHeader>
+
+    <Transition name="board-toast-fade">
+      <div v-if="boardToastMessage" class="board-toast" role="status">
+        {{ boardToastMessage }}
+      </div>
+    </Transition>
 
     <Transition name="board-reveal" mode="out-in">
       <div
@@ -71,9 +84,11 @@
             {{ column.title }}
           </button>
         </div>
-        <button type="button" class="mobile-day-tabs__add" aria-label="新增一天" @click="addDay">
-          <AppIcon name="plus" :size="13" />
-        </button>
+        <DayStepper
+          :columns="displayedColumns"
+          @add="addDay"
+          @delete="confirmDeleteDayById"
+        />
       </div>
       <div
         v-if="!isMobile || mobileView === 'board'"
@@ -99,23 +114,6 @@
                 <span class="kanban-column__title-text">{{ column.title }}</span>
                 <span v-if="columnDate(column)" class="kanban-column__date">{{ columnDate(column) }}</span>
               </span>
-            </button>
-            <button
-              type="button"
-              class="kanban-column__add-place"
-              :aria-label="`新增地點到 ${column.title}`"
-              @click="openAddPlaceModal(column.id)"
-            >
-              <AppIcon name="plus" :size="15" />
-            </button>
-            <button
-              type="button"
-              class="kanban-column__delete-day"
-              :aria-label="`刪除 ${column.title}`"
-              :disabled="displayedColumns.length <= 1"
-              @click="confirmDeleteDay(column)"
-            >
-              <AppIcon name="trash" :size="15" />
             </button>
           </header>
 
@@ -159,14 +157,19 @@
                 @close-overlap-warning="closeOverlapWarning"
               />
             </div>
-            <p v-if="column.placeIds.length === 0" class="kanban-column__empty">請新增景點</p>
+            <p v-if="column.placeIds.length === 0 && isMobile" class="kanban-column__empty">請新增景點</p>
           </VueDraggable>
-        </section>
 
-        <button v-if="!isMobile" type="button" class="kanban-add-day" @click="addDay">
-          <AppIcon name="plus" :size="12" />
-          新增天數
-        </button>
+          <button
+            v-if="!isMobile"
+            type="button"
+            class="kanban-column__add-place"
+            @click="openAddPlaceModal(column.id)"
+          >
+            <AppIcon name="plus" :size="12" />
+            新增地點
+          </button>
+        </section>
       </div>
 
       <aside
@@ -295,19 +298,14 @@
                 <BaseButton @click="viewOnMap">在地圖上查看</BaseButton>
                 <div class="place-drawer__move-wrap">
                   <BaseButton variant="secondary" @click="isMoveMenuOpen = !isMoveMenuOpen">移動天數</BaseButton>
-                  <div v-if="isMoveMenuOpen" class="place-drawer__move-menu" role="menu">
-                    <button
-                      v-for="column in displayedColumns"
-                      :key="column.id"
-                      type="button"
-                      class="place-drawer__move-option"
-                      role="menuitem"
-                      :disabled="column.id === drawerPlace.columnId"
-                      @click="moveDrawerPlaceTo(column.id)"
-                    >
-                      {{ column.title }}
-                    </button>
-                  </div>
+                  <DayPickerSheet
+                    v-if="isMoveMenuOpen"
+                    direction="above"
+                    :columns="displayedColumns"
+                    title="請選擇要移動到的天數"
+                    :disabled-column-id="drawerPlace.columnId"
+                    @select="moveDrawerPlaceTo"
+                  />
                 </div>
                 <BaseButton class="place-drawer__remove" variant="ghost" @click="removeDrawerPlace">移除地點</BaseButton>
               </div>
@@ -364,6 +362,7 @@
                     <button
                       type="button"
                       class="place-drawer__toggle-row-input place-drawer__toggle-row-button"
+                      :disabled="editForm.arrivalTimeMode !== 'manual'"
                       @click.stop="openTimePicker('arrivalManual', $event)"
                     >
                       {{ editForm.arrivalTimeManual }}
@@ -389,6 +388,7 @@
                     <button
                       type="button"
                       class="place-drawer__toggle-row-input place-drawer__toggle-row-button"
+                      :disabled="editForm.stayMode !== 'duration'"
                       @click.stop="openTimePicker('stayDuration', $event)"
                     >
                       {{ editForm.stayDuration }}
@@ -410,6 +410,7 @@
                     <button
                       type="button"
                       class="place-drawer__toggle-row-input place-drawer__toggle-row-button"
+                      :disabled="editForm.stayMode !== 'departure'"
                       @click.stop="openTimePicker('stayDeparture', $event)"
                     >
                       {{ editForm.stayDeparture }}
@@ -471,6 +472,16 @@
         @close="closeTimePicker"
       />
 
+      <button
+        v-if="isMobile && mobileView === 'board'"
+        type="button"
+        class="kanban-mobile-add-fab"
+        :aria-label="`新增地點到 ${focusedColumnTitle}`"
+        @click="openAddPlaceModal(focusedColumnId)"
+      >
+        <AppIcon name="plus" :size="18" />
+      </button>
+
       <AskAiPanel :trip-id="activeTrip.id" @applied="focusColumn" />
       </div>
     </Transition>
@@ -488,6 +499,8 @@ import PageHeader from '../components/layout/PageHeader.vue'
 import AddPlaceModal from '../components/trips/AddPlaceModal.vue'
 import AskAiPanel from '../components/trips/AskAiPanel.vue'
 import CategoryChip, { allPlaceCategories, categoryLabels } from '../components/trips/CategoryChip.vue'
+import DayPickerSheet from '../components/trips/DayPickerSheet.vue'
+import DayStepper from '../components/trips/DayStepper.vue'
 import PlaceCard from '../components/trips/PlaceCard.vue'
 import TripSettingsModal from '../components/trips/TripSettingsModal.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
@@ -498,7 +511,7 @@ import TimePickerSheet from '../components/ui/TimePickerSheet.vue'
 import { useColumnSchedule } from '../composables/useColumnSchedule'
 import { useConfirmDialog } from '../composables/useConfirmDialog'
 import { useIsMobile } from '../composables/useIsMobile'
-import { computeTripDays, formatDateRange } from '../data/generateTrip'
+import { computeTripDays, formatDateRange, toDateInputValue } from '../data/generateTrip'
 import { buildRoutePath, markerPosition } from '../data/mapMarkers'
 import {
   addMinutes,
@@ -528,6 +541,11 @@ const OVERLAP_WARNING_DURATION = 3000
 // fires there — auto-dismissing on a timer works regardless of platform.
 let overlapWarningTimeoutId: ReturnType<typeof setTimeout> | null = null
 const isDraggingCard = ref(false)
+// Generic transient confirmation banner for day deletion, desktop day
+// creation, and moving a place to another day from the drawer.
+const boardToastMessage = ref('')
+const BOARD_TOAST_DURATION = 2200
+let boardToastTimeoutId: ReturnType<typeof setTimeout> | null = null
 const focusedColumnId = ref('')
 const isFreshEntry = ref(route.query.fresh === '1')
 const showSkeleton = ref(isFreshEntry.value)
@@ -620,6 +638,9 @@ const boardColumns = computed(() => (isMobile.value ? mobileColumns.value : disp
 const addModalColumnTitle = computed(
   () => displayedColumns.value.find((column) => column.id === addModalColumnId.value)?.title ?? '',
 )
+const focusedColumnTitle = computed(
+  () => displayedColumns.value.find((column) => column.id === focusedColumnId.value)?.title ?? '',
+)
 
 function resolveDefaultColumnId(columns: TripColumn[]) {
   const firstWithPlaces = columns.find((column) => column.placeIds.length > 0)
@@ -660,6 +681,7 @@ watch(
     selectedPlaceId.value = null
     drawerPlaceId.value = null
     closeOverlapWarning()
+    clearBoardToast()
     isMoveMenuOpen.value = false
     isEditingPlace.value = false
     showAddModal.value = false
@@ -683,6 +705,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   if (overlapWarningTimeoutId !== null) clearTimeout(overlapWarningTimeoutId)
+  clearBoardToast()
   window.removeEventListener('keydown', onKeydown)
   document.documentElement.classList.remove('is-mobile-sheet-open')
   document.body.classList.remove('is-mobile-sheet-open')
@@ -691,6 +714,8 @@ onBeforeUnmount(() => {
 function onKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') closeDrawer()
 }
+
+const WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六']
 
 // Trips copied from Explore do not have a real date yet. Hide the date slot
 // until the user schedules one instead of showing placeholder text here.
@@ -701,7 +726,7 @@ function columnDate(column: TripColumn): string {
   if (Number.isNaN(date.getTime())) return ''
 
   date.setDate(date.getDate() + (column.dayNumber - 1))
-  return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`
+  return `${date.getMonth() + 1}/${date.getDate()} (${WEEKDAY_LABELS[date.getDay()]})`
 }
 
 function closeOverlapWarning() {
@@ -710,6 +735,20 @@ function closeOverlapWarning() {
     overlapWarningTimeoutId = null
   }
   overlapWarningPlaceId.value = null
+}
+
+function clearBoardToast() {
+  if (boardToastTimeoutId !== null) {
+    clearTimeout(boardToastTimeoutId)
+    boardToastTimeoutId = null
+  }
+  boardToastMessage.value = ''
+}
+
+function showBoardToast(message: string) {
+  clearBoardToast()
+  boardToastMessage.value = message
+  boardToastTimeoutId = setTimeout(clearBoardToast, BOARD_TOAST_DURATION)
 }
 
 function toggleOverlapWarning(placeId: string) {
@@ -771,8 +810,29 @@ function confirmDeleteDay(column: TripColumn) {
   })
 }
 
+function confirmDeleteDayById(columnId: string) {
+  const column = displayedColumns.value.find((item) => item.id === columnId)
+  if (column) confirmDeleteDay(column)
+}
+
 function onAddPlace(payload: { columnId: string; name: string; category: PlaceCategory; description: string }) {
   tripsStore.addPlace({ tripId: activeTrip.value.id, ...payload })
+}
+
+// addDay()/removeDay() change the trip's day count without going through
+// onSaveTripSettings — trip.dateRange is a separately stored display string,
+// not derived on the fly from startDate + day count, so it goes stale
+// (still showing the old end date) unless recomputed here too.
+function recalcDateRange() {
+  const trip = activeTrip.value
+  if (!trip.startDate) return
+
+  const start = new Date(trip.startDate)
+  if (Number.isNaN(start.getTime())) return
+
+  const end = new Date(start)
+  end.setDate(end.getDate() + (trip.columns.length - 1))
+  trip.dateRange = formatDateRange(trip.startDate, toDateInputValue(end))
 }
 
 function addDay() {
@@ -783,6 +843,7 @@ function addDay() {
   const newColumn: TripColumn = { id: `day-${nanoid(6)}`, dayNumber: nextDayNumber, title: `第${nextDayNumber}天`, placeIds: [] }
   activeTrip.value.columns = [...displayedColumns.value, newColumn]
   activeTrip.value.days = activeTrip.value.columns.length
+  recalcDateRange()
 
   // Focusing it lights up its header teal (same as clicking it) and syncs
   // the map — a newly created day has no prior context worth preserving, so
@@ -791,10 +852,14 @@ function addDay() {
   // Deliberately NOT auto-scrolling the kanban-board/cards into view: any
   // programmatic scroll of those containers — scrollTo() or a direct
   // scrollLeft assignment, smooth or instant, immediately or delayed —
-  // permanently breaks cross-column drag-in for the newly mounted column.
+  // permanently breaks cross-column drag-in, and not just for the newly
+  // mounted column — every cross-column drag on the board fails afterward.
   // Sortable's own bubble-scroll/scroll-sensitivity auto-scroll listeners on
   // those same containers appear to get confused by a scroll they didn't
-  // initiate.
+  // initiate. Re-confirmed with a scripted repro after the column layout
+  // moved from CSS grid to flex — still reproduces, so this isn't a
+  // layout-specific fluke. showBoardToast() below is the substitute "yes,
+  // it happened" cue for desktop instead.
   //
   // The mobile day-tab strip below is a different, plain (non-Sortable)
   // element, so it's safe to scroll — and on mobile it's the only way to see
@@ -809,6 +874,8 @@ function addDay() {
     nextTick(() => {
       dayTabEls[newColumn.id]?.scrollIntoView({ behavior: 'smooth', inline: 'end', block: 'nearest' })
     })
+  } else {
+    showBoardToast(`已新增第 ${nextDayNumber} 天`)
   }
 }
 
@@ -827,9 +894,11 @@ function removeDay(columnId: string) {
     .filter((item) => item.id !== columnId)
     .map((item, index) => ({ ...item, dayNumber: index + 1, title: `第${index + 1}天` }))
   activeTrip.value.days = activeTrip.value.columns.length
+  recalcDateRange()
 
   if (drawerPlaceId.value && placeIdsToRemove.has(drawerPlaceId.value)) closeDrawer()
   if (focusedColumnId.value === columnId) focusedColumnId.value = resolveDefaultColumnId(displayedColumns.value)
+  showBoardToast(`已刪除天數`)
 }
 
 // Editing the trip's date range in the settings modal can change how many
@@ -912,9 +981,11 @@ function removeDrawerPlace() {
 function moveDrawerPlaceTo(columnId: string) {
   if (!drawerPlace.value) return
 
+  const targetColumn = displayedColumns.value.find((column) => column.id === columnId)
   tripsStore.movePlaceToColumn(drawerPlace.value.id, columnId)
   focusedColumnId.value = columnId
-  isMoveMenuOpen.value = false
+  closeDrawer()
+  if (targetColumn) showBoardToast(`已移動到${targetColumn.title}`)
 }
 
 const editFormEffectiveArrival = computed(() =>

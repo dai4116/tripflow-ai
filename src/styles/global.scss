@@ -1771,6 +1771,48 @@ h3 {
   display: none;
 }
 
+// Generic transient confirmation banner: desktop's "新增天數" (the board
+// deliberately doesn't auto-scroll to the new day — see addDay()'s
+// comment — so this is the substitute "yes, it happened" cue) and, on both
+// platforms, "移動天數" from the place drawer. Fixed rather than anchored
+// to a specific trigger button, so it isn't clipped by any scrolling
+// ancestor and works regardless of which of those triggered it.
+//
+// Desktop (base rule): a top-right slide-in card. Mobile/tablet keep the
+// same dark palette but switch it to a plain bottom pill — a corner card
+// doesn't fit a touch surface, and that corner contains the day stepper.
+.board-toast {
+  position: fixed;
+  top: 78px;
+  right: 24px;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 320px;
+  padding: 12px 16px;
+  border-radius: $radius-lg;
+  background: $color-dusk;
+  color: $color-surface;
+  font-size: $fs-small;
+  font-weight: 650;
+  line-height: $lh-ui;
+  box-shadow: $shadow-lg;
+}
+
+.board-toast-fade-enter-active,
+.board-toast-fade-leave-active {
+  transition:
+    opacity 200ms ease,
+    transform 200ms ease;
+}
+
+.board-toast-fade-enter-from,
+.board-toast-fade-leave-to {
+  opacity: 0;
+  transform: translateX(24px);
+}
+
 .board-workspace {
   display: grid;
   position: relative;
@@ -1787,8 +1829,8 @@ h3 {
   display: flex;
   flex: none;
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: 2px;
+  padding: 10px 4px 10px 12px;
   border-bottom: 1px solid $color-border;
   background: $color-surface;
 }
@@ -1826,16 +1868,140 @@ h3 {
   color: $color-primary-text;
 }
 
-.mobile-day-tabs__add {
+// Paired "add a day" / "delete a day" controls. No enclosing pill/fill —
+// a solid-color capsule read as more prominent than the day tabs
+// themselves, which is backwards for a low-frequency action. Kept legible
+// as a pair purely by proximity and matching button style.
+// On mobile it sits in the day-tab strip; on desktop it lives in the page
+// header's actions row rather than at the end of the day columns —
+// trailing the board meant it could scroll out of view on a trip with many
+// days, so it wasn't reliably reachable. The remove button opens a menu to
+// explicitly pick which day to delete, rather than assuming "the currently
+// focused one" — with several columns visible at once on desktop, that
+// assumption isn't safe for a destructive action.
+.day-stepper {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+}
+
+.day-stepper__button {
   display: grid;
   flex: none;
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
   place-items: center;
-  border: 1.5px dashed $color-border;
+  border: 0;
   border-radius: $radius-pill;
   background: transparent;
   color: $color-subtle;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.day-stepper__button:hover:not(:disabled) {
+  background: $color-border;
+  color: $color-ink;
+}
+
+.day-stepper__button--remove:hover:not(:disabled) {
+  background: $color-danger-soft;
+  color: $color-danger;
+}
+
+.day-stepper__button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.day-stepper__button:focus-visible {
+  @include focus-ring;
+}
+
+// Spelled-out variant for contexts with room to spare (the desktop page
+// header) — icon-only reads as "some kind of control" but not what it
+// does; a visible label removes the guessing.
+.day-stepper__button--labeled {
+  display: inline-flex;
+  width: auto;
+  height: auto;
+  gap: 6px;
+  padding: 7px 12px;
+  border: 1px solid $color-border;
+  font-size: $fs-caption;
+  font-weight: 800;
+}
+
+// Mirrors .time-picker-sheet's card look (same size/radius/shadow tokens)
+// so the "pick a value from a short list" sheets in this app read as one
+// pattern — used both for picking which day to delete (DayStepper) and
+// which day to move a place to (place-drawer's "移動天數"). Unlike the
+// wheel, day counts are short lists (3-14ish), so a fixed-height, plain
+// scrolling list stands in for the wheel. Selecting an item acts
+// immediately (no separate confirm step) — the two triggers are
+// positioned differently relative to their trigger button, hence the
+// --below/--above direction modifiers.
+.day-picker-sheet {
+  position: absolute;
+  z-index: 6;
+  display: grid;
+  gap: 12px;
+  width: min(130px, calc(100vw - 24px));
+  padding: 14px 14px 12px;
+  border-radius: $radius-lg;
+  background: $color-surface;
+  box-shadow: $shadow-lg;
+}
+
+.day-picker-sheet--below {
+  top: calc(100% + 6px);
+  right: 0;
+}
+
+.day-picker-sheet--above {
+  right: 0;
+  bottom: calc(100% + 6px);
+}
+
+.day-picker-sheet__list {
+  display: grid;
+  gap: 2px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.day-picker-sheet__item {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: $radius-sm;
+  background: transparent;
+  color: $color-ink;
+  font-size: $fs-ui;
+  font-weight: 650;
+}
+
+.day-picker-sheet__item:hover:not(:disabled) {
+  background: $color-primary-soft;
+  color: $color-primary-text;
+}
+
+.day-picker-sheet__item:disabled {
+  color: $color-subtle;
+  cursor: default;
+}
+
+.day-stepper__delete-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  border: 0;
+  background: transparent;
 }
 
 .kanban-board {
@@ -1843,10 +2009,22 @@ h3 {
   grid-auto-columns: 236px;
   grid-auto-flow: column;
   gap: 14px;
-  align-items: start;
+  // Stretch (not start) so every column matches the tallest one — combined
+  // with .kanban-column's flex layout below, this pins every "+ 新增地點"
+  // row to the same height instead of each one trailing right after its
+  // own last card, which read as a ragged staircase across the board.
+  align-items: stretch;
   overflow-x: auto;
   padding: 20px 22px 28px;
   background: $color-bg;
+}
+
+// The stretch above exists only to bottom-align the per-column "新增地點"
+// buttons on the editable trip board. The Explore preview is read-only and
+// has no such button, so stretching just leaves a large empty gap under the
+// last card of shorter columns — let its columns take their natural height.
+.trip-board-page--explore .kanban-board {
+  align-items: start;
 }
 
 .kanban-board--fresh-enter .kanban-column {
@@ -1882,8 +2060,8 @@ h3 {
 }
 
 .kanban-column {
-  display: grid;
-  align-content: start;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
 }
 
@@ -1948,8 +2126,6 @@ h3 {
   @include card-shell;
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 12px 4px 4px;
   color: $color-muted;
   font-size: $fs-ui;
   font-weight: 800;
@@ -1957,13 +2133,18 @@ h3 {
   text-transform: uppercase;
 }
 
+// .kanban-column__focus is the header's only child now (the add-place
+// button that used to sit beside it moved to the column's bottom row) —
+// it carries all of the header's padding itself so its hover fill covers
+// the header's full card-shell box edge to edge, not just an inset area
+// that used to leave room for that second button.
 .kanban-column__focus {
   display: flex;
   flex: 1;
   align-items: center;
   gap: 8px;
   min-width: 0;
-  padding: 4px 6px 4px 10px;
+  padding: 8px 12px;
   border: 0;
   border-radius: $radius-lg;
   background: transparent;
@@ -2001,12 +2182,22 @@ h3 {
   background: $color-primary-soft;
 }
 
+// Vue's template-whitespace condensing drops the newline between the
+// title-text and date spans entirely (not down to one space) — an explicit
+// gap here is the actual space between "第n天" and the date, not a
+// stand-in for one already there.
+.kanban-column__title {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
 .kanban-column__header--active .kanban-column__title {
   color: $color-primary-text;
 }
 
 .kanban-column__date {
-  color: $color-subtle;
+  color: #22303c;
   font-size: $fs-ui;
   font-weight: 700;
   letter-spacing: normal;
@@ -2014,69 +2205,49 @@ h3 {
   font-variant-numeric: tabular-nums;
 }
 
-.kanban-column__add-place,
-.kanban-column__delete-day {
-  display: grid;
-  flex: none;
-  width: 26px;
-  height: 26px;
-  place-items: center;
-  border: 0;
-  border-radius: $radius-sm;
-  background: transparent;
-  color: $color-subtle;
-}
-
-.kanban-column__add-place:hover {
-  background: $color-primary-soft;
-  color: $color-primary-text;
-}
-
-.kanban-column__delete-day:hover:not(:disabled) {
-  background: $color-danger-soft;
-  color: $color-danger;
-}
-
-.kanban-column__delete-day:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-
-.kanban-column__add-place:focus-visible,
-.kanban-column__delete-day:focus-visible {
-  @include focus-ring;
-}
-
-.kanban-add-day {
+// Sits at the bottom of the column's own card list rather than repeating
+// next to the header — with several day columns on screen at once, a
+// filled circle in every header read as a row of identical dots, not
+// individually meaningful controls. One dashed "add a card" row per column
+// (Trello's pattern) keeps the action but removes the repetition.
+.kanban-column__add-place {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 10px;
+  padding: 8px;
   border: 1.5px dashed $color-border;
-  border-radius: $radius-lg;
-  background: $color-surface;
+  border-radius: $radius-md;
+  background: transparent;
   color: $color-subtle;
   font-size: $fs-caption;
   font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  letter-spacing: 0.06em;
   transition:
     border-color 140ms ease,
     background 140ms ease,
     color 140ms ease;
 }
 
-.kanban-add-day:hover {
+.kanban-column__add-place:hover {
   border-color: $color-primary;
   background: $color-primary-soft;
   color: $color-primary-text;
+}
+
+.kanban-column__add-place:focus-visible {
+  @include focus-ring;
 }
 
 .kanban-column__cards {
   display: grid;
   gap: 10px;
   align-content: start;
+  // Grows to fill whatever extra height .kanban-board's stretch gave this
+  // column vs. the tallest one, so the add-place row below lines up with
+  // every other column's instead of trailing right after this one's own
+  // last card.
+  flex: 1;
   // This element is the actual Sortable.js drop container, not just a visual
   // wrapper — with an empty day it used to be 12px tall, so the "empty day"
   // you can see was mostly just page background, not a valid drop target.
@@ -2509,42 +2680,6 @@ h3 {
   width: 100%;
 }
 
-.place-drawer__move-menu {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 6px);
-  left: 0;
-  z-index: 3;
-  display: grid;
-  gap: 2px;
-  padding: 6px;
-  border: 1px solid $color-border;
-  border-radius: $radius-md;
-  background: $color-surface;
-  box-shadow: $shadow-lg;
-}
-
-.place-drawer__move-option {
-  padding: 8px 10px;
-  border: 0;
-  border-radius: $radius-sm;
-  background: transparent;
-  color: $color-ink;
-  font-size: $fs-small;
-  font-weight: 650;
-  text-align: left;
-}
-
-.place-drawer__move-option:hover:not(:disabled) {
-  background: $color-primary-soft;
-  color: $color-primary-text;
-}
-
-.place-drawer__move-option:disabled {
-  color: $color-subtle;
-  cursor: default;
-}
-
 .place-drawer__move-backdrop {
   position: fixed;
   inset: 0;
@@ -2642,6 +2777,14 @@ h3 {
 .place-drawer__toggle-row-button {
   appearance: none;
   cursor: pointer;
+}
+
+// Only the active row's value is actually editable — the inactive one
+// already reads as muted/off via the color rules below, but was still
+// clickable (and would silently switch modes when a time got picked from
+// it), which didn't match how it looked.
+.place-drawer__toggle-row-button:disabled {
+  cursor: default;
 }
 
 .place-drawer__toggle-row--active .place-drawer__toggle-row-input {
@@ -3085,6 +3228,40 @@ h3 {
 }
 
 // ---------------------------------------------------------------------------
+// Mobile add-place FAB
+// ---------------------------------------------------------------------------
+
+// Mobile only (see kanban-mobile-add-fab v-if) — replaces the per-column +
+// button, which is cramped and easy to miss on a narrow header. Adds to
+// whichever day is currently focused (the active day tab). Stacked directly
+// above .ask-ai-launcher, matching its own position/size changes at each
+// breakpoint below.
+.kanban-mobile-add-fab {
+  position: absolute;
+  right: 24px;
+  bottom: 84px;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: $radius-pill;
+  background: $color-primary;
+  color: $color-surface;
+  box-shadow: $shadow-md;
+  transition: transform 120ms ease;
+}
+
+.kanban-mobile-add-fab:active {
+  transform: scale(0.94);
+}
+
+.kanban-mobile-add-fab:focus-visible {
+  @include focus-ring;
+}
+
+// ---------------------------------------------------------------------------
 // Ask AI panel
 // ---------------------------------------------------------------------------
 
@@ -3449,10 +3626,45 @@ h3 {
     display: none;
   }
 
+  // With only the date left, the header no longer needs to read as a
+  // pill/card (that styling made sense when it was a row of controls) — a
+  // plain heading over the day's cards matches the day tabs above it, which
+  // already carry the "active day" affordance.
+  .kanban-column__header {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    padding: 4px 0;
+  }
+
+  .kanban-column__header--active {
+    background: transparent;
+  }
+
+  .kanban-column__focus {
+    padding: 0;
+    border-radius: 0;
+  }
+
+  .kanban-column__focus:hover {
+    background: transparent;
+  }
+
+  .kanban-column__date {
+    color: $color-ink;
+    font-size: $fs-title;
+    font-weight: 800;
+  }
+
   // Explore already exposes the selected day through the tab strip, so its
   // in-column header would be an empty duplicate at this breakpoint.
   .trip-board-page--explore .kanban-column__header {
     display: none;
+  }
+
+  .day-stepper {
+    gap: 0;
   }
 
   .map-panel {
@@ -3469,6 +3681,37 @@ h3 {
 
   .ask-ai-panel {
     right: 0;
+  }
+
+  // Slightly bigger tap target than the desktop (mouse-driven) size once
+  // this is a touch surface — still small, since deleting goes through an
+  // explicit picker + confirm dialog, so a mis-tap here isn't costly.
+  .day-stepper__button {
+    width: 28px;
+    height: 28px;
+  }
+
+  // Swap the desktop slide-in card for a plain centered-bottom pill: the
+  // top-right corner it slides into up there is where this width's day-tab
+  // strip (with its own +/- day-stepper) lives instead, and 210px clears
+  // the stacked FAB buttons in the corner down here (.kanban-mobile-add-fab
+  // / .ask-ai-launcher) at every width down to real phones.
+  .board-toast {
+    top: auto;
+    right: auto;
+    left: 50%;
+    bottom: 90px;
+    max-width: none;
+    padding: 10px 16px;
+    border-radius: $radius-pill;
+    font-weight: 700;
+    box-shadow: $shadow-lg;
+    transform: translateX(-50%);
+  }
+
+  .board-toast-fade-enter-from,
+  .board-toast-fade-leave-to {
+    transform: translateX(-50%) translateY(6px);
   }
 }
 
@@ -4070,6 +4313,19 @@ h3 {
 
   .ask-ai-launcher span {
     display: none;
+  }
+
+  // .ask-ai-launcher becomes a fixed 48px square above the bottom nav at this
+  // breakpoint — follow it so the FAB keeps sitting just above it.
+  .kanban-mobile-add-fab {
+    position: fixed;
+    right: 16px;
+    bottom: 144px;
+    // Keep this board-level action below drawer/sheet overlays (38+), so it
+    // cannot float through the Ask AI panel or place-detail sheet.
+    z-index: 37;
+    width: 48px;
+    height: 48px;
   }
 
   .ask-ai-overlay {
