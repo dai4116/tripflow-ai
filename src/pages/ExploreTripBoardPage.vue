@@ -81,47 +81,17 @@
         </section>
       </div>
 
-      <aside
+      <TripMap
         v-if="!isMobile || mobileView === 'map'"
-        class="map-panel"
-        aria-label="靜態地圖預覽"
-      >
-        <div class="map-panel__header">
-          <strong>地圖檢視</strong>
-          <span>{{ templatePlaces.length }} 個地點</span>
-        </div>
-        <div class="map-panel__canvas">
-          <svg class="map-panel__route" viewBox="0 0 340 560" preserveAspectRatio="none" aria-hidden="true">
-            <path v-if="routePathD" :d="routePathD" />
-          </svg>
-          <button
-            v-for="(place, index) in templatePlaces"
-            :key="place.id"
-            class="map-pin"
-            :class="[
-              `map-pin--${place.category}`,
-              {
-                'map-pin--selected': selectedPlaceId === place.id,
-                'map-pin--dim': hasFocusHighlight && !isPlaceFocused(place.id),
-              },
-            ]"
-            type="button"
-            :style="markerPosition(index)"
-            :title="place.name"
-            :aria-label="`開啟 ${place.name} 詳細資料`"
-            @click="openPlaceDrawer(place.id)"
-          >
-            <AppIcon name="pin-solid" :size="24" />
-            <span v-if="focusOrder(place.id)" class="map-pin__order">{{ focusOrder(place.id) }}</span>
-          </button>
-          <span class="map-panel__coord">{{ template.destination.toUpperCase() }}</span>
-        </div>
-        <div class="map-panel__legend">
-          <span v-for="category in legendCategories" :key="category.key">
-            <i class="legend-dot" :class="`legend-dot--${category.key}`" />{{ category.label }}
-          </span>
-        </div>
-      </aside>
+        :places="templatePlaces"
+        :focused-place-ids="focusedPlaces.map((place) => place.id)"
+        :selected-place-id="selectedPlaceId"
+        :destination="template.destination"
+        :columns="template.columns"
+        :focused-column-id="focusedColumnId"
+        @select="openPlaceDrawer"
+        @focus-column="focusColumn"
+      />
 
       <Transition name="mobile-sheet-fade">
         <button
@@ -202,12 +172,12 @@ import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '../components/layout/PageHeader.vue'
 import CategoryChip, { categoryLabels } from '../components/trips/CategoryChip.vue'
 import PlaceCard from '../components/trips/PlaceCard.vue'
+import TripMap from '../components/trips/TripMap.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
 import BaseButton from '../components/ui/BaseButton.vue'
 import { useColumnSchedule } from '../composables/useColumnSchedule'
 import { useIsMobile } from '../composables/useIsMobile'
 import { explorePlacesForTemplate, exploreTemplates } from '../data/exploreTrips'
-import { buildRoutePath, markerPosition } from '../data/mapMarkers'
 import { useTripsStore } from '../stores/trips'
 
 const route = useRoute()
@@ -233,18 +203,6 @@ const isCopying = ref(false)
 const selectedPlaceId = ref<string | null>(null)
 const drawerPlaceId = ref<string | null>(null)
 const focusedColumnId = ref('')
-
-const legendCategories = [
-  { key: 'culture', label: '文化' },
-  { key: 'food', label: '美食' },
-  { key: 'cafe', label: '咖啡廳' },
-  { key: 'nature', label: '自然' },
-  { key: 'shopping', label: '購物' },
-  { key: 'activity', label: '活動' },
-  { key: 'museum', label: '博物館' },
-  { key: 'transport', label: '交通' },
-  { key: 'stay', label: '住宿' },
-]
 
 function resolveDefaultColumnId(columns: { id: string; placeIds: string[] }[]) {
   const firstWithPlaces = columns.find((column) => column.placeIds.length > 0)
@@ -275,8 +233,6 @@ const focusedPlaces = computed(() => {
 
   return getColumnPlaces(column.placeIds)
 })
-const hasFocusHighlight = computed(() => focusedPlaces.value.length > 0)
-const routePathD = computed(() => buildRoutePath(focusedPlaces.value, templatePlaces.value))
 const drawerPlace = computed(() => templatePlaces.value.find((place) => place.id === drawerPlaceId.value))
 const drawerPlaceSchedule = computed(() => getPlaceSchedule(drawerPlace.value))
 const shouldLockBodyScroll = computed(() => isMobile.value && Boolean(drawerPlace.value))
@@ -313,16 +269,6 @@ function onKeydown(event: KeyboardEvent) {
 
 function focusColumn(columnId: string) {
   focusedColumnId.value = columnId
-}
-
-function isPlaceFocused(placeId: string) {
-  return focusedPlaces.value.some((place) => place.id === placeId)
-}
-
-function focusOrder(placeId: string): number | null {
-  const index = focusedPlaces.value.findIndex((place) => place.id === placeId)
-
-  return index === -1 ? null : index + 1
 }
 
 function openPlaceDrawer(placeId: string) {

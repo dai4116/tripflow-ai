@@ -17,6 +17,17 @@ export const PLACE_GRADIENTS = [
   'linear-gradient(135deg, #2a4562, #00c5ab 45%, #f26157)',
 ]
 
+// Distinct per-day colors for the trip map (pins + route line) — reused
+// from colors already used elsewhere in the app (TRIP_PALETTE, the accent
+// tones in PLACE_GRADIENTS) rather than inventing a new set, so the map
+// stays visually consistent with the rest of the UI instead of introducing
+// its own palette. Cycles for trips longer than 6 days.
+export const DAY_COLORS = ['#00c5ab', '#4a7de0', '#d98324', '#8161e6', '#4d9166', '#e8618c']
+
+export function dayColorForIndex(index: number): string {
+  return DAY_COLORS[index % DAY_COLORS.length]!
+}
+
 const PREFERENCE_CATEGORY: Record<string, PlaceCategory> = {
   博物館: 'culture',
   海灘: 'nature',
@@ -93,6 +104,12 @@ export function suggestedPlacesForCity(city: string): PlaceSuggestion[] {
   )
 }
 
+// Trip/template destinations are free text like "京都，日本" — the part
+// before the comma is what geocoding and city-flavored copy actually want.
+export function cityFromDestination(destination: string): string {
+  return destination.split(/[,，]/)[0].trim() || destination
+}
+
 function slugify(text: string): string {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'trip'
 }
@@ -155,7 +172,7 @@ export function generateTrip(
   existingTripIds: string[],
   aiPlaces?: PlaceSuggestion[],
 ): { trip: Trip; places: Place[] } {
-  const city = input.destination.split(/[,，]/)[0].trim() || input.destination
+  const city = cityFromDestination(input.destination)
   const days = computeTripDays(input)
   const tripId = `${slugify(input.destination)}-${nanoid(6)}`
   const palette = TRIP_PALETTE[existingTripIds.length % TRIP_PALETTE.length]

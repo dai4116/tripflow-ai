@@ -3,7 +3,8 @@ import { nanoid } from 'nanoid'
 import { defineStore } from 'pinia'
 import { fetchAiPlaces } from '../data/aiTripClient'
 import { explorePlacesForTemplate, exploreTemplates } from '../data/exploreTrips'
-import { computeTripDays, generateTrip, PLACE_GRADIENTS } from '../data/generateTrip'
+import { cityFromDestination, computeTripDays, generateTrip, PLACE_GRADIENTS } from '../data/generateTrip'
+import { geocodePlace } from '../data/geocode'
 import { places as seedPlaces } from '../data/mockPlaces'
 import { trips as seedTrips } from '../data/mockTrips'
 import type { CreateTripInput, Place, PlaceCategory, Trip } from '../types'
@@ -34,6 +35,26 @@ export const useTripsStore = defineStore('trips', () => {
     return places.value.filter((place) => place.tripId === tripId)
   }
 
+  // AI generation deliberately never guesses lat/lng (see generateTrip.ts),
+  // so every new place starts at 0,0 and gets its real coordinates here,
+  // one Nominatim lookup at a time. Fires in the background rather than
+  // blocking trip creation — geocodePlace's own queue is rate-limited to
+  // ~1 req/sec, which would otherwise stall a multi-day itinerary for
+  // several seconds. The map just picks up each pin as it resolves.
+  function geocodeNewPlaces(newPlaces: Place[], destination: string) {
+    const city = cityFromDestination(destination)
+    for (const newPlace of newPlaces) {
+      geocodePlace(newPlace.name, city).then((point) => {
+        if (!point) return
+        const target = places.value.find((item) => item.id === newPlace.id)
+        if (target) {
+          target.lat = point.lat
+          target.lng = point.lng
+        }
+      })
+    }
+  }
+
   async function createTrip(input: CreateTripInput): Promise<Trip> {
     const days = computeTripDays(input)
     const aiPlaces = await fetchAiPlaces(input, days * 2)
@@ -44,6 +65,7 @@ export const useTripsStore = defineStore('trips', () => {
     )
     trips.value.push(trip)
     places.value.push(...newPlaces)
+    geocodeNewPlaces(newPlaces, trip.destination)
     return trip
   }
 
@@ -77,6 +99,7 @@ export const useTripsStore = defineStore('trips', () => {
     places.value.push(place)
     column.placeIds.push(place.id)
     recalcPlaceCount(trip)
+    geocodeNewPlaces([place], trip.destination)
 
     return place
   }

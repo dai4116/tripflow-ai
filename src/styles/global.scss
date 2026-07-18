@@ -141,24 +141,10 @@ h3 {
   background: currentColor;
 }
 
-.legend-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: $radius-pill;
-}
-
 @each $name, $color in $place-categories {
   .category-chip--#{$name} {
     background: rgba($color, 0.12);
     color: color.adjust($color, $lightness: -8%);
-  }
-
-  .legend-dot--#{$name} {
-    background: $color;
-  }
-
-  .map-pin--#{$name} {
-    color: $color;
   }
 }
 
@@ -1816,7 +1802,10 @@ h3 {
 .board-workspace {
   display: grid;
   position: relative;
-  grid-template-columns: minmax(0, 1fr) 340px;
+  // Kept in sync with .place-drawer's width and .ask-ai-panel's right
+  // offset below — both are sized to align exactly with this column so
+  // opening either overlays the map panel without shifting the board.
+  grid-template-columns: minmax(0, 1fr) 500px;
   min-height: 0;
   overflow: hidden;
 }
@@ -1828,6 +1817,12 @@ h3 {
 .mobile-day-tabs {
   display: flex;
   flex: none;
+  // Reused as a grid row inside .map-panel (TripMap.vue), where this element
+  // is itself a grid item — same automatic-minimum-size issue as the flex
+  // row below, one level up: without this, the grid track can't force it
+  // narrower than its content's natural width, so it blows out past the
+  // panel and pushes the day-stepper off-screen instead of the row scrolling.
+  min-width: 0;
   align-items: center;
   gap: 2px;
   padding: 10px 4px 10px 12px;
@@ -1838,6 +1833,13 @@ h3 {
 .mobile-day-tabs__row {
   display: flex;
   flex: 1;
+  // A flex item's default min-width is its content's size, not 0 — with
+  // enough day tabs (white-space: nowrap, so they can't wrap to shrink) that
+  // content width exceeds the available row, and the browser grows the row
+  // past its container instead of engaging overflow-x: auto, pushing the
+  // .day-stepper sibling off-screen entirely. min-width: 0 forces the row to
+  // actually respect the flex-basis and scroll internally instead.
+  min-width: 0;
   gap: 6px;
   overflow-x: auto;
   scrollbar-width: none;
@@ -2310,125 +2312,233 @@ h3 {
   background: $color-surface;
 }
 
-.map-panel__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 48px;
-  padding: 0 16px;
-  border-bottom: 1px solid $color-border;
-  font-weight: 800;
+// Pinned explicitly (here, .map-panel__canvas, and .map-panel__preview
+// below) rather than left to grid auto-placement — auto-placement skips
+// display:none items and shifts the rest up a track, which is exactly what
+// .map-panel__day-tabs / .map-panel__preview going display:none on desktop
+// (below) would otherwise do: canvas would inherit whichever track comes
+// free instead of staying the flexible middle one. Explicit lines keep each
+// row's track regardless of what's hidden.
+.map-panel__day-tabs {
+  grid-row: 1;
 }
 
-.map-panel__header span {
-  color: $color-subtle;
-  font-size: $fs-caption;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
+// Below this width the board and map are mutually-exclusive views (see
+// TripBoardPage.vue's mobileView toggle) — the map's own day tabs and place
+// preview are the only way to switch days / reach the board while looking
+// at it. Above it, the board's kanban columns sit right next to the map
+// already, each with its own click-to-focus header — matches
+// useIsMobile(1100)'s breakpoint (max-width: 1100px there == mobile, so
+// this is desktop).
+//
+// .map-panel__day-tabs hides fine from here even though this rule is
+// upstream of .map-panel__preview's own unconditional display:flex rule
+// (below) — .map-panel__day-tabs the class carries no styling of its own
+// (DayTabs.vue's root is .mobile-day-tabs, styled all the way back near the
+// top of this file), so there's no later same-selector rule to lose a
+// source-order tie against. .map-panel__preview IS its own styled selector,
+// so its desktop-hide lives right after its rules below instead, where it
+// can actually win that tie.
+@media (min-width: 1101px) {
+  .map-panel__day-tabs {
+    display: none;
+  }
 }
 
 .map-panel__canvas {
+  grid-row: 2;
   position: relative;
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
-  background:
-    radial-gradient(340px 220px at 88% 88%, #cfe7ec 0%, transparent 60%),
-    radial-gradient(300px 200px at 6% 10%, #dcefd9 0%, transparent 55%),
-    linear-gradient(0deg, transparent calc(100% - 1px), rgba($color-ink, 0.04) calc(100% - 1px)),
-    linear-gradient(90deg, transparent calc(100% - 1px), rgba($color-ink, 0.04) calc(100% - 1px)),
-    #eaf3ec;
-  background-size: auto, auto, 100% 38px, 38px 100%, auto;
+  // Leaflet's internal panes/controls (.leaflet-marker-pane, .leaflet-popup-pane,
+  // .leaflet-control, etc.) carry their own z-index values in the hundreds.
+  // .leaflet-container only sets position: relative with no z-index of its
+  // own, which isn't enough to contain them in their own stacking context —
+  // without isolation here, those panes compare directly against unrelated
+  // siblings like .place-drawer (z-index: 4) and win. This traps them.
+  isolation: isolate;
 }
 
-.map-panel__route {
-  position: absolute;
-  inset: 0;
+// Leaflet's own CSS sizes .leaflet-container off its parent's dimensions —
+// .map-panel__canvas is that parent, so it just needs a concrete height,
+// which the grid row (minmax(0, 1fr)) above already provides. (global.scss
+// isn't a scoped Vue <style> block, so a plain descendant selector reaches
+// the .leaflet-container Leaflet adds to the mount div — no :deep() needed.)
+.map-panel__canvas .leaflet-container {
   width: 100%;
   height: 100%;
+  font-family: inherit;
 }
 
-.map-panel__route path {
-  fill: none;
-  stroke: $color-primary;
-  stroke-width: 1.8;
-  stroke-dasharray: 2 6;
-  stroke-linecap: round;
-  opacity: 0.8;
+// Mobile-only place list below the map (see TripMap.vue) — a simplified,
+// tap-only stand-in for a draggable bottom sheet: no drag-to-expand gesture,
+// just a horizontal preview of the focused day's places plus a button that
+// switches back to the full board.
+.map-panel__preview {
+  grid-row: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+  padding: 10px 12px;
+  border-top: 1px solid $color-border;
+  background: $color-surface;
 }
 
-.map-panel__coord {
-  position: absolute;
-  left: 12px;
-  bottom: 10px;
-  color: $color-muted;
-  font-family: $font-family-mono;
-  font-size: $fs-micro;
-  letter-spacing: 0.08em;
+.map-panel__preview-row {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
-.map-pin {
-  position: absolute;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  line-height: 0;
-  transform: translate(-50%, -100%);
+.map-panel__preview-row::-webkit-scrollbar {
+  display: none;
+}
+
+.map-panel__preview-card {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+  max-width: 180px;
+  padding: 7px 12px 7px 8px;
+  border: 1px solid $color-border;
+  border-radius: $radius-pill;
+  background: $color-surface;
+  white-space: nowrap;
+}
+
+.map-panel__preview-card--selected {
+  border-color: $color-primary;
+  background: $color-primary-soft;
+}
+
+.map-panel__preview-order {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: $radius-pill;
+  background: $color-primary;
+  color: $color-surface;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.map-panel__preview-name {
+  overflow: hidden;
+  color: $color-ink;
+  font-size: $fs-caption;
+  font-weight: 700;
+  text-overflow: ellipsis;
+}
+
+// Only chevron-left exists in the icon set — flipped to point the way the
+// list actually reads (toward the next stop) rather than adding a mirror
+// icon just for this.
+.map-panel__preview-arrow {
+  flex: none;
+  color: $color-subtle;
+  transform: scaleX(-1);
+}
+
+// Placed after .map-panel__preview's own display: flex rule above so it
+// wins the same-selector/same-specificity source-order tie at desktop
+// widths — see the longer explanation on .map-panel__day-tabs's equivalent
+// rule further up this file.
+@media (min-width: 1101px) {
+  .map-panel__preview {
+    display: none;
+  }
+}
+
+// Custom marker content rendered into a Leaflet L.divIcon — plain, unscoped
+// classes because Leaflet mounts markers outside this component's own DOM
+// subtree, so Vue's scoped-style attributes never reach them.
+.trip-map-pin {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
   filter: drop-shadow(0 2px 3px rgba($color-ink, 0.3));
   transition:
     transform 130ms ease,
     opacity 160ms ease;
 }
 
-.map-pin:hover,
-.map-pin--selected {
-  transform: translate(-50%, -100%) scale(1.18);
+.trip-map-pin__dot {
+  width: 22px;
+  height: 22px;
+  border: 2px solid $color-surface;
+  border-radius: $radius-pill;
+  background: $color-primary;
+  box-shadow: 0 0 0 1px rgba($color-ink, 0.15);
 }
 
-.map-pin--selected {
+.trip-map-pin--selected {
+  transform: scale(1.25);
   filter: drop-shadow(0 0 3px rgba($color-primary, 0.55)) drop-shadow(0 3px 5px rgba($color-ink, 0.35));
 }
 
-.map-pin--dim {
-  opacity: 0.34;
+.trip-map-pin--dim {
+  opacity: 0.4;
 }
 
-.map-pin--dim:hover {
-  opacity: 0.7;
-}
-
-.map-pin:focus-visible {
-  @include focus-ring;
-  border-radius: $radius-pill;
-}
-
-.map-pin__order {
+// SVG, not HTML text — dominant-baseline: central (set on the <text> element
+// in TripMap.vue) centers against the font's real vertical metrics, which
+// holds up across platforms. A CSS transform nudge tuned by eye against one
+// browser's fallback font doesn't: it read centered in desktop testing but
+// visibly high on an actual mobile device's system font.
+.trip-map-pin__order {
   position: absolute;
-  top: 34%;
+  top: 50%;
   left: 50%;
-  color: currentColor;
-  font-size: $fs-micro;
-  font-weight: 800;
-  line-height: 1;
+  width: 20px;
+  height: 20px;
   pointer-events: none;
   transform: translate(-50%, -50%);
 }
 
-.map-panel__legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 14px;
-  min-height: 44px;
-  align-items: center;
-  padding: 10px 16px;
-  border-top: 1px solid $color-border;
-  color: $color-muted;
-  font-size: $fs-caption;
+.trip-map-pin__order text {
+  fill: $color-surface;
+  font-family: $font-family-base;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+// Permanent per-pin name tooltip (see TripMap.vue's bindTooltip call) —
+// overrides Leaflet's default white bubble-with-arrow tooltip styling to
+// read as a small dark pill instead.
+// Compound selector (not just .trip-map-pin__label) so this reliably beats
+// Leaflet's own .leaflet-tooltip rules on specificity — leaflet.css is
+// imported inside TripMap.vue rather than main.ts, and depending on how
+// Vite chunks that import, it can end up later than global.scss in the
+// final cascade, which was silently winning nearly every property here
+// (border, background, and text color all still showed Leaflet's defaults).
+.leaflet-tooltip.trip-map-pin__label {
+  padding: 3px 9px;
+  border: 0;
+  border-radius: $radius-pill;
+  // Set per-marker from the day color (see TripMap.vue's applyTooltipColor)
+  // — the fallback only shows if that JS hasn't run yet.
+  background: var(--trip-map-pin-label-color, #{$color-ink});
+  box-shadow: 0 2px 5px rgba($color-ink, 0.25);
+  color: $color-surface;
+  font-family: $font-family-base;
+  font-size: $fs-micro;
   font-weight: 700;
 }
 
-.map-panel__legend span {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+.leaflet-tooltip.trip-map-pin__label::before {
+  display: none;
 }
 
 // drawer
@@ -2438,7 +2548,8 @@ h3 {
   inset: 0 0 0 auto;
   z-index: 4;
   display: grid;
-  width: 340px;
+  // Matches .board-workspace's map column width — see that rule's comment.
+  width: 500px;
   grid-template-rows: 168px minmax(0, 1fr);
   overflow: hidden;
   border-left: 1px solid $color-border;
@@ -3267,7 +3378,9 @@ h3 {
 
 .ask-ai-launcher {
   position: absolute;
-  right: 356px;
+  // 16px past .board-workspace's 500px map column, so it sits just clear of
+  // the map's left edge rather than overlapping it.
+  right: 516px;
   bottom: 24px;
   z-index: 5;
   display: inline-flex;
@@ -3294,7 +3407,8 @@ h3 {
 
 .ask-ai-panel {
   position: absolute;
-  right: 340px;
+  // Matches .board-workspace's map column width — see that rule's comment.
+  right: 500px;
   bottom: 0;
   left: 0;
   z-index: 6;
@@ -4231,10 +4345,6 @@ h3 {
 
   .map-panel__canvas {
     min-height: 0;
-  }
-
-  .map-panel__legend {
-    background: $color-surface;
   }
 
   .mobile-sheet-overlay {

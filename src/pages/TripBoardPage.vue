@@ -70,26 +70,15 @@
       </div>
 
       <div v-else key="board" class="board-workspace">
-      <div v-if="isMobile && mobileView === 'board'" class="mobile-day-tabs">
-        <div class="mobile-day-tabs__row">
-          <button
-            v-for="column in displayedColumns"
-            :key="column.id"
-            :ref="(el) => setDayTabRef(column.id, el)"
-            type="button"
-            class="mobile-day-tabs__tab"
-            :class="{ 'mobile-day-tabs__tab--active': focusedColumnId === column.id }"
-            @click="focusColumn(column.id)"
-          >
-            {{ column.title }}
-          </button>
-        </div>
-        <DayStepper
-          :columns="displayedColumns"
-          @add="addDay"
-          @delete="confirmDeleteDayById"
-        />
-      </div>
+      <DayTabs
+        v-if="isMobile && mobileView === 'board'"
+        :columns="displayedColumns"
+        :focused-column-id="focusedColumnId"
+        editable
+        @focus-column="focusColumn"
+        @add="addDay"
+        @delete="confirmDeleteDayById"
+      />
       <div
         v-if="!isMobile || mobileView === 'board'"
         class="kanban-board"
@@ -172,47 +161,20 @@
         </section>
       </div>
 
-      <aside
+      <TripMap
         v-if="!isMobile || mobileView === 'map'"
-        class="map-panel"
-        aria-label="靜態地圖預覽"
-      >
-        <div class="map-panel__header">
-          <strong>地圖檢視</strong>
-          <span>{{ tripPlaces.length }} 個地點</span>
-        </div>
-        <div class="map-panel__canvas">
-          <svg class="map-panel__route" viewBox="0 0 340 560" preserveAspectRatio="none" aria-hidden="true">
-            <path v-if="routePathD" :d="routePathD" />
-          </svg>
-          <button
-            v-for="(place, index) in tripPlaces"
-            :key="place.id"
-            class="map-pin"
-            :class="[
-              `map-pin--${place.category}`,
-              {
-                'map-pin--selected': selectedPlaceId === place.id,
-                'map-pin--dim': hasFocusHighlight && !isPlaceFocused(place.id),
-              },
-            ]"
-            type="button"
-            :style="markerPosition(index)"
-            :title="place.name"
-            :aria-label="`開啟 ${place.name} 詳細資料`"
-            @click="openPlaceDrawer(place.id)"
-          >
-            <AppIcon name="pin-solid" :size="24" />
-            <span v-if="focusOrder(place.id)" class="map-pin__order">{{ focusOrder(place.id) }}</span>
-          </button>
-          <span class="map-panel__coord">{{ activeTrip.destination.toUpperCase() }}</span>
-        </div>
-        <div class="map-panel__legend">
-          <span v-for="category in legendCategories" :key="category.key">
-            <i class="legend-dot" :class="`legend-dot--${category.key}`" />{{ category.label }}
-          </span>
-        </div>
-      </aside>
+        :places="tripPlaces"
+        :focused-place-ids="focusedPlaces.map((place) => place.id)"
+        :selected-place-id="selectedPlaceId"
+        :destination="activeTrip.destination"
+        :columns="displayedColumns"
+        :focused-column-id="focusedColumnId"
+        editable
+        @select="openPlaceDrawer"
+        @focus-column="focusColumn"
+        @add="addDay"
+        @delete="confirmDeleteDayById"
+      />
 
       <Transition name="mobile-sheet-fade">
         <button
@@ -491,8 +453,7 @@
 <script setup lang="ts">
 import { nanoid } from 'nanoid'
 import { storeToRefs } from 'pinia'
-import type { ComponentPublicInstance } from 'vue'
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { VueDraggable } from 'vue-draggable-plus'
 import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '../components/layout/PageHeader.vue'
@@ -501,7 +462,9 @@ import AskAiPanel from '../components/trips/AskAiPanel.vue'
 import CategoryChip, { allPlaceCategories, categoryLabels } from '../components/trips/CategoryChip.vue'
 import DayPickerSheet from '../components/trips/DayPickerSheet.vue'
 import DayStepper from '../components/trips/DayStepper.vue'
+import DayTabs from '../components/trips/DayTabs.vue'
 import PlaceCard from '../components/trips/PlaceCard.vue'
+import TripMap from '../components/trips/TripMap.vue'
 import TripSettingsModal from '../components/trips/TripSettingsModal.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
 import BaseButton from '../components/ui/BaseButton.vue'
@@ -512,7 +475,6 @@ import { useColumnSchedule } from '../composables/useColumnSchedule'
 import { useConfirmDialog } from '../composables/useConfirmDialog'
 import { useIsMobile } from '../composables/useIsMobile'
 import { computeTripDays, formatDateRange, toDateInputValue } from '../data/generateTrip'
-import { buildRoutePath, markerPosition } from '../data/mapMarkers'
 import {
   addMinutes,
   computeArrivalTimes,
@@ -551,11 +513,6 @@ const isFreshEntry = ref(route.query.fresh === '1')
 const showSkeleton = ref(isFreshEntry.value)
 const BOARD_SKELETON_DURATION = 650
 
-const dayTabEls: Record<string, Element | null> = {}
-function setDayTabRef(columnId: string, el: Element | ComponentPublicInstance | null) {
-  dayTabEls[columnId] = el instanceof Element ? el : null
-}
-
 const { confirmDialog, openConfirm, closeConfirm, acceptConfirm } = useConfirmDialog()
 
 const showAddModal = ref(false)
@@ -581,18 +538,6 @@ const editForm = reactive({
   stayDuration: '01:00',
   stayDeparture: '',
 })
-
-const legendCategories = [
-  { key: 'culture', label: '文化' },
-  { key: 'food', label: '美食' },
-  { key: 'cafe', label: '咖啡廳' },
-  { key: 'nature', label: '自然' },
-  { key: 'shopping', label: '購物' },
-  { key: 'activity', label: '活動' },
-  { key: 'museum', label: '博物館' },
-  { key: 'transport', label: '交通' },
-  { key: 'stay', label: '住宿' },
-]
 
 const activeTrip = computed(() => {
   const tripId = String(route.params.tripId ?? 'tokyo-explorer')
@@ -658,9 +603,6 @@ const focusedPlaces = computed(() => {
     .map((placeId) => tripPlaces.value.find((place) => place.id === placeId))
     .filter((place): place is Place => place !== undefined)
 })
-const hasFocusHighlight = computed(() => focusedPlaces.value.length > 0)
-const routePathD = computed(() => buildRoutePath(focusedPlaces.value, tripPlaces.value))
-
 const drawerPlace = computed(() => tripPlaces.value.find((place) => place.id === drawerPlaceId.value))
 const drawerPlaceSchedule = computed(() => getPlaceSchedule(drawerPlace.value))
 const shouldLockBodyScroll = computed(() => isMobile.value && Boolean(drawerPlace.value))
@@ -861,20 +803,18 @@ function addDay() {
   // layout-specific fluke. showBoardToast() below is the substitute "yes,
   // it happened" cue for desktop instead.
   //
-  // The mobile day-tab strip below is a different, plain (non-Sortable)
-  // element, so it's safe to scroll — and on mobile it's the only way to see
-  // that a new day was added, since only the focused column's cards render.
+  // The mobile day-tab strip (DayTabs.vue) is a different, plain
+  // (non-Sortable) element, so it's safe to scroll — and on mobile it's the
+  // only way to see that a new day was added, since only the focused
+  // column's cards render. DayTabs.vue watches focusedColumnId itself and
+  // scrolls the new tab into view, so setting it here is enough.
   focusedColumnId.value = newColumn.id
   newlyAddedColumnId.value = newColumn.id
   window.setTimeout(() => {
     if (newlyAddedColumnId.value === newColumn.id) newlyAddedColumnId.value = ''
   }, NEW_COLUMN_ENTER_DURATION)
 
-  if (isMobile.value) {
-    nextTick(() => {
-      dayTabEls[newColumn.id]?.scrollIntoView({ behavior: 'smooth', inline: 'end', block: 'nearest' })
-    })
-  } else {
+  if (!isMobile.value) {
     showBoardToast(`已新增第 ${nextDayNumber} 天`)
   }
 }
@@ -1108,16 +1048,6 @@ function saveEdit() {
 
 function focusColumn(columnId: string) {
   focusedColumnId.value = columnId
-}
-
-function isPlaceFocused(placeId: string) {
-  return focusedPlaces.value.some((place) => place.id === placeId)
-}
-
-function focusOrder(placeId: string): number | null {
-  const index = focusedPlaces.value.findIndex((place) => place.id === placeId)
-
-  return index === -1 ? null : index + 1
 }
 
 function viewOnMap() {
