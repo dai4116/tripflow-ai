@@ -204,9 +204,8 @@ function syncRoute() {
   routeLine?.remove()
   routeLine = null
 
-  const points = props.focusedPlaceIds
-    .map((id) => props.places.find((place) => place.id === id))
-    .filter((place): place is Place => place !== undefined && hasCoords(place))
+  const points = focusedPlaces.value
+    .filter(hasCoords)
     .map((place): L.LatLngTuple => [place.lat, place.lng])
 
   if (points.length < 2) return
@@ -214,28 +213,46 @@ function syncRoute() {
   routeLine = L.polyline(points, { color, weight: 2.5, opacity: 0.85 }).addTo(map)
 }
 
-function fitToMarkers() {
-  if (!map || markers.size === 0) return
-  const bounds = L.latLngBounds([...markers.values()].map((marker) => marker.getLatLng()))
+function fitTo(markerList: L.Marker[]) {
+  if (!map || markerList.length === 0) return
+  const bounds = L.latLngBounds(markerList.map((marker) => marker.getLatLng()))
   map.fitBounds(bounds, { padding: [36, 36], maxZoom: 15 })
+}
+
+function fitToMarkers() {
+  fitTo([...markers.values()])
 }
 
 // Scoped to just the focused day, unlike fitToMarkers() above (which fits
 // every pin) — switching days should pan/zoom to that day's places, not
 // re-fit the whole trip every time.
 function fitToFocusedMarkers() {
-  if (!map) return
-  const points = props.focusedPlaceIds
-    .map((id) => markers.get(id))
-    .filter((marker): marker is L.Marker => marker !== undefined)
-  if (points.length === 0) return
-  const bounds = L.latLngBounds(points.map((marker) => marker.getLatLng()))
-  map.fitBounds(bounds, { padding: [36, 36], maxZoom: 15 })
+  fitTo(props.focusedPlaceIds.map((id) => markers.get(id)).filter((marker): marker is L.Marker => marker !== undefined))
 }
 
 function syncAll() {
   syncMarkers()
   syncRoute()
+}
+
+// Only rebuilds the icon for the marker that lost selection and the one that
+// gained it, instead of syncMarkers()'s full rebuild — selecting one card
+// shouldn't visibly flicker every other pin on the map.
+let previousSelectedId: string | null = props.selectedPlaceId
+function updateSelection() {
+  if (!map) {
+    previousSelectedId = props.selectedPlaceId
+    return
+  }
+  for (const id of new Set([previousSelectedId, props.selectedPlaceId])) {
+    if (!id) continue
+    const marker = markers.get(id)
+    const place = props.places.find((item) => item.id === id)
+    if (!marker || !place) continue
+    const focusIndex = props.focusedPlaceIds.indexOf(id)
+    marker.setIcon(buildIcon(place, focusIndex === -1 ? null : focusIndex + 1))
+  }
+  previousSelectedId = props.selectedPlaceId
 }
 
 onMounted(async () => {
@@ -255,9 +272,13 @@ onMounted(async () => {
   }
 
   // No pins yet (places still geocoding, or none saved) — center on the
-  // destination city itself so the map isn't just a blank world view.
+  // destination city itself so the map isn't just a blank world view. This
+  // lookup shares geocode.ts's rate-limited queue with this trip's own place
+  // lookups, so it can resolve well after real pins have already arrived and
+  // been fitted (see the geocodedCount watch below) — re-check markers.size
+  // here so a slow city lookup can't stomp an already-correct fit.
   const center = await geocodeCity(cityFromDestination(props.destination))
-  if (center && map) map.setView([center.lat, center.lng], 12)
+  if (center && map && markers.size === 0) map.setView([center.lat, center.lng], 12)
 })
 
 onBeforeUnmount(() => {
@@ -265,18 +286,31 @@ onBeforeUnmount(() => {
   map = null
 })
 
-watch(
-  () => props.places,
-  () => {
-    syncAll()
-    fitToMarkers()
-  },
-  { deep: true },
+// Tracks only the fields that actually change what's plotted (which places
+// exist, their coordinates, and which day/color they belong to) instead of
+// deep-watching the whole places array — editing a place's name, notes, or
+// schedule elsewhere on the page shouldn't touch the map at all.
+const markerSignature = computed(() =>
+  props.places.map((place) => `${place.id}:${place.lat}:${place.lng}:${place.columnId}`).join('|'),
 )
+// Re-fitting the viewport only makes sense when a pin newly appears (e.g. a
+// background geocode resolves) — not on every signature change, since a
+// place moving to a different day just needs its color refreshed, not the
+// whole map re-zoomed out from under the user (e.g. mid-drag on desktop,
+// where the board and map are visible side by side).
+const geocodedCount = computed(() => props.places.filter(hasCoords).length)
+
+watch(markerSignature, () => {
+  syncAll()
+})
+
+watch(geocodedCount, (count, previousCount) => {
+  if (count > previousCount) fitToMarkers()
+})
 
 watch(() => props.focusedPlaceIds, () => {
   syncAll()
   fitToFocusedMarkers()
 })
-watch(() => props.selectedPlaceId, syncMarkers)
+watch(() => props.selectedPlaceId, updateSelection)
 </script>

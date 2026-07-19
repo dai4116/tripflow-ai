@@ -199,7 +199,9 @@ export function generateTrip(
       category,
       estimatedTime: 1,
       address: input.destination,
-      // Real coordinates aren't looked up yet — the map still positions pins by index, not lat/lng.
+      // Real coordinates aren't looked up yet — the trips store geocodes each
+      // place in the background after creation (see geocodeNewPlaces in
+      // stores/trips.ts) and the map picks up each pin as it resolves.
       lat: 0,
       lng: 0,
       rating: ['4.5', '4.6', '4.7', '4.8'][places.length % 4],

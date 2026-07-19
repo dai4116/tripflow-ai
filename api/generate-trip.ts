@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { stripBilingualName } from './_lib/placeName'
 
 // Vercel's default Node function duration (10s) is too tight for a cold
 // start + first-use structured-output schema compilation + generation time
@@ -92,6 +93,7 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
     '',
     `請推薦恰好 ${placeCount} 個適合這趟旅程的景點，依建議造訪順序排列，涵蓋不同類型（美食、文化、自然、購物、活動等）。`,
     '每個景點包含分類、名稱、一句簡短描述（繁體中文），以及可選的一句實用小提示（travelTip）。',
+    '名稱優先使用繁體中文慣用名稱，不要同時附上英文原文或重複的括號翻譯（例如寫「洽圖洽週末市場」，不要寫「Chatuchak Weekend Market（洽圖洽週末市場）」）。若沒有通行的繁體中文名稱，或外文是官方品牌名稱，請保留官方名稱；分店、分校、校區等必要辨識資訊可用繁體中文括號註明（例如「Wall Street English（信義分校）」）。',
     '不要編造具體的評分、地址或經緯度——只需要景點名稱與描述建議即可。',
   ]
     .filter(Boolean)
@@ -121,8 +123,9 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
       return
     }
 
-    const parsed = JSON.parse(textBlock.text) as { places: unknown }
-    res.status(200).json({ places: parsed.places })
+    const parsed = JSON.parse(textBlock.text) as { places: { name: string }[] }
+    const places = parsed.places.map((place) => ({ ...place, name: stripBilingualName(place.name) }))
+    res.status(200).json({ places })
   } catch (error) {
     console.error('generate-trip failed', error)
     res.status(502).json({ error: 'AI generation failed' })

@@ -1098,6 +1098,15 @@ h3 {
   background: $color-bg;
   font-size: $fs-caption;
   font-weight: 700;
+  // .travel-time-modal is a grid container, so this row is a grid item —
+  // grid items get an automatic min-width based on their content's
+  // min-content size by default, which for nowrap text inside is basically
+  // "as wide as the longest place name." Without this, a long name blows
+  // out the row (and the tabs grid below it) past the modal's fixed width
+  // instead of the ellipsis on .travel-time-modal__route-name ever kicking
+  // in — that rule only controls shrinking within *this* flex row, not how
+  // this row itself is allowed to shrink within the outer grid.
+  min-width: 0;
 }
 
 .travel-time-modal__route-arrow {
@@ -1996,10 +2005,11 @@ h3 {
 .board-workspace {
   display: grid;
   position: relative;
-  // Kept in sync with .place-drawer's width and .ask-ai-panel's right
-  // offset below — both are sized to align exactly with this column so
-  // opening either overlays the map panel without shifting the board.
-  grid-template-columns: minmax(0, 1fr) 500px;
+  // $map-panel-width is shared with .place-drawer's width and
+  // .ask-ai-launcher/.ask-ai-panel's offsets below — both are sized to align
+  // exactly with this column so opening either overlays the map panel
+  // without shifting the board.
+  grid-template-columns: minmax(0, 1fr) $map-panel-width;
   min-height: 0;
   overflow: hidden;
 }
@@ -2742,8 +2752,7 @@ h3 {
   inset: 0 0 0 auto;
   z-index: 4;
   display: grid;
-  // Matches .board-workspace's map column width — see that rule's comment.
-  width: 500px;
+  width: $map-panel-width;
   grid-template-rows: 168px minmax(0, 1fr);
   overflow: hidden;
   border-left: 1px solid $color-border;
@@ -3572,9 +3581,9 @@ h3 {
 
 .ask-ai-launcher {
   position: absolute;
-  // 16px past .board-workspace's 500px map column, so it sits just clear of
-  // the map's left edge rather than overlapping it.
-  right: 516px;
+  // 16px past $map-panel-width, so it sits just clear of the map's left edge
+  // rather than overlapping it.
+  right: $map-panel-width + 16px;
   bottom: 24px;
   z-index: 5;
   display: inline-flex;
@@ -3601,8 +3610,7 @@ h3 {
 
 .ask-ai-panel {
   position: absolute;
-  // Matches .board-workspace's map column width — see that rule's comment.
-  right: 500px;
+  right: $map-panel-width;
   bottom: 0;
   left: 0;
   z-index: 6;

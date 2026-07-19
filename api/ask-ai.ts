@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { stripBilingualName } from './_lib/placeName'
 
 // Chat replies are small (one tool call or a short sentence), so this
 // doesn't need the full 30s budget generate-trip.ts uses for a whole
@@ -128,6 +129,7 @@ function buildPrompt(message: string, destination: string, columns: ColumnSummar
     `使用者的訊息：「${message}」`,
     '',
     '請根據使用者的意圖，判斷是否該呼叫其中一個工具（move_place / remove_place / suggest_places）。',
+    'suggest_places 建議的地點名稱優先使用繁體中文慣用名稱，不要同時附上英文原文或重複的括號翻譯（例如寫「洽圖洽週末市場」，不要寫「Chatuchak Weekend Market（洽圖洽週末市場）」）。若沒有通行的繁體中文名稱，或外文是官方品牌名稱，請保留官方名稱；分店、分校、校區等必要辨識資訊可用繁體中文括號註明（例如「Wall Street English（信義分校）」）。',
     '如果使用者的訊息不屬於任何一種明確的編輯請求（例如閒聊、問候、不清楚的內容、或是開放式的規劃建議問題），不要呼叫任何工具，改用文字回覆。',
     '文字回覆的規則：這裡是聊天視窗的對話氣泡，不是報告，一律限制在 1-2 句話以內，用自然口語的繁體中文；絕對不要使用 markdown 語法（不要 **粗體**、不要條列符號、不要標題），因為顯示畫面不會解析這些符號，只會照樣印出星號。',
     '地點與天數請一律使用上面提供的 id，不要自己編造。',
@@ -171,7 +173,11 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
 
     const toolUse = response.content.find((block) => block.type === 'tool_use')
     if (toolUse && toolUse.type === 'tool_use') {
-      res.status(200).json({ type: 'tool_use', name: toolUse.name, input: toolUse.input })
+      const input = toolUse.input as { places?: { name: string }[] }
+      if (toolUse.name === 'suggest_places' && Array.isArray(input.places)) {
+        input.places = input.places.map((place) => ({ ...place, name: stripBilingualName(place.name) }))
+      }
+      res.status(200).json({ type: 'tool_use', name: toolUse.name, input })
       return
     }
 

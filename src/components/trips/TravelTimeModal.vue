@@ -39,6 +39,7 @@
         <div v-else class="travel-time-modal__result">
           <p v-if="isLoading">計算中...</p>
           <p v-else-if="estimate">{{ formatTravelDuration(estimate.durationMin) }} · {{ estimate.distanceKm.toFixed(1) }} 公里</p>
+          <p v-else-if="!placesGeocoded" class="travel-time-modal__result--empty">地點尚未定位到地圖上，請稍後再試，或改用自訂輸入</p>
           <p v-else class="travel-time-modal__result--empty">查不到這個交通方式的路線，請改用自訂輸入</p>
         </div>
 
@@ -58,7 +59,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { fetchTravelTime, formatTravelDuration } from '../../data/routing'
 import type { TravelEstimate } from '../../data/routing'
 import type { Place, TravelMode } from '../../types'
@@ -117,6 +118,16 @@ function confirmTimePicker(value: string) {
   showTimePicker.value = false
 }
 
+// Places start at 0,0 until the store's background geocoding resolves them
+// (see geocodeNewPlaces in stores/trips.ts) — asking ORS to route between an
+// unresolved point and anything else always comes back "no route found",
+// which would otherwise look identical to a genuine no-route case across all
+// three tabs. Checked up front so that state gets its own message instead.
+function hasCoords(place: Place): boolean {
+  return place.lat !== 0 || place.lng !== 0
+}
+const placesGeocoded = computed(() => hasCoords(props.fromPlace) && hasCoords(props.toPlace))
+
 const estimates = ref<Partial<Record<Exclude<TravelMode, 'manual'>, TravelEstimate | null>>>({})
 if (existing && existing.mode !== 'manual') {
   estimates.value[existing.mode] = { durationMin: existing.durationMin, distanceKm: existing.distanceKm ?? 0 }
@@ -127,10 +138,13 @@ const estimate = computed(() => (selectedMode.value === 'manual' ? null : estima
 // than a shared flag set/cleared around each fetch — a shared boolean would
 // show a stale "loading" state on whichever tab is active if the user
 // switches tabs again before the previous tab's request lands.
-const isLoading = computed(() => selectedMode.value !== 'manual' && !(selectedMode.value in estimates.value))
+const isLoading = computed(
+  () => selectedMode.value !== 'manual' && placesGeocoded.value && !(selectedMode.value in estimates.value),
+)
 
 async function loadEstimate(mode: Exclude<TravelMode, 'manual'>) {
   if (mode in estimates.value) return
+  if (!placesGeocoded.value) return
 
   const result = await fetchTravelTime(
     mode,
@@ -146,6 +160,13 @@ function selectMode(mode: TravelMode) {
 }
 
 if (selectedMode.value !== 'manual') loadEstimate(selectedMode.value)
+
+// The modal can open while either place is still being geocoded. Once both
+// coordinates arrive, start the selected route lookup automatically instead
+// of leaving the user with a stale "not located" result until they reopen it.
+watch(placesGeocoded, (isReady) => {
+  if (isReady && selectedMode.value !== 'manual') loadEstimate(selectedMode.value)
+})
 
 const canSave = computed(() => {
   if (selectedMode.value === 'manual') return manualMinutes.value > 0

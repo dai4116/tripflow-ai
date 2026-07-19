@@ -105,3 +105,7 @@ $font-size-3xl: rem(56);
 
 $sidebar-width: 232px;
 $page-padding: 28px;
+// TripMap.vue's panel — .place-drawer and .ask-ai-launcher/.ask-ai-panel's
+// offsets all size/align against this same column, so it's one token instead
+// of four manually-synced magic numbers.
+$map-panel-width: 500px;

@@ -28,20 +28,12 @@
     </PageHeader>
 
     <div class="board-workspace">
-      <div v-if="isMobile && mobileView === 'board'" class="mobile-day-tabs">
-        <div class="mobile-day-tabs__row">
-          <button
-            v-for="column in template.columns"
-            :key="column.id"
-            type="button"
-            class="mobile-day-tabs__tab"
-            :class="{ 'mobile-day-tabs__tab--active': focusedColumnId === column.id }"
-            @click="focusColumn(column.id)"
-          >
-            {{ column.title }}
-          </button>
-        </div>
-      </div>
+      <DayTabs
+        v-if="isMobile && mobileView === 'board'"
+        :columns="template.columns"
+        :focused-column-id="focusedColumnId"
+        @focus-column="focusColumn"
+      />
 
       <div
         v-if="!isMobile || mobileView === 'board'"
@@ -84,7 +76,7 @@
       <TripMap
         v-if="!isMobile || mobileView === 'map'"
         :places="templatePlaces"
-        :focused-place-ids="focusedPlaces.map((place) => place.id)"
+        :focused-place-ids="focusedPlaceIds"
         :selected-place-id="selectedPlaceId"
         :destination="template.destination"
         :columns="template.columns"
@@ -171,6 +163,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '../components/layout/PageHeader.vue'
 import CategoryChip, { categoryLabels } from '../components/trips/CategoryChip.vue'
+import DayTabs from '../components/trips/DayTabs.vue'
 import PlaceCard from '../components/trips/PlaceCard.vue'
 import TripMap from '../components/trips/TripMap.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
@@ -233,6 +226,11 @@ const focusedPlaces = computed(() => {
 
   return getColumnPlaces(column.placeIds)
 })
+// Memoized rather than mapped inline in the template — TripMap.vue watches
+// this prop by reference, and an inline .map() would produce a new array
+// (and spuriously re-sync/re-fit the map) on every unrelated re-render of
+// this page.
+const focusedPlaceIds = computed(() => focusedPlaces.value.map((place) => place.id))
 const drawerPlace = computed(() => templatePlaces.value.find((place) => place.id === drawerPlaceId.value))
 const drawerPlaceSchedule = computed(() => getPlaceSchedule(drawerPlace.value))
 const shouldLockBodyScroll = computed(() => isMobile.value && Boolean(drawerPlace.value))

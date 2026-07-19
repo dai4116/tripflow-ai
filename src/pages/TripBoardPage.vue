@@ -170,7 +170,7 @@
       <TripMap
         v-if="!isMobile || mobileView === 'map'"
         :places="tripPlaces"
-        :focused-place-ids="focusedPlaces.map((place) => place.id)"
+        :focused-place-ids="focusedPlaceIds"
         :selected-place-id="selectedPlaceId"
         :destination="activeTrip.destination"
         :columns="displayedColumns"
@@ -490,7 +490,7 @@ import TimePickerSheet from '../components/ui/TimePickerSheet.vue'
 import { useColumnSchedule } from '../composables/useColumnSchedule'
 import { useConfirmDialog } from '../composables/useConfirmDialog'
 import { useIsMobile } from '../composables/useIsMobile'
-import { computeTripDays, formatDateRange, toDateInputValue } from '../data/generateTrip'
+import { cityFromDestination, computeTripDays, formatDateRange, toDateInputValue } from '../data/generateTrip'
 import {
   addMinutes,
   computeArrivalTimes,
@@ -637,10 +637,15 @@ const focusedPlaces = computed(() => {
     .map((placeId) => tripPlaces.value.find((place) => place.id === placeId))
     .filter((place): place is Place => place !== undefined)
 })
+// Memoized rather than mapped inline in the template — TripMap.vue watches
+// this prop by reference, and an inline .map() would produce a new array
+// (and spuriously re-sync/re-fit the map) on every unrelated re-render of
+// this page.
+const focusedPlaceIds = computed(() => focusedPlaces.value.map((place) => place.id))
 const drawerPlace = computed(() => tripPlaces.value.find((place) => place.id === drawerPlaceId.value))
 const drawerPlaceSchedule = computed(() => getPlaceSchedule(drawerPlace.value))
 const shouldLockBodyScroll = computed(() => isMobile.value && Boolean(drawerPlace.value))
-const cityName = computed(() => activeTrip.value.destination.split(/[,，]/)[0].trim() || activeTrip.value.destination)
+const cityName = computed(() => cityFromDestination(activeTrip.value.destination))
 
 watch(
   shouldLockBodyScroll,

@@ -23,29 +23,32 @@ function enqueue<T>(task: () => Promise<T>): Promise<T> {
   return run
 }
 
+async function fetchGeocode(query: string): Promise<GeoPoint | null> {
+  const url = `${NOMINATIM_URL}?format=json&limit=1&q=${encodeURIComponent(query)}`
+  const response = await fetch(url, { headers: { Accept: 'application/json' } })
+  if (!response.ok) throw new Error(`Nominatim request failed: ${response.status}`)
+
+  const results = (await response.json()) as { lat: string; lon: string }[]
+  const first = results[0]
+  return first ? { lat: Number.parseFloat(first.lat), lng: Number.parseFloat(first.lon) } : null
+}
+
 async function geocodeQuery(query: string): Promise<GeoPoint | null> {
   const key = query.trim().toLowerCase()
   if (!key) return null
   if (cache.has(key)) return cache.get(key) ?? null
 
-  const point = await enqueue(async () => {
-    try {
-      const url = `${NOMINATIM_URL}?format=json&limit=1&q=${encodeURIComponent(query)}`
-      const response = await fetch(url, { headers: { Accept: 'application/json' } })
-      if (!response.ok) return null
-
-      const results = (await response.json()) as { lat: string; lon: string }[]
-      const first = results[0]
-      return first ? { lat: Number.parseFloat(first.lat), lng: Number.parseFloat(first.lon) } : null
-    } catch {
-      // Network hiccup or blocked request — the caller just doesn't get a
-      // pin for this place, nothing to surface to the user over.
-      return null
-    }
-  })
-
-  cache.set(key, point)
-  return point
+  try {
+    const point = await enqueue(() => fetchGeocode(query))
+    // Only a successful round trip (found, or genuinely no results) is
+    // cached — a network hiccup or non-2xx response isn't remembered, so the
+    // same place can be retried on a later geocode call instead of being
+    // permanently pin-less for the rest of the session.
+    cache.set(key, point)
+    return point
+  } catch {
+    return null
+  }
 }
 
 export function geocodePlace(name: string, city: string): Promise<GeoPoint | null> {

@@ -48,7 +48,11 @@ function setDayTabRef(columnId: string, el: Element | ComponentPublicInstance | 
 }
 
 // Keeps the active tab reachable in this strip's own scroll area — e.g.
-// adding a day focuses the new (possibly off-screen) column.
+// adding a day focuses the new (possibly off-screen) column. immediate:true
+// so a freshly-mounted strip (e.g. switching from board to map view on
+// mobile) also scrolls to whatever's already focused, not just future
+// changes — otherwise the initial focused tab can start off-screen with no
+// indication which day is active.
 watch(
   () => props.focusedColumnId,
   (columnId) => {
@@ -56,5 +60,6 @@ watch(
       dayTabEls[columnId]?.scrollIntoView({ behavior: 'smooth', inline: 'end', block: 'nearest' })
     })
   },
+  { immediate: true },
 )
 </script>
