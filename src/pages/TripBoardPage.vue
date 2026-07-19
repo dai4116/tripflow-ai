@@ -129,21 +129,27 @@
             @end="onDragEnd"
           >
             <div
-              v-for="card in getColumnCards(column.placeIds)"
-              :key="card.place.id"
+              v-for="entry in columnCardEntries(column)"
+              :key="entry.card.place.id"
               class="place-card-button"
-              :class="{ 'place-card-button--selected': selectedPlaceId === card.place.id }"
+              :class="{ 'place-card-button--selected': selectedPlaceId === entry.card.place.id }"
             >
               <PlaceCard
-                :place="card.place"
-                :order="card.order"
-                :arrival-time="card.arrivalTime"
-                :has-time-overlap="card.hasTimeOverlap"
-                :overlap-reason="card.overlapReason"
-                :overlap-warning-open="overlapWarningPlaceId === card.place.id"
-                @open="openPlaceDrawer(card.place.id)"
-                @toggle-overlap-warning="toggleOverlapWarning(card.place.id)"
+                :place="entry.card.place"
+                :order="entry.card.order"
+                :arrival-time="entry.card.arrivalTime"
+                :has-time-overlap="entry.card.hasTimeOverlap"
+                :overlap-reason="entry.card.overlapReason"
+                :overlap-warning-open="overlapWarningPlaceId === entry.card.place.id"
+                @open="openPlaceDrawer(entry.card.place.id)"
+                @toggle-overlap-warning="toggleOverlapWarning(entry.card.place.id)"
                 @close-overlap-warning="closeOverlapWarning"
+              />
+              <TravelTimeRow
+                v-if="entry.nextPlace"
+                :place="entry.card.place"
+                :next-place="entry.nextPlace"
+                @open="openTravelTimeModal(entry.card.place, entry.nextPlace)"
               />
             </div>
             <p v-if="column.placeIds.length === 0 && isMobile" class="kanban-column__empty">請新增景點</p>
@@ -414,6 +420,14 @@
         @add="onAddPlace"
       />
 
+      <TravelTimeModal
+        v-if="travelTimeFromPlace && travelTimeToPlace"
+        :from-place="travelTimeFromPlace"
+        :to-place="travelTimeToPlace"
+        @close="closeTravelTimeModal"
+        @save="saveTravelTime"
+      />
+
       <ConfirmModal
         v-if="confirmDialog.open"
         :title="confirmDialog.title"
@@ -464,6 +478,8 @@ import DayPickerSheet from '../components/trips/DayPickerSheet.vue'
 import DayStepper from '../components/trips/DayStepper.vue'
 import DayTabs from '../components/trips/DayTabs.vue'
 import PlaceCard from '../components/trips/PlaceCard.vue'
+import TravelTimeModal from '../components/trips/TravelTimeModal.vue'
+import TravelTimeRow from '../components/trips/TravelTimeRow.vue'
 import TripMap from '../components/trips/TripMap.vue'
 import TripSettingsModal from '../components/trips/TripSettingsModal.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
@@ -484,7 +500,7 @@ import {
   minutesBetween,
 } from '../data/placeSchedule'
 import { useTripsStore } from '../stores/trips'
-import type { Place, PlaceCategory, PlaceScheduleMode, TripColumn } from '../types'
+import type { Place, PlaceCategory, PlaceScheduleMode, TravelMode, TripColumn } from '../types'
 
 const route = useRoute()
 const router = useRouter()
@@ -517,6 +533,8 @@ const { confirmDialog, openConfirm, closeConfirm, acceptConfirm } = useConfirmDi
 
 const showAddModal = ref(false)
 const showTripSettingsModal = ref(false)
+const travelTimeFromPlace = ref<Place | null>(null)
+const travelTimeToPlace = ref<Place | null>(null)
 const addModalColumnId = ref('')
 const newlyAddedColumnId = ref('')
 const NEW_COLUMN_ENTER_DURATION = 400
@@ -571,6 +589,22 @@ const { getColumnPlaces, getColumnCards, getPlaceSchedule } = useColumnSchedule(
   () => tripPlaces.value,
   () => displayedColumns.value,
 )
+
+// Bundles each card with its immediate successor (or null if it's last in
+// the day) so the template can bind TravelTimeRow's next-place prop without
+// repeating the lookup — and so Vue's template type-narrowing on
+// `entry.nextPlace` actually works, unlike calling a lookup function
+// separately in v-if and each binding.
+function columnCardEntries(column: TripColumn) {
+  // cards is already in placeIds order — reading the next element off it
+  // directly (instead of a separate tripPlaces.value.find per card) avoids
+  // an O(cards × tripPlaces) re-lookup on every render.
+  const cards = getColumnCards(column.placeIds)
+  return cards.map((card, index) => ({
+    card,
+    nextPlace: cards[index + 1]?.place ?? null,
+  }))
+}
 // On mobile, only the focused day's cards render at a time (tap a day tab to
 // switch) instead of horizontally scrolling between columns — swiping the
 // board to change days fought with dragging a card to reorder it, since both
@@ -717,6 +751,11 @@ function onDragEnd() {
   closeOverlapWarning()
   syncPlaceColumns()
   tripsStore.recalcPlaceCount(activeTrip.value)
+  // Reordering can change which place is "next" for any gap on the board —
+  // fillMissingTravelTimes re-checks every gap's travelToNext.toPlaceId
+  // against current adjacency, so this is safe to call unconditionally
+  // rather than trying to work out exactly which gaps moved.
+  tripsStore.fillMissingTravelTimes(activeTrip.value.id)
   isDraggingCard.value = false
 }
 
@@ -740,6 +779,22 @@ function closeDrawer() {
 function openAddPlaceModal(columnId: string) {
   addModalColumnId.value = columnId
   showAddModal.value = true
+}
+
+function openTravelTimeModal(fromPlace: Place, toPlace: Place) {
+  travelTimeFromPlace.value = fromPlace
+  travelTimeToPlace.value = toPlace
+}
+
+function closeTravelTimeModal() {
+  travelTimeFromPlace.value = null
+  travelTimeToPlace.value = null
+}
+
+function saveTravelTime(payload: { mode: TravelMode; durationMin: number; distanceKm?: number }) {
+  if (!travelTimeFromPlace.value || !travelTimeToPlace.value) return
+  tripsStore.setTravelToNext(travelTimeFromPlace.value.id, travelTimeToPlace.value.id, payload.mode, payload.durationMin, payload.distanceKm)
+  closeTravelTimeModal()
 }
 
 function confirmDeleteDay(column: TripColumn) {

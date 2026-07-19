@@ -14,6 +14,18 @@ export type PlaceCategory =
 
 export type PlaceScheduleMode = 'duration' | 'departure'
 
+export type TravelMode = 'driving' | 'walking' | 'cycling' | 'manual'
+
+export type TravelToNext = {
+  // Which place this describes travel to — lets consumers detect a stale
+  // entry after reordering (the stored place is no longer actually next)
+  // without needing to proactively scrub every place on every reorder.
+  toPlaceId: string
+  mode: TravelMode
+  durationMin: number
+  distanceKm?: number
+}
+
 export type TripColumn = {
   id: string
   title: string
@@ -70,6 +82,9 @@ export type Place = {
   departureTime?: string
   columnId: string
   imageGradient: string
+  // Travel from this place to whichever place follows it in the same day —
+  // absent until calculated (see routing.ts / trips store's auto-fill).
+  travelToNext?: TravelToNext
 }
 
 export type CreateTripInput = {

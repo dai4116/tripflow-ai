@@ -108,6 +108,15 @@ export const icons = {
   'chat-sparkle': {
     body: `<rect x="3" y="4.5" width="17" height="11" rx="5" ${STROKE}/><path d="M8 15.5v3.7l4.6-3.7" ${STROKE}/><path d="M18.5 3l1 2.2 2.2 1-2.2 1-1 2.2-1-2.2-2.2-1 2.2-1z" fill="currentColor" stroke="none"/>`,
   },
+  car: {
+    body: `<path d="M4 16.5l1.4-5.4A2 2 0 0 1 7.3 9.6h9.4a2 2 0 0 1 1.9 1.5l1.4 5.4" ${STROKE}/><rect x="3" y="16.5" width="18" height="3.3" rx="1.4" ${STROKE}/><circle cx="7.5" cy="19.8" r="1.4" fill="currentColor" stroke="none"/><circle cx="16.5" cy="19.8" r="1.4" fill="currentColor" stroke="none"/>`,
+  },
+  walk: {
+    body: `<circle cx="13.2" cy="4.3" r="1.7" fill="currentColor" stroke="none"/><path d="M11.3 8.2l-2 3.6 2.7 1.4-1 6.6M11.3 8.2l3 .9 2.4 3.4-2.6 2M14.3 9.1l2.3-1.8" ${STROKE}/>`,
+  },
+  bike: {
+    body: `<circle cx="6" cy="17" r="3.1" ${STROKE}/><circle cx="18" cy="17" r="3.1" ${STROKE}/><path d="M6 17l3.8-8h4.7l2.9 8M9.4 9H7.5M12.5 9l3 4.5M12.5 9L10 17" ${STROKE}/>`,
+  },
 } satisfies Record<string, { body: string; tall?: boolean }>
 
 export type IconName = keyof typeof icons

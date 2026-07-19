@@ -956,6 +956,7 @@ h3 {
 
 .place-card-button {
   display: block;
+  align-self: start;
   width: 100%;
   padding: 0;
   border: 0;
@@ -991,6 +992,199 @@ h3 {
   box-shadow:
     0 0 0 2px rgba($color-primary, 0.16),
     $shadow-md;
+}
+
+// travel time (see TravelTimeRow.vue / TravelTimeModal.vue) — nested inside
+// each card's own .place-card-button wrapper rather than inserted as a new
+// sibling in the VueDraggable list, so it can't throw off drag-reorder's
+// array/DOM correspondence.
+
+.travel-time-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  // The row sits inside the FROM card's own wrapper, so the visual gap to
+  // the NEXT card is this bottom margin plus .kanban-column__cards' own 10px
+  // grid gap — 0 here + that 10px roughly matches the 10px top margin, so
+  // the row lands centered in the full gap instead of hugging the card above.
+  margin: 10px 0 0 14px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: $color-subtle;
+  font-size: $fs-caption;
+  font-weight: 700;
+}
+
+.travel-time-row:hover {
+  color: $color-primary;
+}
+
+// Vertical connector reaching past the row's own box toward the cards
+// above/below (chicTrip-style timeline dashes) — align-self overrides the
+// row's own align-items: center just for this one item so it can stretch
+// while the icon/text next to it stay vertically centered.
+.travel-time-row__line {
+  align-self: stretch;
+  flex: none;
+  width: 1px;
+  margin: -10px 0;
+  // Lighter than the row's own text color (kept solid/readable) so the line
+  // reads as a low-key connector, not competing for attention — but a flat
+  // opacity cut of that same color rather than $color-border, which nearly
+  // disappeared entirely once stretched into a thin dashed line.
+  border-left: 1.5px dashed rgba($color-subtle, 0.45);
+}
+
+.travel-time-row__distance {
+  color: $color-muted;
+  font-weight: 600;
+}
+
+// Same chevron-flip as .map-panel__preview-arrow — only chevron-left exists
+// in the icon set.
+.travel-time-row__arrow {
+  transform: scaleX(-1);
+}
+
+.travel-time-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba($color-dusk, 0.42);
+}
+
+.travel-time-modal {
+  display: grid;
+  width: min(380px, 100%);
+  gap: 16px;
+  padding: 20px;
+  border-radius: $radius-lg;
+  background: $color-surface;
+  box-shadow: $shadow-lg;
+}
+
+.travel-time-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.travel-time-modal__header h3 {
+  font-size: $font-size-sm;
+}
+
+.travel-time-modal__close {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: $radius-pill;
+  background: $color-bg;
+  color: $color-muted;
+}
+
+.travel-time-modal__route {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: $radius-md;
+  background: $color-bg;
+  font-size: $fs-caption;
+  font-weight: 700;
+}
+
+.travel-time-modal__route-arrow {
+  flex: none;
+  color: $color-subtle;
+}
+
+.travel-time-modal__route-name {
+  overflow: hidden;
+  // Flex items default to a min-width based on their content, which blocks
+  // shrinking below that — without this, a long place name just pushes the
+  // row wider (or the other name off) instead of actually truncating with
+  // the ellipsis below. Same fix as the day-tabs / preview-strip overflow
+  // bugs earlier — same root cause, different element.
+  min-width: 0;
+  flex: 1;
+  color: $color-ink;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.travel-time-modal__tabs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.travel-time-modal__tab {
+  display: grid;
+  place-items: center;
+  gap: 4px;
+  padding: 10px 4px;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+  background: $color-surface;
+  color: $color-muted;
+  font-size: $fs-micro;
+  font-weight: 700;
+}
+
+.travel-time-modal__tab--active {
+  border-color: $color-primary;
+  background: $color-primary-soft;
+  color: $color-primary-text;
+}
+
+.travel-time-modal__manual {
+  display: grid;
+  gap: 6px;
+  min-height: 44px;
+}
+
+.travel-time-modal__manual-label {
+  color: $color-muted;
+  font-size: $font-size-xs;
+  font-weight: 700;
+}
+
+.travel-time-modal__manual-button {
+  padding: 10px 12px;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+  background: $color-surface;
+  color: $color-ink;
+  font-size: $fs-ui;
+  font-weight: 750;
+  text-align: left;
+}
+
+.travel-time-modal__result {
+  min-height: 44px;
+}
+
+.travel-time-modal__result {
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  color: $color-ink;
+  font-size: $fs-ui;
+  font-weight: 750;
+}
+
+.travel-time-modal__result--empty {
+  color: $color-muted;
+  font-size: $fs-caption;
+  font-weight: 600;
 }
 
 // ---------------------------------------------------------------------------

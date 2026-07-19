@@ -64,7 +64,7 @@ export function hhmmToHours(value: string): number {
 // Takes places in display order (the same order the day's column renders
 // them in) and resolves each one's effective arrival time.
 export function computeArrivalTimes(
-  places: Pick<Place, 'estimatedTime' | 'arrivalTime' | 'scheduleMode' | 'departureTime'>[],
+  places: Pick<Place, 'id' | 'estimatedTime' | 'arrivalTime' | 'scheduleMode' | 'departureTime' | 'travelToNext'>[],
 ): ScheduledTime[] {
   let cursor = DAY_START_TIME
   // Tracks the latest end time seen so far (not just the previous card's) —
@@ -83,7 +83,19 @@ export function computeArrivalTimes(
     // after it, and surface it as its own conflict on this card.
     const departureIsSet = place.scheduleMode === 'departure' && Boolean(place.departureTime)
     const hasInvalidDeparture = departureIsSet && isBeforePreviousEnd(place.departureTime!, time)
-    cursor = departureIsSet && !hasInvalidDeparture ? place.departureTime! : addMinutes(time, Math.round(place.estimatedTime * 60))
+    const departure = departureIsSet && !hasInvalidDeparture ? place.departureTime! : addMinutes(time, Math.round(place.estimatedTime * 60))
+
+    // travelToNext can be stale (pointing at a place that's no longer
+    // actually next — see the TravelToNext type comment, e.g. after a
+    // reorder) — only add it to the cascade when it still matches the place
+    // that's actually next in this list.
+    const nextPlace = places[index + 1]
+    const travelMinutes = place.travelToNext && nextPlace && place.travelToNext.toPlaceId === nextPlace.id ? place.travelToNext.durationMin : 0
+    cursor = addMinutes(departure, travelMinutes)
+    // maxEnd reflects the earliest you could physically be at the NEXT
+    // place (departure + travel), not just when this stay ends — a manual
+    // arrival exactly at departure time would otherwise not be flagged as
+    // an overlap even when there's a real travel gap to close first.
     if (!isBeforePreviousEnd(cursor, maxEnd)) maxEnd = cursor
 
     return { time, hasOverlap, hasInvalidDeparture }
