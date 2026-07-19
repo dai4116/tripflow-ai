@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
-    "test": "node --experimental-strip-types --test api/_lib/*.test.ts",
+    "test": "tsc -p tsconfig.api.json && node --experimental-strip-types --test api/_lib/*.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {

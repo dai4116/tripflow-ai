@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { stripBilingualName } from './_lib/placeName'
+import { stripBilingualName } from './_lib/placeName.js'
 
 // Vercel's default Node function duration (10s) is too tight for a cold
 // start + first-use structured-output schema compilation + generation time

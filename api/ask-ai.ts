@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { stripBilingualName } from './_lib/placeName'
+import { stripBilingualName } from './_lib/placeName.js'
 
 // Chat replies are small (one tool call or a short sentence), so this
 // doesn't need the full 30s budget generate-trip.ts uses for a whole
