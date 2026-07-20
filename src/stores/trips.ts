@@ -22,6 +22,7 @@ export type NewPlaceInput = {
   description: string
   travelTip?: string
   geocodeQuery?: string
+  geocodeQueryAlt?: string
 }
 
 export const useTripsStore = defineStore('trips', () => {
@@ -41,6 +42,26 @@ export const useTripsStore = defineStore('trips', () => {
     return places.value.filter((place) => place.tripId === tripId)
   }
 
+  // geocodeQuery (an AI-supplied, self-contained "place, city, country"
+  // string in one consistent language) is looked up as-is — appending the
+  // separately-derived Chinese city/region to it would mix scripts and break
+  // the match (see geocodeRawQuery's comment in geocode.ts). If that lookup
+  // comes back genuinely empty (not a network error — geocodeRawQuery
+  // already only resolves null for a real no-match), retry once with
+  // geocodeQueryAlt: the AI's own "official" name guess can be a compound
+  // it assembled itself rather than what the map provider actually has
+  // indexed (e.g. "Mercato Centrale di San Lorenzo" vs. the shorter
+  // "Mercato Centrale" OSM knows). Places with no AI-supplied query at all
+  // (manually added ones) fall back to the plain Chinese name + city/region
+  // composition, same language throughout.
+  function resolveNewPlaceCoords(newPlace: Place, city: string, region: string) {
+    if (!newPlace.geocodeQuery) return geocodePlace(newPlace.name, city, region)
+    return geocodeRawQuery(newPlace.geocodeQuery).then((point) => {
+      if (point || !newPlace.geocodeQueryAlt) return point
+      return geocodeRawQuery(newPlace.geocodeQueryAlt)
+    })
+  }
+
   // AI generation deliberately never guesses lat/lng (see generateTrip.ts),
   // so every new place starts at 0,0 and gets its real coordinates here,
   // one Nominatim lookup at a time. Fires in the background rather than
@@ -51,16 +72,7 @@ export const useTripsStore = defineStore('trips', () => {
     const city = cityFromDestination(destination)
     const region = regionFromDestination(destination)
     for (const newPlace of newPlaces) {
-      // geocodeQuery (an AI-supplied, self-contained "place, city, country"
-      // string in one consistent language) is looked up as-is — appending
-      // the separately-derived Chinese city/region to it would mix scripts
-      // and break the match (see geocodeRawQuery's comment in geocode.ts).
-      // Only the plain Chinese display name falls back to city/region
-      // composition, same language throughout.
-      const lookup = newPlace.geocodeQuery
-        ? geocodeRawQuery(newPlace.geocodeQuery)
-        : geocodePlace(newPlace.name, city, region)
-      lookup.then((point) => {
+      resolveNewPlaceCoords(newPlace, city, region).then((point) => {
         if (!point) return
         const target = places.value.find((item) => item.id === newPlace.id)
         if (target) {
@@ -183,6 +195,7 @@ export const useTripsStore = defineStore('trips', () => {
       description: input.description,
       travelTip: input.travelTip,
       geocodeQuery: input.geocodeQuery,
+      geocodeQueryAlt: input.geocodeQueryAlt,
       columnId: input.columnId,
       imageGradient: PLACE_GRADIENTS[places.value.length % PLACE_GRADIENTS.length],
     }

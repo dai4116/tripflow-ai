@@ -226,6 +226,7 @@ function applyIntent(intent: AiIntent) {
         description: place.description,
         travelTip: place.travelTip,
         geocodeQuery: place.geocodeQuery,
+        geocodeQueryAlt: place.geocodeQueryAlt,
       })
     }
     emit('applied', intent.columnId)

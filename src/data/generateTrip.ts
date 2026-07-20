@@ -104,6 +104,11 @@ export type PlaceSuggestion = {
   // Chinese-speaking regions. Absent for locally-templated suggestions,
   // which fall back to geocoding by `name`.
   geocodeQuery?: string
+  // Shorter/more common alternate phrasing of geocodeQuery, tried as a
+  // retry when the AI's guessed "official" name doesn't match what the map
+  // provider actually has on record (e.g. a compound name it assembled
+  // itself, vs. the shorter name OSM is indexed under).
+  geocodeQueryAlt?: string
 }
 
 // Same curated templates AI generation draws from — reused so manually added
@@ -228,6 +233,7 @@ export function generateTrip(
       description: template.description,
       travelTip: suggestion?.travelTip,
       geocodeQuery: suggestion?.geocodeQuery,
+      geocodeQueryAlt: suggestion?.geocodeQueryAlt,
       columnId,
       imageGradient: PLACE_GRADIENTS[places.length % PLACE_GRADIENTS.length],
     }

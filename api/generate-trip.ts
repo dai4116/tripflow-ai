@@ -47,6 +47,7 @@ const PLACE_SCHEMA = {
           category: { type: 'string', enum: PLACE_CATEGORIES },
           name: { type: 'string' },
           geocodeQuery: { type: 'string' },
+          geocodeQueryAlt: { type: 'string' },
           description: { type: 'string' },
           travelTip: { type: 'string' },
         },
@@ -96,6 +97,7 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
     '每個景點包含分類、名稱、一句簡短描述（繁體中文），以及可選的一句實用小提示（travelTip）。',
     '名稱優先使用繁體中文慣用名稱，不要同時附上英文原文或重複的括號翻譯（例如寫「洽圖洽週末市場」，不要寫「Chatuchak Weekend Market（洽圖洽週末市場）」）。若沒有通行的繁體中文名稱，或外文是官方品牌名稱，請保留官方名稱；分店、分校、校區等必要辨識資訊可用繁體中文括號註明（例如「Wall Street English（信義分校）」）。',
     '另外提供 geocodeQuery 欄位：這是給地圖服務（OpenStreetMap）查詢定位用的完整字串，不會顯示給使用者。格式必須是「地點官方名稱, 城市, 國家」，三段全部使用同一種語言——當地官方語言或英文（不要中英文混用，也不要只寫地點名稱、漏掉城市和國家，否則常常查不到或定位到錯誤的地方）。例如目的地是義大利佛羅倫斯，應填寫「Galleria degli Uffizi, Firenze, Italia」或「Uffizi Gallery, Florence, Italy」，不要寫「Uffizi Gallery, 佛羅倫斯, 義大利」。只有目的地本身是華語地區時，才整段使用中文（例如「九份老街, 新北市, 台灣」）。',
+    '如果不確定這個地點在地圖服務上的正式登記名稱（例如是複合式建築、市場、商圈，官方全名可能跟通俗說法不同），請額外提供 geocodeQueryAlt 欄位，格式同 geocodeQuery，但改用更簡短、更通用的常見說法（例如 geocodeQuery 是「Mercato Centrale di San Lorenzo, Firenze, Italia」，geocodeQueryAlt 可以是「Mercato Centrale, Firenze, Italia」），作為查詢失敗時的備援；有把握的話可以不用提供這個欄位。',
     '不要編造具體的評分、地址或經緯度——只需要景點名稱與描述建議即可。',
   ]
     .filter(Boolean)

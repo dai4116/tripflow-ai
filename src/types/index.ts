@@ -77,6 +77,8 @@ export type Place = {
   // of `name` (which is Traditional Chinese by design) — see PlaceSuggestion
   // in generateTrip.ts. Only set for AI-suggested places.
   geocodeQuery?: string
+  // Retried if geocodeQuery's lookup comes back empty — see PlaceSuggestion.
+  geocodeQueryAlt?: string
   // Manual arrival-time override ('HH:mm'). When unset, the effective
   // arrival time cascades from the place before it — see computeArrivalTimes.
   arrivalTime?: string
