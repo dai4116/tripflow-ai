@@ -42,6 +42,15 @@ export const useTripsStore = defineStore('trips', () => {
     return places.value.filter((place) => place.tripId === tripId)
   }
 
+  // Logged (not surfaced in the UI — TravelTimeModal's existing "地點尚未定位"
+  // message already covers that) so a failed lookup can be diagnosed from the
+  // browser console instead of guessing what query the AI actually produced.
+  function logGeocodeFailure(placeName: string, queriesTried: string[]) {
+    console.warn(
+      `[geocode] 找不到「${placeName}」的地圖座標，已嘗試以下查詢字串：\n${queriesTried.map((q) => `  - ${q}`).join('\n')}`,
+    )
+  }
+
   // geocodeQuery (an AI-supplied, self-contained "place, city, country"
   // string in one consistent language) is looked up as-is — appending the
   // separately-derived Chinese city/region to it would mix scripts and break
@@ -55,10 +64,22 @@ export const useTripsStore = defineStore('trips', () => {
   // (manually added ones) fall back to the plain Chinese name + city/region
   // composition, same language throughout.
   function resolveNewPlaceCoords(newPlace: Place, city: string, region: string) {
-    if (!newPlace.geocodeQuery) return geocodePlace(newPlace.name, city, region)
+    if (!newPlace.geocodeQuery) {
+      return geocodePlace(newPlace.name, city, region).then((point) => {
+        if (!point) logGeocodeFailure(newPlace.name, [[newPlace.name, city, region].filter(Boolean).join(', ')])
+        return point
+      })
+    }
     return geocodeRawQuery(newPlace.geocodeQuery).then((point) => {
-      if (point || !newPlace.geocodeQueryAlt) return point
-      return geocodeRawQuery(newPlace.geocodeQueryAlt)
+      if (point) return point
+      if (!newPlace.geocodeQueryAlt) {
+        logGeocodeFailure(newPlace.name, [newPlace.geocodeQuery!])
+        return null
+      }
+      return geocodeRawQuery(newPlace.geocodeQueryAlt).then((altPoint) => {
+        if (!altPoint) logGeocodeFailure(newPlace.name, [newPlace.geocodeQuery!, newPlace.geocodeQueryAlt!])
+        return altPoint
+      })
     })
   }
 
