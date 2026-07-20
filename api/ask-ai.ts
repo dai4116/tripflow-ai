@@ -168,8 +168,20 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
     const client = new Anthropic({ apiKey })
     const response = await client.messages.create(
       {
-        model: 'claude-haiku-4-5',
+        // Sonnet over Haiku — same reasoning as generate-trip.ts: Haiku's
+        // geocodeQuery/geocodeQueryAlt guesses for suggest_places were often
+        // plausible-but-wrong (outdated names, wrong syllables). Responses
+        // here stay small (one tool call or 1-2 sentences), so the latency
+        // cost is modest even though this endpoint is otherwise favored for
+        // being fast.
+        model: 'claude-sonnet-5',
         max_tokens: 2048,
+        // Sonnet 5 runs adaptive thinking by default when `thinking` is
+        // omitted — wasted here, since deciding which tool to call (or
+        // writing a 1-2 sentence reply) doesn't need step-by-step reasoning,
+        // and thinking tokens would eat into this endpoint's already-tight
+        // 2048 budget for no benefit.
+        thinking: { type: 'disabled' },
         tools: TOOLS,
         messages: [{ role: 'user', content: prompt }],
       },

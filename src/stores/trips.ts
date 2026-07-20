@@ -3,7 +3,15 @@ import { nanoid } from 'nanoid'
 import { defineStore } from 'pinia'
 import { fetchAiPlaces } from '../data/aiTripClient'
 import { explorePlacesForTemplate, exploreTemplates } from '../data/exploreTrips'
-import { cityFromDestination, computeTripDays, generateTrip, PLACE_GRADIENTS, regionFromDestination } from '../data/generateTrip'
+import {
+  cityFromDestination,
+  computeTripDays,
+  generateTrip,
+  paceForTravelStyle,
+  placesPerDayForPace,
+  PLACE_GRADIENTS,
+  regionFromDestination,
+} from '../data/generateTrip'
 import { geocodePlace, geocodeRawQuery } from '../data/geocode'
 import { places as seedPlaces } from '../data/mockPlaces'
 import { trips as seedTrips } from '../data/mockTrips'
@@ -178,13 +186,26 @@ export const useTripsStore = defineStore('trips', () => {
     if (place) place.travelToNext = { toPlaceId, mode, durationMin, distanceKm }
   }
 
+  // Throws rather than silently falling back to the local CATEGORY_TEMPLATES
+  // generator on AI failure — this app's whole pitch is an AI-built
+  // itinerary, so handing back generic canned places without saying so would
+  // look like a real (if bland) result instead of the failure it actually
+  // is. CreateTripPage.vue catches this and shows a retry prompt instead of
+  // navigating to a trip board. Trade-off: this also means trip creation
+  // hard-fails whenever /api/generate-trip is unreachable — including plain
+  // `vite dev` locally (no serverless routes there) and a misconfigured/
+  // missing ANTHROPIC_API_KEY in prod — there is no more silent degrade path.
   async function createTrip(input: CreateTripInput): Promise<Trip> {
     const days = computeTripDays(input)
-    const aiPlaces = await fetchAiPlaces(input, days * 2)
+    const placesPerDay = placesPerDayForPace(paceForTravelStyle(input.travelStyle))
+    const aiPlaces = await fetchAiPlaces(input, days * placesPerDay, days, placesPerDay)
+    if (!aiPlaces) throw new Error('AI trip generation failed')
+
     const { trip, places: newPlaces } = generateTrip(
       input,
       trips.value.map((existing) => existing.id),
       aiPlaces,
+      placesPerDay,
     )
     trips.value.push(trip)
     places.value.push(...newPlaces)

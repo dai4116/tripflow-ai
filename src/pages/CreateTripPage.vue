@@ -85,12 +85,12 @@
     </form>
 
     <BaseCard v-else class="form-card generating-card">
-      <div class="generating">
+      <div v-if="!generationFailed" class="generating">
         <span class="generating__badge">
           <AppIcon name="sparkle" :size="22" />
         </span>
         <h2 class="generating__title">正在為你打造 {{ cityLabel }} 行程</h2>
-        <p class="generating__subtitle">通常只需要幾秒鐘…</p>
+        <p class="generating__subtitle">請稍等…</p>
 
         <ol class="generating__stages">
           <li
@@ -109,6 +109,22 @@
             {{ stage }}
           </li>
         </ol>
+      </div>
+
+      <div v-else class="generating">
+        <span class="generating__badge generating__badge--error">
+          <AppIcon name="alert" :size="22" />
+        </span>
+        <h2 class="generating__title">行程生成失敗</h2>
+        <p class="generating__subtitle">AI 暫時無法使用，請稍後再試一次。</p>
+
+        <div class="generating__actions">
+          <BaseButton @click="retryGeneration">
+            <AppIcon name="sparkle" :size="15" />
+            重試
+          </BaseButton>
+          <BaseButton variant="ghost" @click="backToForm">返回修改</BaseButton>
+        </div>
       </div>
     </BaseCard>
   </section>
@@ -133,6 +149,7 @@ const STAGE_DURATION = 550
 const router = useRouter()
 const tripsStore = useTripsStore()
 const isGenerating = ref(false)
+const generationFailed = ref(false)
 const currentStageIndex = ref(0)
 const destinationError = ref('')
 const dateRangeError = ref('')
@@ -184,6 +201,20 @@ const stages = computed(() => [
 
 let stageTimer: number | undefined
 
+// stageTimer is `undefined` exactly when no stage-advance callback is
+// currently pending — set by advanceStage(), cleared here and right before
+// advanceStage()'s terminal tick hands off to finishGeneration() (the async
+// AI call has no timer of its own to track). Used both to cancel a
+// still-pending animation (backToForm, unmount) and, via `!== undefined`, as
+// retryGeneration()'s re-entrancy guard against a double-click spawning two
+// independent stage chains that would each eventually call finishGeneration().
+function clearStageTimer() {
+  if (stageTimer !== undefined) {
+    window.clearTimeout(stageTimer)
+    stageTimer = undefined
+  }
+}
+
 function selectTravelStyle(style: string) {
   form.travelStyle = style
 }
@@ -231,9 +262,28 @@ function generateTrip() {
 
   destinationError.value = ''
   dateRangeError.value = ''
+  generationFailed.value = false
   isGenerating.value = true
   currentStageIndex.value = 0
   advanceStage()
+}
+
+// Re-runs the same stage animation before hitting the AI again, rather than
+// jumping straight back to finishGeneration() — keeps retry visually
+// consistent with a first attempt instead of looking like it skipped ahead.
+// Guarded by stageTimer (see its comment) so a double-click can't start two
+// independent chains that would each eventually call finishGeneration().
+function retryGeneration() {
+  if (stageTimer !== undefined) return
+  generationFailed.value = false
+  currentStageIndex.value = 0
+  advanceStage()
+}
+
+function backToForm() {
+  clearStageTimer()
+  generationFailed.value = false
+  isGenerating.value = false
 }
 
 // The first N-1 stages are purely cosmetic (fixed-duration, just to show
@@ -245,6 +295,12 @@ function generateTrip() {
 function advanceStage() {
   stageTimer = window.setTimeout(() => {
     if (currentStageIndex.value >= stages.value.length - 1) {
+      // No more stage timer pending from here — control passes to
+      // finishGeneration()'s async AI call, which has no timer of its own to
+      // track. Clearing this now (rather than leaving the stale id sitting
+      // in stageTimer) is what lets retryGeneration()'s `!== undefined`
+      // guard correctly allow a later, genuine retry.
+      stageTimer = undefined
       finishGeneration()
       return
     }
@@ -254,22 +310,24 @@ function advanceStage() {
 }
 
 async function finishGeneration() {
-  const trip = await tripsStore.createTrip({
-    destination: form.destination.trim(),
-    startDate: form.startDate,
-    endDate: form.endDate,
-    travelers: Number(form.travelers) || 1,
-    travelStyle: form.travelStyle,
-    avoidPlaces: form.avoidPlaces,
-    preferences: selectedPreferences.value,
-  })
-  currentStageIndex.value = stages.value.length
-  router.push({ name: 'trip-board', params: { tripId: trip.id }, query: { fresh: '1' } })
+  try {
+    const trip = await tripsStore.createTrip({
+      destination: form.destination.trim(),
+      startDate: form.startDate,
+      endDate: form.endDate,
+      travelers: Number(form.travelers) || 1,
+      travelStyle: form.travelStyle,
+      avoidPlaces: form.avoidPlaces,
+      preferences: selectedPreferences.value,
+    })
+    currentStageIndex.value = stages.value.length
+    router.push({ name: 'trip-board', params: { tripId: trip.id }, query: { fresh: '1' } })
+  } catch {
+    generationFailed.value = true
+  }
 }
 
 onBeforeUnmount(() => {
-  if (stageTimer) {
-    window.clearTimeout(stageTimer)
-  }
+  clearStageTimer()
 })
 </script>

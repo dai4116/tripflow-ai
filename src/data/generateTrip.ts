@@ -59,37 +59,101 @@ const TRAVEL_STYLE_PACE: Record<string, TripPace> = {
   冒險: 'packed',
 }
 
-type CategoryTemplate = { name: string; description: string }
+export function paceForTravelStyle(travelStyle: string): TripPace {
+  return TRAVEL_STYLE_PACE[travelStyle] ?? 'balanced'
+}
 
+// How many places make up one day's column, by pace — a relaxed trip leaves
+// more breathing room, a packed one fits more in. Each day is meant to
+// include two food-category slots (lunch + dinner — see lunchSlotIndex/
+// dinnerSlotIndex in the columns loop below), so even the lightest pace
+// still reads as a full day rather than two bare activities. That's only a
+// hard guarantee for the local CATEGORY_TEMPLATES fallback path, though —
+// when an AI suggestion exists for a slot, its own category is trusted as-is
+// (see the columns loop), so the two-meals structure for AI-generated trips
+// depends on the model actually following the matching instruction in
+// api/generate-trip.ts's prompt, not on anything enforced here.
+const PLACES_PER_DAY: Record<TripPace, number> = {
+  relaxed: 3,
+  balanced: 4,
+  packed: 5,
+}
+
+export function placesPerDayForPace(pace: TripPace): number {
+  return PLACES_PER_DAY[pace]
+}
+
+// nightOnly marks food templates whose own description ties them to evening/
+// after-dark (a night market, a late-night bar-restaurant) — excluded when
+// picking a local-fallback place for a lunch slot specifically, so the
+// picker can't hand back a place whose blurb contradicts the midday arrival
+// time next to it. Meaningless outside the food array; harmless elsewhere.
+type CategoryTemplate = { name: string; description: string; nightOnly?: boolean }
+
+// One category (food) is drawn from twice per day, every day, regardless of
+// pace (see the lunch/dinner slots in generateTrip's columns loop below) —
+// sized with more entries than the others so a multi-day trip doesn't repeat
+// the same canned name for both meals, or across consecutive days, as often.
 const CATEGORY_TEMPLATES: Partial<Record<PlaceCategory, (city: string) => CategoryTemplate[]>> = {
   culture: (city) => [
     { name: `${city}舊城區散步`, description: `漫遊${city}的歷史街道與地標建築。` },
     { name: `${city}歷史博物館`, description: `深入了解${city}的故事與文化。` },
     { name: `${city}地標大教堂`, description: `${city}最多人拍照打卡的建築地標之一。` },
+    { name: `${city}老城牆遺跡`, description: `走一段見證${city}歷史的城牆步道。` },
+    { name: `${city}藝術美術館`, description: '欣賞當代與經典藝術作品的好去處。' },
+    { name: `${city}傳統工藝街`, description: `體驗${city}代代相傳的手工技藝。` },
+    { name: `${city}古蹟廟宇`, description: `${city}信仰文化的重要據點。` },
+    { name: `${city}文化園區`, description: '結合展覽與表演的複合式文化空間。' },
   ],
   food: (city) => [
-    { name: `${city}夜市`, description: `${city}入夜後的路邊攤與在地美食。` },
+    { name: `${city}夜市`, description: `${city}入夜後的路邊攤與在地美食。`, nightOnly: true },
     { name: `${city}在地人氣餐廳`, description: '當地人真心推薦、常去吃的店。' },
     { name: `${city}街頭小吃巷弄`, description: '一條街吃遍在地小吃與特色風味。' },
+    { name: `${city}傳統市場美食`, description: '在市場裡尋寶般找到道地古早味。' },
+    { name: `${city}排隊名店`, description: '在地人跟遊客都願意排隊等的一道好菜。' },
+    { name: `${city}老字號小館`, description: '傳承好幾代的家常好味道。' },
+    { name: `${city}海鮮餐廳`, description: '新鮮直送、澎湃上桌的海味料理。' },
+    { name: `${city}在地小吃攤`, description: '銅板價就能吃到的在地滋味。' },
+    { name: `${city}特色餐酒館`, description: '佐餐美酒與創意料理的悠閒夜晚。', nightOnly: true },
+    { name: `${city}巷弄裡的隱藏美食`, description: '只有在地人才知道的低調好店。' },
   ],
   nature: (city) => [
     { name: `${city}景觀台`, description: `俯瞰${city}全景，日落時分最美。` },
     { name: `${city}植物園`, description: `${city}市中心的靜謐綠洲。` },
     { name: `${city}近郊海岸步道`, description: '城市外圍的新鮮空氣與遼闊海景。' },
+    { name: `${city}城市公園`, description: '城市裡最容易親近的一片綠意。' },
+    { name: `${city}登山步道`, description: `健行順便欣賞${city}的城市天際線。` },
+    { name: `${city}湖畔步道`, description: '沿著湖岸悠閒散步的好去處。' },
+    { name: `${city}日出觀景點`, description: `早起換來${city}最美的第一道光。` },
+    { name: `${city}生態保護區`, description: '近距離認識當地的自然生態。' },
   ],
   shopping: (city) => [
     { name: `${city}中央市場`, description: '在地特產、紀念品與新鮮食材一次逛齊。' },
     { name: `${city}購物商圈`, description: '精品小店與品牌旗艦店林立的主要街道。' },
     { name: `${city}手作市集`, description: '在地職人手作的獨特商品。' },
+    { name: `${city}百貨商場`, description: '一站買齊各種品牌與伴手禮。' },
+    { name: `${city}文青選品店`, description: '挑選有故事的獨立設計小物。' },
+    { name: `${city}二手古著市集`, description: '尋寶挖到獨一無二的老件。' },
+    { name: `${city}地下街商場`, description: '遮風避雨也能逛一整天。' },
+    { name: `${city}紀念品專賣店`, description: `把${city}的回憶帶回家。` },
   ],
   cafe: (city) => [
     { name: `${city}溫馨咖啡廳`, description: '行程中場休息、放鬆充電的好地方。' },
     { name: `${city}精品咖啡館`, description: '值得繞路造訪的在地烘焙咖啡。' },
+    { name: `${city}老宅咖啡廳`, description: '在有故事的老建築裡喝一杯咖啡。' },
+    { name: `${city}景觀咖啡廳`, description: `邊喝咖啡邊欣賞${city}的城市風景。` },
+    { name: `${city}甜點咖啡館`, description: '手作甜點配咖啡的療癒午後。' },
+    { name: `${city}書香咖啡廳`, description: '在書堆與咖啡香裡放慢腳步。' },
   ],
   activity: (city) => [
     { name: `${city}屋頂酒吧`, description: '邊喝一杯邊欣賞城市天際線。' },
     { name: `${city}夜間遊船`, description: '在日落時分從水上欣賞城市風景。' },
     { name: `${city}現場音樂展演空間`, description: '在地樂手演出與熱鬧的深夜氛圍。' },
+    { name: `${city}夜景觀景台`, description: `俯瞰${city}華燈初上的璀璨夜色。` },
+    { name: `${city}體驗工作坊`, description: `親手做一份屬於${city}的紀念品。` },
+    { name: `${city}主題樂園`, description: '全家大小都能玩得盡興。' },
+    { name: `${city}在地文化體驗`, description: `換上傳統服飾感受${city}的日常。` },
+    { name: `${city}深夜酒吧`, description: `${city}夜生活的道地去處。` },
   ],
 }
 
@@ -151,8 +215,8 @@ function daysBetween(startDate: string, endDate: string): number {
   return Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
 }
 
-// Exported so callers can size an AI place request (days * 2) before the
-// deterministic trip scaffolding runs, without duplicating the clamp logic.
+// Exported so callers can size an AI place request (days * placesPerDayForPace(pace))
+// before the deterministic trip scaffolding runs, without duplicating the clamp logic.
 // Takes just the date fields (not the full CreateTripInput) so the create-trip
 // form can also use it to preview the day count before submitting.
 export function computeTripDays(input: Pick<CreateTripInput, 'startDate' | 'endDate'>): number {
@@ -192,13 +256,25 @@ function resolveCategories(input: CreateTripInput): PlaceCategory[] {
 // lat/lng) stays local rather than trusting the model for facts it can't
 // actually know. Falls back to the local CATEGORY_TEMPLATES picker per-slot
 // whenever aiPlaces is absent or runs short.
+//
+// placesPerDay accepts an override so the one real caller (trips.ts's
+// createTrip, which already computes it to size the AI request) can pass
+// the exact value it used instead of this function re-deriving an identical
+// number a moment later from the same input — two calls to the same pure
+// function currently agree, but only by coincidence of both reading
+// input.travelStyle the same way; passing it through removes that
+// coincidence as a requirement. Left optional (falling back to the same
+// computation) so this function stays usable standalone, e.g. in tests.
 export function generateTrip(
   input: CreateTripInput,
   existingTripIds: string[],
   aiPlaces?: PlaceSuggestion[],
+  placesPerDay?: number,
 ): { trip: Trip; places: Place[] } {
   const city = cityFromDestination(input.destination)
   const days = computeTripDays(input)
+  const pace = paceForTravelStyle(input.travelStyle)
+  const resolvedPlacesPerDay = placesPerDay ?? placesPerDayForPace(pace)
   const tripId = `${slugify(input.destination)}-${nanoid(6)}`
   const palette = TRIP_PALETTE[existingTripIds.length % TRIP_PALETTE.length]
   const categories = resolveCategories(input)
@@ -206,14 +282,21 @@ export function generateTrip(
   const places: Place[] = []
   const usedNames = new Set<string>()
 
-  function addPlace(category: PlaceCategory, columnId: string, suggestion?: PlaceSuggestion): Place {
+  function addPlace(category: PlaceCategory, columnId: string, suggestion?: PlaceSuggestion, mealHint?: 'lunch' | 'dinner'): Place {
     let template: CategoryTemplate
     if (suggestion) {
       template = suggestion
     } else {
       const templates = CATEGORY_TEMPLATES[category] ?? CATEGORY_TEMPLATES.culture!
-      const options = templates(city)
-      template = options.find((option) => !usedNames.has(option.name)) ?? options[places.length % options.length]
+      const allOptions = templates(city)
+      // For a lunch slot specifically, skip nightOnly entries (a night
+      // market etc.) so the local fallback can't hand back a place whose own
+      // description contradicts a midday arrival time — dinner has no such
+      // restriction. Falls back to the unfiltered list if that leaves
+      // nothing (e.g. a category with no nightOnly-tagged entries at all).
+      const options = mealHint === 'lunch' ? allOptions.filter((option) => !option.nightOnly) : allOptions
+      const pool = options.length > 0 ? options : allOptions
+      template = pool.find((option) => !usedNames.has(option.name)) ?? pool[places.length % pool.length]
     }
     usedNames.add(template.name)
 
@@ -241,14 +324,24 @@ export function generateTrip(
     return place
   }
 
+  // Lunch and dinner anchor each day: lunch sits roughly mid-day, dinner is
+  // always the last slot, with other categories filling the rest — same
+  // math for every pace (3/4/5 per day), e.g. 4 gives [activity, lunch,
+  // activity, dinner]. Only applies when there's no AI suggestion for that
+  // slot already carrying its own category (the AI prompt asks for the same
+  // lunch/dinner structure itself).
+  const lunchSlotIndex = Math.floor((resolvedPlacesPerDay - 1) / 2)
+  const dinnerSlotIndex = resolvedPlacesPerDay - 1
+
   const columns: TripColumn[] = Array.from({ length: days }, (_, index) => {
     const dayNumber = index + 1
     const columnId = `day-${dayNumber}`
-    const placeIds = [0, 1].map((i) => {
-      const flatIndex = index * 2 + i
+    const placeIds = Array.from({ length: resolvedPlacesPerDay }, (_, i) => {
+      const flatIndex = index * resolvedPlacesPerDay + i
       const suggestion = aiPlaces?.[flatIndex]
-      const category = suggestion?.category ?? categories[flatIndex % categories.length]
-      return addPlace(category, columnId, suggestion).id
+      const mealHint = i === lunchSlotIndex ? 'lunch' : i === dinnerSlotIndex ? 'dinner' : undefined
+      const category = suggestion?.category ?? (mealHint ? 'food' : categories[flatIndex % categories.length])
+      return addPlace(category, columnId, suggestion, mealHint).id
     })
 
     return { id: columnId, title: `第${dayNumber}天`, dayNumber, placeIds }
@@ -266,7 +359,7 @@ export function generateTrip(
     dateRange: formatDateRange(input.startDate, input.endDate),
     startDate: input.startDate,
     preferences: input.preferences,
-    pace: TRAVEL_STYLE_PACE[input.travelStyle] ?? 'balanced',
+    pace,
     columns,
   }
 

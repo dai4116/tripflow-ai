@@ -1928,6 +1928,25 @@ h3 {
   color: $color-surface;
 }
 
+// Static (no pulse/sparkle) — those animations read as "still working",
+// which is exactly wrong once generation has actually failed.
+.generating__badge--error {
+  background: $color-danger-soft;
+  color: $color-danger;
+  animation: none;
+}
+
+.generating__badge--error .app-icon {
+  animation: none;
+}
+
+.generating__actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 22px;
+}
+
 // ---------------------------------------------------------------------------
 // Trip board
 // ---------------------------------------------------------------------------
