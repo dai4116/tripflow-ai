@@ -3,8 +3,8 @@ import { nanoid } from 'nanoid'
 import { defineStore } from 'pinia'
 import { fetchAiPlaces } from '../data/aiTripClient'
 import { explorePlacesForTemplate, exploreTemplates } from '../data/exploreTrips'
-import { cityFromDestination, computeTripDays, generateTrip, PLACE_GRADIENTS } from '../data/generateTrip'
-import { geocodePlace } from '../data/geocode'
+import { cityFromDestination, computeTripDays, generateTrip, PLACE_GRADIENTS, regionFromDestination } from '../data/generateTrip'
+import { geocodePlace, geocodeRawQuery } from '../data/geocode'
 import { places as seedPlaces } from '../data/mockPlaces'
 import { trips as seedTrips } from '../data/mockTrips'
 import { fetchTravelTime } from '../data/routing'
@@ -21,6 +21,7 @@ export type NewPlaceInput = {
   category: PlaceCategory
   description: string
   travelTip?: string
+  geocodeQuery?: string
 }
 
 export const useTripsStore = defineStore('trips', () => {
@@ -48,8 +49,18 @@ export const useTripsStore = defineStore('trips', () => {
   // several seconds. The map just picks up each pin as it resolves.
   function geocodeNewPlaces(newPlaces: Place[], destination: string) {
     const city = cityFromDestination(destination)
+    const region = regionFromDestination(destination)
     for (const newPlace of newPlaces) {
-      geocodePlace(newPlace.name, city).then((point) => {
+      // geocodeQuery (an AI-supplied, self-contained "place, city, country"
+      // string in one consistent language) is looked up as-is — appending
+      // the separately-derived Chinese city/region to it would mix scripts
+      // and break the match (see geocodeRawQuery's comment in geocode.ts).
+      // Only the plain Chinese display name falls back to city/region
+      // composition, same language throughout.
+      const lookup = newPlace.geocodeQuery
+        ? geocodeRawQuery(newPlace.geocodeQuery)
+        : geocodePlace(newPlace.name, city, region)
+      lookup.then((point) => {
         if (!point) return
         const target = places.value.find((item) => item.id === newPlace.id)
         if (target) {
@@ -171,6 +182,7 @@ export const useTripsStore = defineStore('trips', () => {
       rating: '4.5',
       description: input.description,
       travelTip: input.travelTip,
+      geocodeQuery: input.geocodeQuery,
       columnId: input.columnId,
       imageGradient: PLACE_GRADIENTS[places.value.length % PLACE_GRADIENTS.length],
     }

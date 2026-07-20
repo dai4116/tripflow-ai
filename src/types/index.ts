@@ -73,6 +73,10 @@ export type Place = {
   rating: string
   description: string
   travelTip?: string
+  // English/local-language name used for the initial geocode lookup instead
+  // of `name` (which is Traditional Chinese by design) — see PlaceSuggestion
+  // in generateTrip.ts. Only set for AI-suggested places.
+  geocodeQuery?: string
   // Manual arrival-time override ('HH:mm'). When unset, the effective
   // arrival time cascades from the place before it — see computeArrivalTimes.
   arrivalTime?: string

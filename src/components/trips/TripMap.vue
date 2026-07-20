@@ -41,7 +41,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
 import { ref } from 'vue'
-import { cityFromDestination, dayColorForIndex } from '../../data/generateTrip'
+import { cityFromDestination, dayColorForIndex, regionFromDestination } from '../../data/generateTrip'
 import { geocodeCity } from '../../data/geocode'
 import type { Place, TripColumn } from '../../types'
 import AppIcon from '../ui/AppIcon.vue'
@@ -277,7 +277,7 @@ onMounted(async () => {
   // lookups, so it can resolve well after real pins have already arrived and
   // been fitted (see the geocodedCount watch below) — re-check markers.size
   // here so a slow city lookup can't stomp an already-correct fit.
-  const center = await geocodeCity(cityFromDestination(props.destination))
+  const center = await geocodeCity(cityFromDestination(props.destination), regionFromDestination(props.destination))
   if (center && map && markers.size === 0) map.setView([center.lat, center.lng], 12)
 })
 

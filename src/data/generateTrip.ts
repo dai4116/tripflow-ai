@@ -93,7 +93,18 @@ const CATEGORY_TEMPLATES: Partial<Record<PlaceCategory, (city: string) => Catego
   ],
 }
 
-export type PlaceSuggestion = { category: PlaceCategory; name: string; description: string; travelTip?: string }
+export type PlaceSuggestion = {
+  category: PlaceCategory
+  name: string
+  description: string
+  travelTip?: string
+  // English/local-language search string for the geocoder — the display
+  // `name` is Traditional Chinese by design (see the AI prompts), which
+  // OpenStreetMap/Nominatim usually can't match for places outside
+  // Chinese-speaking regions. Absent for locally-templated suggestions,
+  // which fall back to geocoding by `name`.
+  geocodeQuery?: string
+}
 
 // Same curated templates AI generation draws from — reused so manually added
 // places read consistently with generated ones instead of needing a second
@@ -108,6 +119,15 @@ export function suggestedPlacesForCity(city: string): PlaceSuggestion[] {
 // before the comma is what geocoding and city-flavored copy actually want.
 export function cityFromDestination(destination: string): string {
   return destination.split(/[,，]/)[0].trim() || destination
+}
+
+// The part after the first comma (e.g. "日本" from "京都，日本") — dropped by
+// cityFromDestination, but useful as extra geocoding context so a place
+// query isn't just matched against a bare city name with no country to
+// disambiguate same-named places elsewhere in the world.
+export function regionFromDestination(destination: string): string {
+  const [, ...rest] = destination.split(/[,，]/)
+  return rest.join(',').trim()
 }
 
 function slugify(text: string): string {
@@ -207,6 +227,7 @@ export function generateTrip(
       rating: ['4.5', '4.6', '4.7', '4.8'][places.length % 4],
       description: template.description,
       travelTip: suggestion?.travelTip,
+      geocodeQuery: suggestion?.geocodeQuery,
       columnId,
       imageGradient: PLACE_GRADIENTS[places.length % PLACE_GRADIENTS.length],
     }
