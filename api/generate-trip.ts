@@ -72,6 +72,28 @@ const PLACE_SCHEMA = {
   additionalProperties: false,
 }
 
+// Runs `fn` over `items` with at most `limit` in flight at once. Verification
+// fires one Google call per candidate (up to ~90 for a long trip); handing
+// all of them to Promise.all at once means the serverless sandbox's limited
+// CPU has to service dozens of simultaneous TLS handshakes, which queues
+// rather than truly parallelizes — the per-call 8s timeout in placesVerify.ts
+// then can't bound the *total* time, since it only caps one call, not the
+// queueing delay before it starts. A small worker pool keeps genuine
+// parallelism (still much faster than sequential) without that pileup.
+async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length)
+  let nextIndex = 0
+  async function worker() {
+    for (;;) {
+      const i = nextIndex++
+      if (i >= items.length) return
+      results[i] = await fn(items[i]!)
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => worker()))
+  return results
+}
+
 type GenerateTripBody = {
   destination?: string
   travelStyle?: string
@@ -83,6 +105,7 @@ type GenerateTripBody = {
 }
 
 export default async function handler(req: VercelLikeRequest, res: VercelLikeResponse) {
+  const handlerStart = Date.now()
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' })
     return
@@ -189,6 +212,7 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
       { signal: controller.signal },
     )
     const response = await stream.finalMessage()
+    console.log(`[generate-trip] claude generation: ${Date.now() - handlerStart}ms elapsed, requested ${requestCount} candidates`)
 
     const textBlock = response.content.find((block) => block.type === 'text')
     if (!textBlock || textBlock.type !== 'text') {
@@ -210,6 +234,7 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
     // the display name, it's meant to stay in whatever language actually
     // matches how the map provider indexes the place.
     const aiPlaces = parsed.places.map((place) => ({ ...place, name: stripBilingualName(place.name) }))
+    console.log(`[generate-trip] parsed ${aiPlaces.length} candidates, ${Date.now() - handlerStart}ms elapsed`)
 
     const googleKey = process.env.GOOGLE_PLACES_API_KEY
     if (!googleKey) {
@@ -228,13 +253,18 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
     // coordinates; anything Google can't find (or that lands in the wrong
     // city) resolves to null and is dropped.
     const cityCenter = await geocodeCityCenter(googleKey, destination)
-    const verified = await Promise.all(
-      aiPlaces.map(async (place) => {
-        const queries = [place.geocodeQuery, place.geocodeQueryAlt].filter((q): q is string => Boolean(q?.trim()))
-        if (queries.length === 0) return null
-        const hit = await verifyPlace(googleKey, queries, cityCenter)
-        return hit ? { ...place, lat: hit.lat, lng: hit.lng, placeId: hit.placeId } : null
-      }),
+    console.log(`[generate-trip] geocodeCityCenter: ${Date.now() - handlerStart}ms elapsed, found=${cityCenter !== null}`)
+
+    // Capped, not Promise.all — see mapWithConcurrency's comment above.
+    const VERIFY_CONCURRENCY = 8
+    const verified = await mapWithConcurrency(aiPlaces, VERIFY_CONCURRENCY, async (place) => {
+      const queries = [place.geocodeQuery, place.geocodeQueryAlt].filter((q): q is string => Boolean(q?.trim()))
+      if (queries.length === 0) return null
+      const hit = await verifyPlace(googleKey, queries, cityCenter)
+      return hit ? { ...place, lat: hit.lat, lng: hit.lng, placeId: hit.placeId } : null
+    })
+    console.log(
+      `[generate-trip] verification: ${Date.now() - handlerStart}ms elapsed, ${verified.filter(Boolean).length}/${aiPlaces.length} verified`,
     )
 
     // Group survivors by their `day` tag and cap each day independently at
@@ -261,6 +291,7 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
       res.status(502).json({ error: 'No verifiable places' })
       return
     }
+    console.log(`[generate-trip] done: ${Date.now() - handlerStart}ms elapsed, returning ${places.length} places`)
     res.status(200).json({ places })
   } catch (error) {
     console.error('generate-trip failed', error)
