@@ -144,7 +144,14 @@ import { computeTripDays, toDateInputValue } from '../data/generateTrip'
 import { preferences, travelStyles } from '../data/mockPreferences'
 import { useTripsStore } from '../stores/trips'
 
-const STAGE_DURATION = 550
+// The real generation call now runs concurrently with this cosmetic ticker
+// (see generateTrip/finishGeneration below), not after it — so this is how
+// long the fake progression takes to cross all stages, not a delay before
+// the real work starts. Sized to roughly span the real wait (batched Claude
+// calls + Google verification typically land in the 40-60s range) so the
+// user sees stages actively advancing through most of it, instead of 1.65s
+// of motion followed by a long freeze on the last stage.
+const STAGE_DURATION = 12000
 
 const router = useRouter()
 const tripsStore = useTripsStore()
@@ -201,13 +208,20 @@ const stages = computed(() => [
 
 let stageTimer: number | undefined
 
+// True for the lifetime of the real tripsStore.createTrip() call — separate
+// from stageTimer because the cosmetic ticker and the real request now run
+// concurrently and finish independently. This is what guards retryGeneration
+// against a double-click firing two real requests at once; stageTimer alone
+// can't do that anymore, since it legitimately goes undefined once the
+// animation reaches its last stage while the real request may still be
+// in flight.
+let requestInFlight = false
+
 // stageTimer is `undefined` exactly when no stage-advance callback is
-// currently pending — set by advanceStage(), cleared here and right before
-// advanceStage()'s terminal tick hands off to finishGeneration() (the async
-// AI call has no timer of its own to track). Used both to cancel a
-// still-pending animation (backToForm, unmount) and, via `!== undefined`, as
-// retryGeneration()'s re-entrancy guard against a double-click spawning two
-// independent stage chains that would each eventually call finishGeneration().
+// currently pending — set by advanceStage(), cleared here and once the
+// animation reaches its last stage (see advanceStage()). Used only to cancel
+// a still-pending animation (backToForm, unmount); re-entrancy is
+// requestInFlight's job now (see above).
 function clearStageTimer() {
   if (stageTimer !== undefined) {
     window.clearTimeout(stageTimer)
@@ -266,18 +280,19 @@ function generateTrip() {
   isGenerating.value = true
   currentStageIndex.value = 0
   advanceStage()
+  finishGeneration()
 }
 
 // Re-runs the same stage animation before hitting the AI again, rather than
-// jumping straight back to finishGeneration() — keeps retry visually
-// consistent with a first attempt instead of looking like it skipped ahead.
-// Guarded by stageTimer (see its comment) so a double-click can't start two
-// independent chains that would each eventually call finishGeneration().
+// jumping straight to a bare network call — keeps retry visually consistent
+// with a first attempt. Guarded by requestInFlight (not stageTimer — see its
+// comment) so a double-click can't fire two real requests at once.
 function retryGeneration() {
-  if (stageTimer !== undefined) return
+  if (requestInFlight) return
   generationFailed.value = false
   currentStageIndex.value = 0
   advanceStage()
+  finishGeneration()
 }
 
 function backToForm() {
@@ -286,22 +301,16 @@ function backToForm() {
   isGenerating.value = false
 }
 
-// The first N-1 stages are purely cosmetic (fixed-duration, just to show
-// motion) — but the *last* stage stays active/spinning past its own timer
-// tick instead of auto-completing, because it's the one stage whose real
-// duration depends on the AI network call. Auto-checking it on a fixed
-// timer would show "done" while finishGeneration() is still awaiting a
-// response, which reads as the UI hanging with no feedback.
+// Purely cosmetic — advances through stages on a fixed timer while the real
+// request (started alongside this, in generateTrip/retryGeneration) runs
+// independently in finishGeneration(). Stops on the last stage rather than
+// looping or resetting; if the real call is still going once it gets there,
+// the last stage's spinner just keeps showing until finishGeneration()
+// resolves (see its own currentStageIndex update).
 function advanceStage() {
   stageTimer = window.setTimeout(() => {
     if (currentStageIndex.value >= stages.value.length - 1) {
-      // No more stage timer pending from here — control passes to
-      // finishGeneration()'s async AI call, which has no timer of its own to
-      // track. Clearing this now (rather than leaving the stale id sitting
-      // in stageTimer) is what lets retryGeneration()'s `!== undefined`
-      // guard correctly allow a later, genuine retry.
       stageTimer = undefined
-      finishGeneration()
       return
     }
     currentStageIndex.value += 1
@@ -310,6 +319,7 @@ function advanceStage() {
 }
 
 async function finishGeneration() {
+  requestInFlight = true
   try {
     const trip = await tripsStore.createTrip({
       destination: form.destination.trim(),
@@ -320,9 +330,16 @@ async function finishGeneration() {
       avoidPlaces: form.avoidPlaces,
       preferences: selectedPreferences.value,
     })
+    requestInFlight = false
+    // The real call can finish before the cosmetic ticker reaches the end
+    // (or after backToForm cleared it) — snap every stage to done rather
+    // than leaving the UI mid-sequence for the instant before navigation.
+    clearStageTimer()
     currentStageIndex.value = stages.value.length
     router.push({ name: 'trip-board', params: { tripId: trip.id }, query: { fresh: '1' } })
   } catch {
+    requestInFlight = false
+    clearStageTimer()
     generationFailed.value = true
   }
 }
