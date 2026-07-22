@@ -19,6 +19,15 @@
 
 const TEXT_SEARCH_URL = 'https://places.googleapis.com/v1/places:searchText'
 
+// Per-request cap. A trip verifies dozens of candidates in parallel (see
+// verifyPlace's caller in api/generate-trip.ts) — with no timeout here, a
+// single slow/hung Google response blocked the whole Promise.all batch until
+// Vercel's own 60s function limit killed the entire request (confirmed live:
+// every call in that batch is wasted, not just the one that was actually
+// stuck). Bounding each call individually means one bad request only costs
+// that one place — it fails, gets caught below, and the rest proceed.
+const REQUEST_TIMEOUT_MS = 8000
+
 // locationBias radius (meters). Google caps this at 50km; 40km comfortably
 // covers a city plus its nearby attractions without being so wide it stops
 // disambiguating between cities.
@@ -62,18 +71,26 @@ async function textSearch(apiKey: string, textQuery: string, bias: GeoPoint | nu
     }
   }
 
-  const response = await fetch(TEXT_SEARCH_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Goog-Api-Key': apiKey,
-      // Field mask is required by the Places API (New). location is what
-      // makes this a Pro-tier call; id/displayName ride along at no extra
-      // tier cost.
-      'X-Goog-FieldMask': 'places.id,places.displayName,places.location',
-    },
-    body: JSON.stringify(body),
-  })
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  let response: Response
+  try {
+    response = await fetch(TEXT_SEARCH_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey,
+        // Field mask is required by the Places API (New). location is what
+        // makes this a Pro-tier call; id/displayName ride along at no extra
+        // tier cost.
+        'X-Goog-FieldMask': 'places.id,places.displayName,places.location',
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    })
+  } finally {
+    clearTimeout(timer)
+  }
   if (!response.ok) throw new Error(`Places search failed: ${response.status}`)
 
   const data = (await response.json()) as TextSearchResponse
