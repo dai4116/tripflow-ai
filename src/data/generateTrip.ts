@@ -155,6 +155,15 @@ export type PlaceSuggestion = {
   lat?: number
   lng?: number
   placeId?: string
+  // Which trip day (1-indexed) this suggestion belongs to, set by the AI and
+  // preserved through server-side verification (see api/generate-trip.ts).
+  // generateTrip() groups by this field rather than by array position —
+  // position-based day-chunking broke once verification could drop an
+  // arbitrary subset of candidates: a shortfall early in the flat array
+  // shifted every later position, and once the array ran out, every
+  // remaining day silently came up empty. Absent for locally-templated
+  // suggestions (AddPlaceModal), which don't belong to a generated trip.
+  day?: number
 }
 
 // Same curated templates AI generation draws from — reused so manually added
@@ -309,13 +318,28 @@ export function generateTrip(
   const lunchSlotIndex = Math.floor((resolvedPlacesPerDay - 1) / 2)
   const dinnerSlotIndex = resolvedPlacesPerDay - 1
 
+  // Group by the suggestion's own `day` tag rather than flat array position.
+  // Position-based slicing broke once server-side verification could drop an
+  // arbitrary subset of candidates: a shortfall on an early day shifted every
+  // later position, and once the array ran dry every remaining day came up
+  // silently empty (confirmed live — a 7-day trip lost days 4-7 this way).
+  // Grouping by `day` scopes each day's shortfall to itself. Suggestions
+  // with no `day` (or one outside 1..days) are dropped rather than guessed.
+  const suggestionsByDay = new Map<number, PlaceSuggestion[]>()
+  for (const suggestion of aiPlaces ?? []) {
+    if (typeof suggestion.day !== 'number' || suggestion.day < 1 || suggestion.day > days) continue
+    const list = suggestionsByDay.get(suggestion.day) ?? []
+    list.push(suggestion)
+    suggestionsByDay.set(suggestion.day, list)
+  }
+
   const columns: TripColumn[] = Array.from({ length: days }, (_, index) => {
     const dayNumber = index + 1
     const columnId = `day-${dayNumber}`
+    const dayPlaces = suggestionsByDay.get(dayNumber) ?? []
     const placeIds: string[] = []
     for (let i = 0; i < resolvedPlacesPerDay; i++) {
-      const flatIndex = index * resolvedPlacesPerDay + i
-      const suggestion = aiPlaces?.[flatIndex]
+      const suggestion = dayPlaces[i]
       // Days are built ONLY from real (AI + server-verified) suggestions now.
       // A slot with no suggestion is left empty rather than backfilled from a
       // local CATEGORY_TEMPLATES place — since createTrip verifies every place

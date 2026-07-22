@@ -49,6 +49,13 @@ const PLACE_SCHEMA = {
       items: {
         type: 'object',
         properties: {
+          // Which day (1-indexed) this candidate belongs to — the source of
+          // truth for day grouping now, not array position. Verification
+          // drops arbitrary candidates, so grouping by an explicit tag (and
+          // capping per day server-side) keeps one day's losses from
+          // cascading into every later day, unlike slicing a flat array by
+          // position once it's shorter than expected.
+          day: { type: 'integer' },
           category: { type: 'string', enum: PLACE_CATEGORIES },
           name: { type: 'string' },
           geocodeQuery: { type: 'string' },
@@ -56,7 +63,7 @@ const PLACE_SCHEMA = {
           description: { type: 'string' },
           travelTip: { type: 'string' },
         },
-        required: ['category', 'name', 'geocodeQuery', 'description'],
+        required: ['day', 'category', 'name', 'geocodeQuery', 'description'],
         additionalProperties: false,
       },
     },
@@ -109,20 +116,21 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
     return
   }
 
-  // The client slices the flat `places` array into fixed-size day chunks
-  // (see generateTrip.ts) purely by position, with no day-boundary info of
-  // its own — so the model has to be told the same chunk size and told to
-  // actually respect it, or the day-by-day meal structure below falls apart
-  // as soon as the array gets sliced client-side. Prefer the value the
-  // client already computed and sends explicitly; only re-derive it via
-  // division for an older/different caller that doesn't send it.
+  // The client groups places by their `day` tag now, not by array position
+  // (see generateTrip.ts) — so the model just needs to know the day count and
+  // per-day target, not a chunk size it has to respect positionally.
   const placesPerDay = bodyPlacesPerDay ?? (days && days > 0 ? Math.round(placeCount / days) : placeCount)
+  const totalDays = days ?? Math.ceil(placeCount / placesPerDay)
 
-  // Over-ask: every candidate is verified against Google Places server-side
-  // and any that can't be found on a real map is dropped, so we request a
-  // buffer beyond placeCount to still end up with a full trip after drops.
-  // ~35% extra (min +2), capped at the schema/validation ceiling.
-  const requestCount = Math.min(200, placeCount + Math.max(2, Math.ceil(placeCount * 0.35)))
+  // Over-ask PER DAY (not once globally): every candidate is verified against
+  // Google Places server-side and anything unfindable is dropped, then each
+  // day is capped independently at placesPerDay survivors (see the grouping
+  // below). A single global buffer let one day's losses consume every later
+  // day's budget once the flat array ran short — confirmed live: a 7-day
+  // trip lost all of days 4-7 that way. A per-day buffer keeps a bad day's
+  // attrition from ever touching another day's candidates.
+  const PER_DAY_BUFFER = 2
+  const requestCount = Math.min(200, totalDays * (placesPerDay + PER_DAY_BUFFER))
 
   const prompt = [
     `目的地：${destination}`,
@@ -130,9 +138,10 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
     preferences?.length ? `興趣偏好：${preferences.join('、')}` : '',
     avoidPlaces ? `想避開：${avoidPlaces}` : '',
     '',
-    `請推薦 ${requestCount} 個適合這趟旅程的景點，依「造訪順序」排列（大約每 ${placesPerDay} 個地點構成一天的行程，共約 ${days || Math.ceil(placeCount / placesPerDay)} 天）。`,
-    `每一天份的 ${placesPerDay} 個地點裡，盡量包含一個適合當「午餐」的美食類地點（分類 food）、一個適合當「晚餐」的美食類地點（分類 food），其餘搭配文化、自然、購物、活動等不同類型。`,
-    `重要：我們會把你推薦的每個地點拿去真實地圖（Google 地圖）逐一驗證，只保留「確實查得到、能定位」的前 ${placeCount} 個，其餘丟棄。所以請「只」推薦你有把握真實存在、地圖上找得到的『具體、明確』地點——寧可少推薦，也不要放模糊的類別式名稱（例如「清水在地小吃」「中信市場美食」這種不是特定店家/地標的名稱）或你不確定是否存在的名稱。多給的 ${requestCount - placeCount} 個是預留，用來替補驗證失敗被丟掉的，所以越前面的越要有把握。`,
+    `請規劃 ${totalDays} 天的行程，總共推薦約 ${requestCount} 個景點候選。每個景點都要用 day 欄位標明屬於第幾天（1 到 ${totalDays} 的整數）。`,
+    `每一天請提供最多 ${placesPerDay + PER_DAY_BUFFER} 個候選景點——比當天實際需要的 ${placesPerDay} 個多 ${PER_DAY_BUFFER} 個，多出來的是備援（見下方說明）。同一天的候選請依你的信心排序，越有把握、越具體明確的排越前面。`,
+    `每一天的候選景點裡，盡量包含一個適合當「午餐」的美食類地點（分類 food）、一個適合當「晚餐」的美食類地點（分類 food），其餘搭配文化、自然、購物、活動等不同類型。`,
+    `重要：我們會把每個候選拿去真實地圖（Google 地圖）逐一驗證，每一天只會保留「確實查得到、能定位」的前 ${placesPerDay} 個（依你排的信心順序），查不到的直接丟棄。同一天的備援只會遞補同一天被丟棄的名額，不會被其他天借用——所以每一天請務必自己給滿 ${placesPerDay + PER_DAY_BUFFER} 個，不要因為某天景點少就少給。另外請「只」推薦你有把握真實存在、地圖上找得到的『具體、明確』地點——寧可某天候選數不足，也不要放模糊的類別式名稱（例如「清水在地小吃」「中信市場美食」這種不是特定店家/地標的名稱）或你不確定是否存在的名稱。`,
     '每個景點包含分類、名稱、一句簡短描述（繁體中文），以及可選的一句實用小提示（travelTip）。',
     '名稱優先使用繁體中文慣用名稱，不要同時附上英文原文或重複的括號翻譯（例如寫「洽圖洽週末市場」，不要寫「Chatuchak Weekend Market（洽圖洽週末市場）」）。若沒有通行的繁體中文名稱，或外文是官方品牌名稱，請保留官方名稱；分店、分校、校區等必要辨識資訊可用繁體中文括號註明（例如「Wall Street English（信義分校）」）。',
     '另外提供 geocodeQuery 欄位：這是給地圖服務（OpenStreetMap）查詢定位用的完整字串，不會顯示給使用者。格式必須是「地點官方名稱, 城市, 國家」，三段全部使用同一種語言，而且優先使用當地官方語言（地圖資料庫幾乎都是用當地語言登記地點名稱，翻成英文常常查不到、或誤配到完全不相關的地方）；只有目的地本身是英語系國家，或這個地點是國際連鎖品牌、慣用英文名稱時，才用英文。絕對不要中文和其他語言混用在同一個 geocodeQuery 裡。例如目的地是義大利佛羅倫斯，應填寫「Galleria degli Uffizi, Firenze, Italia」（義大利文），不要翻成「Uffizi Gallery, Florence, Italy」；目的地是韓國釜山，應填寫「부산시립미술관, 부산, 대한민국」（韓文），不要翻成「Busan Museum of Art, Busan, South Korea」。只有目的地本身是華語地區時，才整段使用中文（例如「九份老街, 新北市, 台灣」）。',
@@ -188,6 +197,7 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
     }
 
     type AiPlace = {
+      day: number
       category: string
       name: string
       geocodeQuery?: string
@@ -204,10 +214,11 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
     const googleKey = process.env.GOOGLE_PLACES_API_KEY
     if (!googleKey) {
       // No Places key configured yet — fall back to the pre-verification
-      // behavior: hand back placeCount AI names without coordinates and let
-      // the client geocode them via Nominatim as before. Keeps the app
-      // working in the interim; verification switches on automatically once
-      // the key is set, with no other change needed.
+      // behavior: hand back the AI's picks (still day-tagged; the client
+      // groups by day regardless of source) without coordinates, and let the
+      // client geocode them via Nominatim as before. Keeps the app working in
+      // the interim; verification switches on automatically once the key is
+      // set, with no other change needed.
       res.status(200).json({ places: aiPlaces.slice(0, placeCount) })
       return
     }
@@ -215,8 +226,7 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
     // Verify every candidate against Google Places, region-locked to the
     // destination, in parallel. Each survivor carries its authoritative
     // coordinates; anything Google can't find (or that lands in the wrong
-    // city) resolves to null and is dropped. Keep the first placeCount that
-    // survive — the AI was told to order its most-confident picks first.
+    // city) resolves to null and is dropped.
     const cityCenter = await geocodeCityCenter(googleKey, destination)
     const verified = await Promise.all(
       aiPlaces.map(async (place) => {
@@ -226,7 +236,24 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
         return hit ? { ...place, lat: hit.lat, lng: hit.lng, placeId: hit.placeId } : null
       }),
     )
-    const places = verified.filter((p): p is NonNullable<typeof p> => p !== null).slice(0, placeCount)
+
+    // Group survivors by their `day` tag and cap each day independently at
+    // placesPerDay, in the AI's own confidence order for that day — a bad day
+    // can only lose its own places, never anyone else's (see the prompt
+    // comment above for why this replaced flat-array slicing). An out-of-
+    // range/non-integer day tag is dropped rather than guessed at.
+    const byDay = new Map<number, NonNullable<(typeof verified)[number]>[]>()
+    for (let i = 0; i < aiPlaces.length; i++) {
+      const hit = verified[i]
+      if (!hit) continue
+      const day = aiPlaces[i]!.day
+      if (!Number.isInteger(day) || day < 1 || day > totalDays) continue
+      const dayList = byDay.get(day) ?? []
+      if (dayList.length >= placesPerDay) continue
+      dayList.push(hit)
+      byDay.set(day, dayList)
+    }
+    const places = Array.from({ length: totalDays }, (_, i) => byDay.get(i + 1) ?? []).flat()
 
     if (places.length === 0) {
       // Nothing verified — surface as a failure rather than an empty trip,
