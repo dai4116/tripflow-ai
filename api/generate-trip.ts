@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { stripBilingualName } from './_lib/placeName.js'
+import { geocodeCityCenter, verifyPlace } from './_lib/placesVerify.js'
 
 // Vercel's default Node function duration (10s) is too tight for a cold
 // start + first-use structured-output schema compilation + generation time
@@ -117,14 +118,21 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
   // division for an older/different caller that doesn't send it.
   const placesPerDay = bodyPlacesPerDay ?? (days && days > 0 ? Math.round(placeCount / days) : placeCount)
 
+  // Over-ask: every candidate is verified against Google Places server-side
+  // and any that can't be found on a real map is dropped, so we request a
+  // buffer beyond placeCount to still end up with a full trip after drops.
+  // ~35% extra (min +2), capped at the schema/validation ceiling.
+  const requestCount = Math.min(200, placeCount + Math.max(2, Math.ceil(placeCount * 0.35)))
+
   const prompt = [
     `目的地：${destination}`,
     `旅遊風格：${travelStyle || '文化'}`,
     preferences?.length ? `興趣偏好：${preferences.join('、')}` : '',
     avoidPlaces ? `想避開：${avoidPlaces}` : '',
     '',
-    `請推薦恰好 ${placeCount} 個適合這趟旅程的景點。這些景點會依「陣列順序」被平均切成每 ${placesPerDay} 個一組、依序對應到第 1 天到第 ${days || Math.ceil(placeCount / placesPerDay)} 天，所以陣列裡第 1~${placesPerDay} 個請視為第 1 天的行程、第 ${placesPerDay + 1}~${placesPerDay * 2} 個是第 2 天，以此類推。`,
-    `每一天對應到的這 ${placesPerDay} 個景點裡，務必包含一個適合當「午餐」的美食類地點（分類 food，安排在當天中段）、一個適合當「晚餐」的美食類地點（分類 food，安排在當天最後一個），其餘景點依旅遊風格與興趣偏好搭配文化、自然、購物、活動等不同類型，並依合理的一天行程順序排列（例如先安排上午的景點，接著午餐，下午再安排其他景點，最後才是晚餐）。`,
+    `請推薦 ${requestCount} 個適合這趟旅程的景點，依「造訪順序」排列（大約每 ${placesPerDay} 個地點構成一天的行程，共約 ${days || Math.ceil(placeCount / placesPerDay)} 天）。`,
+    `每一天份的 ${placesPerDay} 個地點裡，盡量包含一個適合當「午餐」的美食類地點（分類 food）、一個適合當「晚餐」的美食類地點（分類 food），其餘搭配文化、自然、購物、活動等不同類型。`,
+    `重要：我們會把你推薦的每個地點拿去真實地圖（Google 地圖）逐一驗證，只保留「確實查得到、能定位」的前 ${placeCount} 個，其餘丟棄。所以請「只」推薦你有把握真實存在、地圖上找得到的『具體、明確』地點——寧可少推薦，也不要放模糊的類別式名稱（例如「清水在地小吃」「中信市場美食」這種不是特定店家/地標的名稱）或你不確定是否存在的名稱。多給的 ${requestCount - placeCount} 個是預留，用來替補驗證失敗被丟掉的，所以越前面的越要有把握。`,
     '每個景點包含分類、名稱、一句簡短描述（繁體中文），以及可選的一句實用小提示（travelTip）。',
     '名稱優先使用繁體中文慣用名稱，不要同時附上英文原文或重複的括號翻譯（例如寫「洽圖洽週末市場」，不要寫「Chatuchak Weekend Market（洽圖洽週末市場）」）。若沒有通行的繁體中文名稱，或外文是官方品牌名稱，請保留官方名稱；分店、分校、校區等必要辨識資訊可用繁體中文括號註明（例如「Wall Street English（信義分校）」）。',
     '另外提供 geocodeQuery 欄位：這是給地圖服務（OpenStreetMap）查詢定位用的完整字串，不會顯示給使用者。格式必須是「地點官方名稱, 城市, 國家」，三段全部使用同一種語言，而且優先使用當地官方語言（地圖資料庫幾乎都是用當地語言登記地點名稱，翻成英文常常查不到、或誤配到完全不相關的地方）；只有目的地本身是英語系國家，或這個地點是國際連鎖品牌、慣用英文名稱時，才用英文。絕對不要中文和其他語言混用在同一個 geocodeQuery 裡。例如目的地是義大利佛羅倫斯，應填寫「Galleria degli Uffizi, Firenze, Italia」（義大利文），不要翻成「Uffizi Gallery, Florence, Italy」；目的地是韓國釜山，應填寫「부산시립미술관, 부산, 대한민국」（韓文），不要翻成「Busan Museum of Art, Busan, South Korea」。只有目的地本身是華語地區時，才整段使用中文（例如「九份老街, 新北市, 台灣」）。',
@@ -179,11 +187,53 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
       return
     }
 
-    const parsed = JSON.parse(textBlock.text) as { places: { name: string }[] }
-    const places = parsed.places.map((place) => ({ ...place, name: stripBilingualName(place.name) }))
+    type AiPlace = {
+      category: string
+      name: string
+      geocodeQuery?: string
+      geocodeQueryAlt?: string
+      description: string
+      travelTip?: string
+    }
+    const parsed = JSON.parse(textBlock.text) as { places: AiPlace[] }
     // geocodeQuery is passed through as-is (not stripBilingualName'd) — unlike
     // the display name, it's meant to stay in whatever language actually
     // matches how the map provider indexes the place.
+    const aiPlaces = parsed.places.map((place) => ({ ...place, name: stripBilingualName(place.name) }))
+
+    const googleKey = process.env.GOOGLE_PLACES_API_KEY
+    if (!googleKey) {
+      // No Places key configured yet — fall back to the pre-verification
+      // behavior: hand back placeCount AI names without coordinates and let
+      // the client geocode them via Nominatim as before. Keeps the app
+      // working in the interim; verification switches on automatically once
+      // the key is set, with no other change needed.
+      res.status(200).json({ places: aiPlaces.slice(0, placeCount) })
+      return
+    }
+
+    // Verify every candidate against Google Places, region-locked to the
+    // destination, in parallel. Each survivor carries its authoritative
+    // coordinates; anything Google can't find (or that lands in the wrong
+    // city) resolves to null and is dropped. Keep the first placeCount that
+    // survive — the AI was told to order its most-confident picks first.
+    const cityCenter = await geocodeCityCenter(googleKey, destination)
+    const verified = await Promise.all(
+      aiPlaces.map(async (place) => {
+        const queries = [place.geocodeQuery, place.geocodeQueryAlt].filter((q): q is string => Boolean(q?.trim()))
+        if (queries.length === 0) return null
+        const hit = await verifyPlace(googleKey, queries, cityCenter)
+        return hit ? { ...place, lat: hit.lat, lng: hit.lng, placeId: hit.placeId } : null
+      }),
+    )
+    const places = verified.filter((p): p is NonNullable<typeof p> => p !== null).slice(0, placeCount)
+
+    if (places.length === 0) {
+      // Nothing verified — surface as a failure rather than an empty trip,
+      // so createTrip()'s hard-fail path shows the retry prompt.
+      res.status(502).json({ error: 'No verifiable places' })
+      return
+    }
     res.status(200).json({ places })
   } catch (error) {
     console.error('generate-trip failed', error)

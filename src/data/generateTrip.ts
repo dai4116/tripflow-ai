@@ -28,32 +28,6 @@ export function dayColorForIndex(index: number): string {
   return DAY_COLORS[index % DAY_COLORS.length]!
 }
 
-const PREFERENCE_CATEGORY: Record<string, PlaceCategory> = {
-  博物館: 'culture',
-  海灘: 'nature',
-  健行: 'nature',
-  在地美食: 'food',
-  夜生活: 'activity',
-  購物: 'shopping',
-  藝廊: 'culture',
-  建築: 'culture',
-  街頭小吃: 'food',
-  廟宇: 'culture',
-  公園: 'nature',
-  市集: 'shopping',
-  咖啡廳: 'cafe',
-  觀景點: 'nature',
-}
-
-const TRAVEL_STYLE_CATEGORY: Record<string, PlaceCategory> = {
-  冒險: 'activity',
-  放鬆: 'nature',
-  文化: 'culture',
-  美食: 'food',
-  攝影: 'culture',
-  自然: 'nature',
-}
-
 const TRAVEL_STYLE_PACE: Record<string, TripPace> = {
   放鬆: 'relaxed',
   冒險: 'packed',
@@ -173,6 +147,14 @@ export type PlaceSuggestion = {
   // provider actually has on record (e.g. a compound name it assembled
   // itself, vs. the shorter name OSM is indexed under).
   geocodeQueryAlt?: string
+  // Authoritative coordinates + Google Places id, present when the place was
+  // verified server-side against Google Places (see api/_lib/placesVerify.ts).
+  // When set, the place is placed on the map directly with no client-side
+  // geocoding. Absent only on the no-Google-key interim path, where the
+  // client still falls back to Nominatim (see geocodeNewPlaces in trips.ts).
+  lat?: number
+  lng?: number
+  placeId?: string
 }
 
 // Same curated templates AI generation draws from — reused so manually added
@@ -242,20 +224,13 @@ export function formatDateRange(startDate: string, endDate: string): string {
   return `${end.getFullYear()}年${startLabel} - ${endLabel}`
 }
 
-function resolveCategories(input: CreateTripInput): PlaceCategory[] {
-  const mapped = input.preferences
-    .map((preference) => PREFERENCE_CATEGORY[preference])
-    .filter((category): category is PlaceCategory => Boolean(category))
-
-  return mapped.length > 0 ? mapped : [TRAVEL_STYLE_CATEGORY[input.travelStyle] ?? 'culture']
-}
-
-// aiPlaces (when provided by the /api/generate-trip endpoint) supplies the
-// name/category/description/travelTip for each place, in visit order — all
-// other bookkeeping (ids, palette, gradients, estimatedTime/cost, rating,
-// lat/lng) stays local rather than trusting the model for facts it can't
-// actually know. Falls back to the local CATEGORY_TEMPLATES picker per-slot
-// whenever aiPlaces is absent or runs short.
+// aiPlaces (from the /api/generate-trip endpoint) supplies the
+// name/category/description/travelTip for each place, in visit order, and —
+// when verified server-side against Google Places — its coordinates too. All
+// other bookkeeping (ids, palette, gradients, estimatedTime/cost, rating)
+// stays local rather than trusting the model for facts it can't actually
+// know. Days are built purely from aiPlaces; a slot with no suggestion is
+// left empty rather than backfilled (see the columns loop).
 //
 // placesPerDay accepts an override so the one real caller (trips.ts's
 // createTrip, which already computes it to size the AI request) can pass
@@ -277,7 +252,6 @@ export function generateTrip(
   const resolvedPlacesPerDay = placesPerDay ?? placesPerDayForPace(pace)
   const tripId = `${slugify(input.destination)}-${nanoid(6)}`
   const palette = TRIP_PALETTE[existingTripIds.length % TRIP_PALETTE.length]
-  const categories = resolveCategories(input)
 
   const places: Place[] = []
   const usedNames = new Set<string>()
@@ -307,11 +281,13 @@ export function generateTrip(
       category,
       estimatedTime: 1,
       address: input.destination,
-      // Real coordinates aren't looked up yet — the trips store geocodes each
-      // place in the background after creation (see geocodeNewPlaces in
-      // stores/trips.ts) and the map picks up each pin as it resolves.
-      lat: 0,
-      lng: 0,
+      // Coordinates come from the suggestion when it was verified server-side
+      // against Google Places (the normal path — the place is pinned on the
+      // map immediately). They're 0,0 only on the no-Google-key interim path,
+      // where the trips store still geocodes via Nominatim in the background
+      // (see geocodeNewPlaces in stores/trips.ts).
+      lat: suggestion?.lat ?? 0,
+      lng: suggestion?.lng ?? 0,
       rating: ['4.5', '4.6', '4.7', '4.8'][places.length % 4],
       description: template.description,
       travelTip: suggestion?.travelTip,
@@ -336,13 +312,22 @@ export function generateTrip(
   const columns: TripColumn[] = Array.from({ length: days }, (_, index) => {
     const dayNumber = index + 1
     const columnId = `day-${dayNumber}`
-    const placeIds = Array.from({ length: resolvedPlacesPerDay }, (_, i) => {
+    const placeIds: string[] = []
+    for (let i = 0; i < resolvedPlacesPerDay; i++) {
       const flatIndex = index * resolvedPlacesPerDay + i
       const suggestion = aiPlaces?.[flatIndex]
+      // Days are built ONLY from real (AI + server-verified) suggestions now.
+      // A slot with no suggestion is left empty rather than backfilled from a
+      // local CATEGORY_TEMPLATES place — since createTrip verifies every place
+      // against Google Places and drops any it can't find, backfilling would
+      // silently reintroduce a generic/un-pinnable place, exactly what
+      // verification exists to prevent. A short day just has fewer, all-real
+      // places. (addPlace still supports template fallback for any future
+      // caller, but generation no longer uses it.)
+      if (!suggestion) continue
       const mealHint = i === lunchSlotIndex ? 'lunch' : i === dinnerSlotIndex ? 'dinner' : undefined
-      const category = suggestion?.category ?? (mealHint ? 'food' : categories[flatIndex % categories.length])
-      return addPlace(category, columnId, suggestion, mealHint).id
-    })
+      placeIds.push(addPlace(suggestion.category, columnId, suggestion, mealHint).id)
+    }
 
     return { id: columnId, title: `第${dayNumber}天`, dayNumber, placeIds }
   })

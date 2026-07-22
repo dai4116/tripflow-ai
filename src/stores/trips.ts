@@ -91,16 +91,27 @@ export const useTripsStore = defineStore('trips', () => {
     })
   }
 
-  // AI generation deliberately never guesses lat/lng (see generateTrip.ts),
-  // so every new place starts at 0,0 and gets its real coordinates here,
-  // one Nominatim lookup at a time. Fires in the background rather than
-  // blocking trip creation — geocodePlace's own queue is rate-limited to
-  // ~1 req/sec, which would otherwise stall a multi-day itinerary for
-  // several seconds. The map just picks up each pin as it resolves.
+  // Places generated through createTrip are now verified server-side against
+  // Google Places and arrive WITH real coordinates (see api/generate-trip.ts),
+  // so most of the time there's nothing to geocode here. This client-side
+  // Nominatim path is only for places that still start at 0,0: manually added
+  // places (AddPlaceModal), and AI places from the no-Google-key interim path.
+  // It runs in the background — geocodePlace's queue is rate-limited to
+  // ~1 req/sec — and the map picks up each pin as it resolves.
   function geocodeNewPlaces(newPlaces: Place[], destination: string) {
     const city = cityFromDestination(destination)
     const region = regionFromDestination(destination)
+
+    // Already-placed (server-verified) places don't fire a geocode callback,
+    // so their walking-time gaps would never get filled by the per-place
+    // callback below — trigger one fill pass up front for them.
+    if (newPlaces.some((place) => hasCoords(place))) {
+      const tripId = newPlaces[0]?.tripId
+      if (tripId) fillMissingTravelTimes(tripId)
+    }
+
     for (const newPlace of newPlaces) {
+      if (hasCoords(newPlace)) continue // already positioned by Google — skip Nominatim
       resolveNewPlaceCoords(newPlace, city, region).then((point) => {
         if (!point) return
         const target = places.value.find((item) => item.id === newPlace.id)

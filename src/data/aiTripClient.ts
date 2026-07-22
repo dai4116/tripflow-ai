@@ -48,13 +48,14 @@ export async function fetchAiPlaces(
     if (!response.ok) return undefined
 
     const data = (await response.json()) as { places?: unknown }
-    // Anything other than exactly placeCount is treated as a failure, not
-    // just an empty array — generateTrip.ts slices this array into fixed-size
-    // day chunks by position, so a short response wouldn't just mean "fewer
-    // places," it would silently misalign every day after the shortfall and
-    // backfill the rest from local CATEGORY_TEMPLATES, which is exactly the
-    // silent-degrade behavior createTrip()'s hard-fail check exists to catch.
-    if (!Array.isArray(data.places) || data.places.length !== placeCount) return undefined
+    // Only a genuinely empty result is a failure now. A SHORT (non-empty)
+    // array is legitimate: the server verifies every place against Google
+    // Places and drops any it can't find, so fewer places just means fewer
+    // real, pinnable places. It no longer risks a silent fake backfill —
+    // generateTrip.ts stopped filling empty day slots from local templates
+    // (a short trip just has fewer, all-real places). The earlier strict
+    // `=== placeCount` check existed to guard that backfill, which is gone.
+    if (!Array.isArray(data.places) || data.places.length === 0) return undefined
 
     return data.places as PlaceSuggestion[]
   } catch {

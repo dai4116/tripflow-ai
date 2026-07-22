@@ -90,7 +90,7 @@
           <AppIcon name="sparkle" :size="22" />
         </span>
         <h2 class="generating__title">正在為你打造 {{ cityLabel }} 行程</h2>
-        <p class="generating__subtitle">請稍等…</p>
+        <p class="generating__subtitle">請稍候…</p>
 
         <ol class="generating__stages">
           <li
