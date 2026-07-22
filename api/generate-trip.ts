@@ -312,7 +312,15 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
       const queries = [place.geocodeQuery, place.geocodeQueryAlt].filter((q): q is string => Boolean(q?.trim()))
       if (queries.length === 0) return null
       const hit = await verifyPlace(googleKey, queries, cityCenter)
-      return hit ? { ...place, lat: hit.lat, lng: hit.lng, placeId: hit.placeId } : null
+      if (!hit) return null
+      // Show Google's own matched name, not the AI's — a hallucinated or
+      // garbled AI name (confirmed live: "福森號", "COFE 台中州廳") can still
+      // fuzzy-match some real nearby place in Google's text search, which
+      // gets a real pin but was never actually confirmed to be *that* place.
+      // Keeping the AI's label on a Google-verified pin re-opens exactly the
+      // "real coordinates, fictional name" gap verification exists to close.
+      const verifiedName = hit.name.trim() ? stripBilingualName(hit.name) : place.name
+      return { ...place, name: verifiedName, lat: hit.lat, lng: hit.lng, placeId: hit.placeId }
     })
     console.log(
       `[generate-trip] verification: ${Date.now() - handlerStart}ms elapsed, ${verified.filter(Boolean).length}/${aiPlaces.length} verified`,
