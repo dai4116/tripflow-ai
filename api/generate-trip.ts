@@ -255,7 +255,41 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
         const textBlock = response.content.find((block) => block.type === 'text')
         if (!textBlock || textBlock.type !== 'text') return []
         const parsed = JSON.parse(textBlock.text) as { places: AiPlace[] }
-        return parsed.places ?? []
+        const places = parsed.places ?? []
+
+        // The prompt tells this call exactly which days it may use, but
+        // nothing enforced it — a mistagged candidate (e.g. the model
+        // defaulting to day 1 instead of the actual day number) would
+        // silently land in a DIFFERENT day's bucket at merge time, both
+        // stealing that day's slot and leaving this batch's real day looking
+        // empty. Working theory for a live report (7-day trip, day 7 alone
+        // in its own batch, came back with zero pl aces) — not confirmed from
+        // logs yet, but this guard is correct defense-in-depth regardless;
+        // the mismatch counts logged below will confirm it next time if
+        // it's the actual cause.
+        if (dayNumbers.length === 1) {
+          // No ambiguity possible — every candidate belongs to this one day
+          // by construction, so force the tag instead of trusting (and
+          // risking losing) the model's own day field.
+          const mistagged = places.filter((place) => place.day !== dayNumbers[0]).length
+          if (mistagged > 0) {
+            console.error(`[generate-trip] batch for day ${dayNumbers[0]} had ${mistagged} candidate(s) tagged with the wrong day, corrected`)
+          }
+          return places.map((place) => ({ ...place, day: dayNumbers[0]! }))
+        }
+        // A multi-day batch can't be force-corrected the same way (we don't
+        // know which of *this batch's* days a mistagged candidate meant), so
+        // just drop anything tagged outside the set of days this call was
+        // actually asked to produce, rather than let it float into a day
+        // this call knows nothing about.
+        const validDays = new Set(dayNumbers)
+        const onTopic = places.filter((place) => validDays.has(place.day))
+        if (onTopic.length < places.length) {
+          console.error(
+            `[generate-trip] batch for day(s) ${dayNumbers.join(',')} returned ${places.length - onTopic.length} candidate(s) tagged with a day outside this batch`,
+          )
+        }
+        return onTopic
       } catch (error) {
         // One batch failing (rate limit, transient network error) shouldn't
         // sink the whole trip — the other batches' days still come back, and
