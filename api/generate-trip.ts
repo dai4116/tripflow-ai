@@ -332,6 +332,32 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
   try {
     const client = new Anthropic({ apiKey })
 
+    // Used only for the empty-day backfill below — always a single-day
+    // batch, so it gets the guaranteed-correct day tagging the multi-day
+    // batches above can't offer (see the comment on the backfill call site).
+    async function generateSingleDayBatch(day: number): Promise<AiPlace[]> {
+      try {
+        const stream = client.messages.stream(
+          {
+            model: 'claude-sonnet-5',
+            max_tokens: 8000,
+            thinking: { type: 'disabled' },
+            output_config: { format: { type: 'json_schema', schema: PLACE_SCHEMA } },
+            messages: [{ role: 'user', content: buildPrompt([day]) }],
+          },
+          { signal: controller.signal },
+        )
+        const response = await stream.finalMessage()
+        const textBlock = response.content.find((block) => block.type === 'text')
+        if (!textBlock || textBlock.type !== 'text') return []
+        const parsed = JSON.parse(textBlock.text) as { places: AiPlace[] }
+        return (parsed.places ?? []).map((place) => ({ ...place, day }))
+      } catch (error) {
+        console.error(`[generate-trip] backfill batch for day ${day} failed`, error)
+        return []
+      }
+    }
+
     // Stage 1: plan the whole trip's day-by-day zones in one call before any
     // batch starts generating actual places (see buildZonePlanPrompt's
     // comment). Best-effort — if this fails or times out, fall through with
@@ -544,11 +570,16 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
     const MAX_KM_FROM_DAY_ANCHOR = 12
     const dayAnchors = new Map<number, GeoPoint>()
     const byDay = new Map<number, typeof deduped>()
-    for (const hit of deduped) {
+    // Shared by the initial fill below and the empty-day backfill further
+    // down, so a backfilled candidate has to clear the exact same bar
+    // (per-day cap, anchor distance, already-used-elsewhere dedup) a
+    // first-pass candidate would.
+    function tryAcceptHit(hit: (typeof deduped)[number]): boolean {
+      if (seenPlaceIds.has(hit.placeId)) return false
       const day = hit.day
-      if (!Number.isInteger(day) || day < 1 || day > totalDays) continue
+      if (!Number.isInteger(day) || day < 1 || day > totalDays) return false
       const dayList = byDay.get(day) ?? []
-      if (dayList.length >= placesPerDay) continue
+      if (dayList.length >= placesPerDay) return false
 
       const anchor = dayAnchors.get(day)
       const hitPoint: GeoPoint = { lat: hit.lat, lng: hit.lng }
@@ -556,15 +587,65 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
         const km = distanceKm(anchor, hitPoint)
         if (km > MAX_KM_FROM_DAY_ANCHOR) {
           console.error(`[generate-trip] day ${day}: dropped "${hit.name}" — ${km.toFixed(1)}km from the day's anchor`)
-          continue
+          return false
         }
       } else {
         dayAnchors.set(day, hitPoint)
       }
 
+      seenPlaceIds.add(hit.placeId)
       dayList.push(hit)
       byDay.set(day, dayList)
+      return true
     }
+    for (const hit of deduped) tryAcceptHit(hit)
+
+    // A day can come back completely empty even when the trip overall
+    // didn't: every candidate for that day failed verification, collided
+    // with another day's pick, or — confirmed as the live cause behind a
+    // 7-day trip's day 2 coming back empty while day 1 (its batch-mate) was
+    // full — a multi-day batch (see MAX_CANDIDATES_PER_CALL above) skewed
+    // its own day tagging so one day in the pair got everything and the
+    // other got nothing. The per-batch day-tag guard above only force-
+    // corrects single-day batches; for a multi-day batch there's no way to
+    // tell which candidates were "meant" for the empty day. So instead of
+    // guessing, ask again — but as a single-day batch this time, which gets
+    // that guaranteed-correct tagging for free (generateSingleDayBatch
+    // above). Best-effort and bounded: only runs for the day(s) that came
+    // back empty, and only if there's still enough of the 60s function
+    // budget left for one more Claude + verification round trip; a day
+    // that's still empty after this just stays empty rather than retrying
+    // in a loop.
+    const BACKFILL_TIME_RESERVE_MS = 18000
+    const emptyDays = Array.from({ length: totalDays }, (_, i) => i + 1).filter(
+      (day) => (byDay.get(day) ?? []).length === 0,
+    )
+    if (emptyDays.length > 0 && Date.now() - handlerStart < config.maxDuration * 1000 - BACKFILL_TIME_RESERVE_MS) {
+      console.log(`[generate-trip] backfilling empty day(s): ${emptyDays.join(',')}`)
+      const BACKFILL_CONCURRENCY = 4
+      const backfillBatches = await mapWithConcurrency(emptyDays, BACKFILL_CONCURRENCY, (day) =>
+        generateSingleDayBatch(day),
+      )
+      const backfillCandidates = backfillBatches
+        .flat()
+        .map((place) => ({ ...place, name: stripBilingualName(place.name) }))
+      const backfillVerified = await mapWithConcurrency(backfillCandidates, VERIFY_CONCURRENCY, async (place) => {
+        const queries = [place.geocodeQuery, place.geocodeQueryAlt].filter((q): q is string => Boolean(q?.trim()))
+        if (queries.length === 0) return null
+        const hit = await verifyPlace(googleKey, queries, cityCenter)
+        if (!hit) return null
+        const verifiedName = hit.name.trim() ? stripBilingualName(hit.name) : place.name
+        return { ...place, name: verifiedName, lat: hit.lat, lng: hit.lng, placeId: hit.placeId }
+      })
+      let backfilled = 0
+      for (const hit of backfillVerified) {
+        if (hit && tryAcceptHit(hit)) backfilled++
+      }
+      console.log(
+        `[generate-trip] backfill: ${Date.now() - handlerStart}ms elapsed, filled ${backfilled}/${backfillCandidates.length} backfill candidate(s)`,
+      )
+    }
+
     const places = Array.from({ length: totalDays }, (_, i) => byDay.get(i + 1) ?? []).flat()
 
     if (places.length === 0) {
