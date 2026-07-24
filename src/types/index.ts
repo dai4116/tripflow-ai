@@ -70,7 +70,6 @@ export type Place = {
   address: string
   lat: number
   lng: number
-  rating: string
   description: string
   travelTip?: string
   // English/local-language name used for the initial geocode lookup instead

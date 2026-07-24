@@ -2,7 +2,7 @@
   <section class="dashboard-page">
     <PageHeader
       :eyebrow="todayLabel"
-      title="早安，柏翰！👋"
+      :title="greetingTitle"
       :description="greetingDescription"
     />
 
@@ -71,6 +71,13 @@ const todayLabel = computed(() => {
   const weekday = now.toLocaleDateString('zh-TW', { weekday: 'short' })
   const date = now.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric' })
   return `${weekday}・${date}`
+})
+// Matches the daypart the eyebrow's real date already reflects, instead of
+// a greeting that's stuck on "早安" no matter when the page is opened.
+const greetingTitle = computed(() => {
+  const hour = new Date().getHours()
+  const greeting = hour < 12 ? '早安' : hour < 18 ? '午安' : '晚上好'
+  return `${greeting}，柏翰！👋`
 })
 const greetingDescription = computed(() => {
   if (trips.value.length === 0) return '開始規劃你的第一趟旅程吧。'

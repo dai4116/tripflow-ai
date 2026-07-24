@@ -1,4 +1,20 @@
 import type { Trip } from '../types'
+import { formatDateRange, toDateInputValue } from './generateTrip'
+
+// Seed trips need a startDate that's still in the future for the dashboard's
+// "upcoming trip" spotlight (see DashboardPage.vue's daysUntil filter) to
+// have anything to show — anchoring to today instead of a fixed calendar
+// date keeps this demo data from silently going stale as time passes.
+function tripDates(offsetDays: number, days: number): { startDate: string; dateRange: string } {
+  const start = new Date()
+  start.setDate(start.getDate() + offsetDays)
+  const startDate = toDateInputValue(start)
+
+  const end = new Date(start)
+  end.setDate(end.getDate() + (days - 1))
+
+  return { startDate, dateRange: formatDateRange(startDate, toDateInputValue(end)) }
+}
 
 export const trips: Trip[] = [
   {
@@ -10,8 +26,7 @@ export const trips: Trip[] = [
     placeCount: 18,
     color: '#2e9e62',
     imageGradient: 'linear-gradient(135deg, #44223b, #c96c5a 48%, #f3e5cf)',
-    dateRange: '2025年3月15日 - 22日',
-    startDate: '2025-03-15',
+    ...tripDates(49, 8),
     preferences: ['博物館', '在地美食', '建築'],
     pace: 'balanced',
     columns: [
@@ -29,8 +44,7 @@ export const trips: Trip[] = [
     placeCount: 12,
     color: '#8161e6',
     imageGradient: 'linear-gradient(135deg, #4d7bab, #9fc0da 55%, #ecdfca)',
-    dateRange: '2025年5月2日 - 9日',
-    startDate: '2025-05-02',
+    ...tripDates(97, 8),
     preferences: ['海灘', '攝影'],
     pace: 'relaxed',
     columns: [],
@@ -44,8 +58,7 @@ export const trips: Trip[] = [
     placeCount: 9,
     color: '#4a7de0',
     imageGradient: 'linear-gradient(135deg, #2c4a30, #6f9c66 55%, #d8c088)',
-    dateRange: '2025年6月10日 - 18日',
-    startDate: '2025-06-10',
+    ...tripDates(136, 9),
     preferences: ['自然', '咖啡廳'],
     pace: 'relaxed',
     columns: [],
@@ -59,8 +72,7 @@ export const trips: Trip[] = [
     placeCount: 11,
     color: '#c7935b',
     imageGradient: 'linear-gradient(135deg, #7f7f95, #e7c8ba 50%, #f6efe5)',
-    dateRange: '2025年2月8日 - 11日',
-    startDate: '2025-02-08',
+    ...tripDates(14, 4),
     preferences: ['博物館', '咖啡廳'],
     pace: 'packed',
     columns: [],

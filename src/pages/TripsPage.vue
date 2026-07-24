@@ -44,7 +44,7 @@ const { confirmDialog, openConfirm, closeConfirm, acceptConfirm } = useConfirmDi
 function confirmDeleteTrip(trip: TripSummary) {
   openConfirm({
     title: `刪除「${trip.title}」？`,
-    message: '這個行程及裡面所有的地點都會一併刪除，此動作無法復原。',
+    message: '這個行程及裡面所有的地點都會一併刪除，刪除後無法復原喔。',
     confirmLabel: '刪除',
     danger: true,
     onConfirm: () => tripsStore.removeTrip(trip.id),

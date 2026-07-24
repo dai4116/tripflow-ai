@@ -1258,46 +1258,38 @@ h3 {
   display: grid;
   position: relative;
   grid-template-columns: 1fr 150px;
-  grid-template-rows: 36px minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   min-height: 246px;
   overflow: hidden;
   border-radius: $radius-md;
   box-shadow: $shadow-lg;
 }
 
-.product-preview__chrome {
+.product-preview__header {
   grid-column: 1 / -1;
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 0 14px;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 16px;
   border-bottom: 1px solid $color-border-light;
   background: $color-surface;
 }
 
-.product-preview__chrome span {
-  width: 7px;
-  height: 7px;
-  border-radius: $radius-pill;
-  background: $color-danger;
+.product-preview__header strong {
+  display: block;
+  color: $color-ink;
+  font-size: $fs-small;
+  font-weight: 800;
 }
 
-.product-preview__chrome span:nth-child(2) {
-  background: $color-warning;
-}
-
-.product-preview__chrome span:nth-child(3) {
-  background: $color-success;
-}
-
-.product-preview__chrome strong {
-  margin-left: 8px;
-  padding: 5px 50px;
-  border-radius: $radius-pill;
-  background: $color-surface-soft;
+.product-preview__header span {
   color: $color-subtle;
   font-size: $fs-micro;
-  font-weight: 800;
+}
+
+.product-preview__header .app-icon {
+  color: $color-subtle;
 }
 
 .product-preview__board {
@@ -1313,20 +1305,83 @@ h3 {
   align-content: start;
 }
 
-.product-preview__column strong {
+.product-preview__column-head strong {
+  display: block;
   color: $color-muted;
   font-size: $fs-micro;
   text-transform: uppercase;
 }
 
 .product-preview__mini-card {
-  height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
   border-radius: $radius-sm;
-  background: $color-primary-soft;
+  background: $color-surface;
+  box-shadow: $shadow-sm;
 }
 
-.product-preview__mini-card:nth-child(2n) {
-  background: $color-accent-soft;
+.product-preview__mini-card-thumb {
+  position: relative;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: $radius-xs;
+}
+
+// Overlaps the thumbnail's top-left corner, fixed teal — mirrors
+// .place-card__index exactly (a real place's badge isn't colored by day).
+.product-preview__mini-card-index {
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid $color-surface;
+  border-radius: $radius-pill;
+  background: $color-primary;
+  color: $color-surface;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.product-preview__mini-card-body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.product-preview__mini-card-top {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.product-preview__mini-card-time {
+  color: $color-ink;
+  font-size: 9px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.product-preview__mini-card-body strong {
+  overflow: hidden;
+  color: $color-ink;
+  font-size: $fs-micro;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.product-preview__mini-card-body small {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: $color-subtle;
+  font-size: 9px;
 }
 
 .product-preview__map {
@@ -1338,42 +1393,24 @@ h3 {
   background-size: 24px 24px, 24px 24px, cover;
 }
 
-.product-preview__toast {
+.product-preview__map-pin {
   position: absolute;
-  z-index: 1;
-  font-size: $font-size-xs;
-  font-weight: 800;
-}
-
-.product-preview__toast span {
-  color: $color-muted;
-  font-weight: 700;
-}
-
-.product-preview__toast {
-  left: -16px;
-  bottom: -14px;
   display: grid;
-  gap: 2px;
-  padding: 10px 13px;
-  border-radius: $radius-md;
-  box-shadow: $shadow-md;
-}
-
-.map-dot {
-  position: absolute;
+  place-items: center;
   width: 16px;
   height: 16px;
   padding: 0;
   border: 2px solid $color-surface;
   border-radius: $radius-pill;
-  background: $color-primary;
+  color: $color-surface;
+  font-size: 8px;
+  font-weight: 800;
   box-shadow: $shadow-sm;
 }
 
 .section-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 18px;
 }
 
@@ -1414,8 +1451,8 @@ h3 {
 
 .workflow-list {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 54px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 32px;
 }
 
 .workflow-step {
@@ -1440,7 +1477,7 @@ h3 {
 
 .testimonial-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 18px;
 }
 
@@ -2890,24 +2927,6 @@ h3 {
   gap: 12px;
 }
 
-.place-drawer__rating {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: $fs-ui;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-}
-
-.place-drawer__rating .app-icon {
-  color: $color-warning;
-}
-
-.place-drawer__rating span {
-  color: $color-subtle;
-  font-weight: 700;
-}
-
 .place-drawer__description {
   color: $color-muted;
   font-size: $fs-body;
@@ -4308,32 +4327,41 @@ h3 {
   }
 
   .landing-mobile-preview {
+    @include card-shell;
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    gap: 12px;
+    padding: 14px;
     overflow: visible;
   }
 
-  .landing-mobile-trip {
-    @include card-shell;
+  .landing-mobile-preview__header strong {
+    color: $color-ink;
+    font-size: $fs-small;
+    font-weight: 800;
+  }
+
+  .landing-mobile-preview__tabs {
+    display: flex;
+    gap: 6px;
+  }
+
+  .landing-mobile-preview__tab {
+    padding: 5px 10px;
+    border-radius: $radius-pill;
+    background: $color-surface-soft;
+    color: $color-subtle;
+    font-size: $fs-micro;
+    font-weight: 700;
+  }
+
+  .landing-mobile-preview__tab--active {
+    background: $color-primary-soft;
+    color: $color-primary-text;
+  }
+
+  .landing-mobile-preview__cards {
     display: grid;
     gap: 8px;
-    overflow: hidden;
-    padding-bottom: 10px;
-  }
-
-  .landing-mobile-trip__image {
-    display: block;
-    min-height: 82px;
-  }
-
-  .landing-mobile-trip strong,
-  .landing-mobile-trip small {
-    margin-inline: 10px;
-  }
-
-  .landing-mobile-trip small {
-    color: $color-muted;
   }
 
   .landing-section {

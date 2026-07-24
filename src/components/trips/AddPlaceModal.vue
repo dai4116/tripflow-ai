@@ -142,7 +142,7 @@ function addCustom() {
     columnId: props.columnId,
     name,
     category: customCategory.value,
-    description: `已加入行程，可以到側邊欄補充更多細節。`,
+    description: '',
   })
   customName.value = ''
 }

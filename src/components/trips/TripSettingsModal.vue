@@ -94,7 +94,7 @@ function close() {
 function handleSave() {
   const trimmedTitle = title.value.trim()
   if (!trimmedTitle) {
-    titleError.value = '請輸入旅程名稱。'
+    titleError.value = '請輸入行程名稱。'
     titleInputRef.value?.focus()
     return
   }

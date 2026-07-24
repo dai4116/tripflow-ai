@@ -219,10 +219,6 @@
             <template v-if="!isEditingPlace">
               <div class="place-drawer__title-row">
                 <CategoryChip :category="drawerPlace.category" />
-                <strong class="place-drawer__rating">
-                  <AppIcon name="star" :size="12" />
-                  {{ drawerPlace.rating }} <span>/ 5.0</span>
-                </strong>
               </div>
 
               <p class="place-drawer__description">{{ drawerPlace.description }}</p>
@@ -968,7 +964,7 @@ function removeDrawerPlace() {
 
   openConfirm({
     title: `移除「${place.name}」？`,
-    message: '這個地點會從行程中移除，此動作無法復原。',
+    message: '這個地點會從行程中移除，移除後無法復原喔。',
     confirmLabel: '移除',
     danger: true,
     onConfirm: () => {

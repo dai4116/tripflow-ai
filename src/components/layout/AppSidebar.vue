@@ -28,7 +28,6 @@
         <strong>陳柏翰</strong>
         <small>bohan@tripflow.ai</small>
       </div>
-      <AppIcon class="app-sidebar__settings" name="gear" :size="15" />
     </div>
   </aside>
 </template>

@@ -236,10 +236,10 @@ export function formatDateRange(startDate: string, endDate: string): string {
 // aiPlaces (from the /api/generate-trip endpoint) supplies the
 // name/category/description/travelTip for each place, in visit order, and —
 // when verified server-side against Google Places — its coordinates too. All
-// other bookkeeping (ids, palette, gradients, estimatedTime/cost, rating)
-// stays local rather than trusting the model for facts it can't actually
-// know. Days are built purely from aiPlaces; a slot with no suggestion is
-// left empty rather than backfilled (see the columns loop).
+// other bookkeeping (ids, palette, gradients, estimatedTime/cost) stays local
+// rather than trusting the model for facts it can't actually know. Days are
+// built purely from aiPlaces; a slot with no suggestion is left empty rather
+// than backfilled (see the columns loop).
 //
 // placesPerDay accepts an override so the one real caller (trips.ts's
 // createTrip, which already computes it to size the AI request) can pass
@@ -297,7 +297,6 @@ export function generateTrip(
       // (see geocodeNewPlaces in stores/trips.ts).
       lat: suggestion?.lat ?? 0,
       lng: suggestion?.lng ?? 0,
-      rating: ['4.5', '4.6', '4.7', '4.8'][places.length % 4],
       description: template.description,
       travelTip: suggestion?.travelTip,
       geocodeQuery: suggestion?.geocodeQuery,

@@ -244,7 +244,6 @@ export const useTripsStore = defineStore('trips', () => {
       address: trip.destination,
       lat: 0,
       lng: 0,
-      rating: '4.5',
       description: input.description,
       travelTip: input.travelTip,
       geocodeQuery: input.geocodeQuery,

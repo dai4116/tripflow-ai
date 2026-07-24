@@ -113,10 +113,6 @@
           <div class="place-drawer__content">
             <div class="place-drawer__title-row">
               <CategoryChip :category="drawerPlace.category" />
-              <strong class="place-drawer__rating">
-                <AppIcon name="star" :size="12" />
-                {{ drawerPlace.rating }} <span>/ 5.0</span>
-              </strong>
             </div>
 
             <p class="place-drawer__description">{{ drawerPlace.description }}</p>
