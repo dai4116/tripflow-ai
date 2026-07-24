@@ -28,13 +28,19 @@ export function dayColorForIndex(index: number): string {
   return DAY_COLORS[index % DAY_COLORS.length]!
 }
 
-const TRAVEL_STYLE_PACE: Record<string, TripPace> = {
-  放鬆: 'relaxed',
-  冒險: 'packed',
-}
-
-export function paceForTravelStyle(travelStyle: string): TripPace {
-  return TRAVEL_STYLE_PACE[travelStyle] ?? 'balanced'
+// Each style's own pace, expressed directly as a places-per-day number —
+// not just a TripPace bucket — because multi-select (up to 2 styles) needs
+// to average two styles' numbers together (see paceForTravelStyles).
+// PLACES_PER_DAY's three values below are evenly spaced (3/4/5), so
+// averaging the raw numbers first and mapping back to a bucket afterward
+// always lands exactly on one of the three; there's no fractional pace with
+// no bucket to hold it.
+const TRAVEL_STYLE_PLACES_PER_DAY: Record<string, number> = {
+  精準規劃: 5,
+  自在慢旅: 3,
+  深度探索: 4,
+  熱血冒險: 5,
+  質感享受: 4,
 }
 
 // How many places make up one day's column, by pace — a relaxed trip leaves
@@ -55,6 +61,25 @@ const PLACES_PER_DAY: Record<TripPace, number> = {
 
 export function placesPerDayForPace(pace: TripPace): number {
   return PLACES_PER_DAY[pace]
+}
+
+// Resolves the (up to 2) selected travel styles into one pace. A single
+// style just uses its own number; two styles average their places-per-day
+// numbers and round — e.g. 精準規劃(5) + 自在慢旅(3) averages to exactly 4
+// (balanced); 精準規劃(5) + 深度探索(4) averages to 4.5, which Math.round
+// takes up to 5 (packed). Falls back to 'balanced' when nothing resolves (no
+// selection, or an unrecognized style name) rather than propagating NaN.
+export function paceForTravelStyles(travelStyles: string[]): TripPace {
+  const values = travelStyles
+    .map((style) => TRAVEL_STYLE_PLACES_PER_DAY[style])
+    .filter((value): value is number => value !== undefined)
+  if (values.length === 0) return 'balanced'
+
+  const averaged = Math.round(values.reduce((sum, value) => sum + value, 0) / values.length)
+  const matchingPace = (Object.entries(PLACES_PER_DAY) as Array<[TripPace, number]>).find(
+    ([, count]) => count === averaged,
+  )
+  return matchingPace?.[0] ?? 'balanced'
 }
 
 // nightOnly marks food templates whose own description ties them to evening/
@@ -257,7 +282,7 @@ export function generateTrip(
 ): { trip: Trip; places: Place[] } {
   const city = cityFromDestination(input.destination)
   const days = computeTripDays(input)
-  const pace = paceForTravelStyle(input.travelStyle)
+  const pace = paceForTravelStyles(input.travelStyle)
   const resolvedPlacesPerDay = placesPerDay ?? placesPerDayForPace(pace)
   const tripId = `${slugify(input.destination)}-${nanoid(6)}`
   const palette = TRIP_PALETTE[existingTripIds.length % TRIP_PALETTE.length]

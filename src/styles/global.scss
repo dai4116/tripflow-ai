@@ -1737,6 +1737,15 @@ h3 {
   font-weight: 600;
 }
 
+// Sits below the style-picker grid (not under a heading like the base
+// class), so it needs its own positive spacing rather than the negative
+// margin that pulls the base hint up under a title. Colored like a
+// selected pill so it visually reads as "this reflects what you picked."
+.form-card__hint--live {
+  margin-top: 10px;
+  color: $color-primary-text;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

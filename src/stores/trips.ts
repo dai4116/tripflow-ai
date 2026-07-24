@@ -7,7 +7,7 @@ import {
   cityFromDestination,
   computeTripDays,
   generateTrip,
-  paceForTravelStyle,
+  paceForTravelStyles,
   placesPerDayForPace,
   PLACE_GRADIENTS,
   regionFromDestination,
@@ -208,7 +208,7 @@ export const useTripsStore = defineStore('trips', () => {
   // missing ANTHROPIC_API_KEY in prod — there is no more silent degrade path.
   async function createTrip(input: CreateTripInput): Promise<Trip> {
     const days = computeTripDays(input)
-    const placesPerDay = placesPerDayForPace(paceForTravelStyle(input.travelStyle))
+    const placesPerDay = placesPerDayForPace(paceForTravelStyles(input.travelStyle))
     const aiPlaces = await fetchAiPlaces(input, days * placesPerDay, days, placesPerDay)
     if (!aiPlaces) throw new Error('AI trip generation failed')
 

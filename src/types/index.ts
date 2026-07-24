@@ -99,7 +99,14 @@ export type CreateTripInput = {
   startDate: string
   endDate: string
   travelers: number
-  travelStyle: string
-  avoidPlaces: string
+  // Up to 2 selected style archetypes (e.g. 精準規劃/自在慢旅) — plural because
+  // the form allows a 2-select combination whose paces get averaged (see
+  // paceForTravelStyles in generateTrip.ts), not a single free-text style.
+  travelStyle: string[]
+  // Free-text catch-all for anything the structured fields don't cover —
+  // places to avoid, but just as often a positive request (dietary needs, "want
+  // a beach day", traveling with kids) — see api/generate-trip.ts's prompt
+  // for why it's framed neutrally rather than as an exclusion list.
+  additionalNotes: string
   preferences: string[]
 }

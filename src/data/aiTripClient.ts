@@ -33,7 +33,7 @@ export async function fetchAiPlaces(
         destination: input.destination,
         travelStyle: input.travelStyle,
         preferences: input.preferences,
-        avoidPlaces: input.avoidPlaces,
+        additionalNotes: input.additionalNotes,
         placeCount,
         days,
         // Sent explicitly (not just placeCount/days) so the server doesn't

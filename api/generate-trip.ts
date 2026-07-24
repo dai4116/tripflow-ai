@@ -72,6 +72,58 @@ const PLACE_SCHEMA = {
   additionalProperties: false,
 }
 
+// Stage 1's output shape — a day-by-day theme/area outline for the WHOLE
+// trip, decided in one call before any actual places are generated. See its
+// caller for why this exists: independent per-batch calls (stage 2) can't
+// see each other's picks, so without a shared plan they converge on the same
+// handful of famous landmarks and produce disjointed, cross-town itineraries
+// day to day. This call is cheap (short labels, not full place details), so
+// it can afford to look at every day at once the way a single unified call
+// would, without reintroducing the timeout stage 2's batching exists to fix.
+const ZONE_SCHEMA = {
+  type: 'object',
+  properties: {
+    days: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          day: { type: 'integer' },
+          zone: { type: 'string' },
+          focus: { type: 'string' },
+        },
+        required: ['day', 'zone', 'focus'],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ['days'],
+  additionalProperties: false,
+}
+
+// Each selected travel style (up to 2, chosen on the form) biases content,
+// not just pace — the client already resolves pace/placesPerDay from these
+// same style names (see paceForTravelStyles in src/data/generateTrip.ts);
+// this is the content half. Kept as a separate copy here rather than a
+// shared import: api/ and src/ are independent deployable units (the
+// existing PLACE_CATEGORIES above is the same pattern — nothing under api/
+// imports from src/), so the style names themselves are the only thing that
+// has to stay in sync by hand if the option list ever changes.
+const STYLE_FLAVOR: Record<string, string> = {
+  精準規劃: '偏好效率高、評價好的必去景點，盡量減少繞路移動',
+  自在慢旅: '景點數不用多，重視氛圍與步調，不趕行程',
+  深度探索: '偏好小眾景點、巷弄與在地生活體驗，避免只選熱門觀光打卡點',
+  熱血冒險: '偏好戶外、有挑戰性、新奇的活動與體驗',
+  質感享受: '偏好美食、購物、住宿品質等舒適體驗',
+}
+
+function styleFlavorLines(travelStyle: string[] | undefined): string {
+  return (travelStyle ?? [])
+    .map((style) => STYLE_FLAVOR[style])
+    .filter((flavor): flavor is string => Boolean(flavor))
+    .join('\n')
+}
+
 // Runs `fn` over `items` with at most `limit` in flight at once. Verification
 // fires one Google call per candidate (up to ~90 for a long trip); handing
 // all of them to Promise.all at once means the serverless sandbox's limited
@@ -96,9 +148,15 @@ async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T)
 
 type GenerateTripBody = {
   destination?: string
-  travelStyle?: string
+  // Up to 2 style archetypes selected on the form (e.g. ['精準規劃', '深度探索'])
+  // — see STYLE_FLAVOR below for how each one biases generation content, on
+  // top of the pace/placesPerDay the client already resolved from them.
+  travelStyle?: string[]
   preferences?: string[]
-  avoidPlaces?: string
+  // Free-text catch-all — places to avoid, but just as often a positive
+  // request (dietary needs, "want a beach day", traveling with kids). See
+  // its prompt line below for why it's framed neutrally, not as exclusions.
+  additionalNotes?: string
   placeCount?: number
   days?: number
   placesPerDay?: number
@@ -117,7 +175,7 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
     return
   }
 
-  const { destination, travelStyle, preferences, avoidPlaces, placeCount, days, placesPerDay: bodyPlacesPerDay } =
+  const { destination, travelStyle, preferences, additionalNotes, placeCount, days, placesPerDay: bodyPlacesPerDay } =
     (req.body ?? {}) as GenerateTripBody
 
   // Upper bounds match the real client's ceiling (computeTripDays clamps to
@@ -165,8 +223,12 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
   // Claude calls keeps each call's output small, so its generation time
   // stays roughly constant instead of growing with trip length — total wall
   // time then tracks one batch's time (batches run concurrently), not the
-  // sum of all of them.
-  const MAX_CANDIDATES_PER_CALL = 20
+  // sum of all of them. Lowered from 20 (its original, empirically-tested
+  // value) to leave headroom for the zone-planning call below, which now
+  // runs sequentially before these batches start — untested against a live
+  // key as of this change, so err conservative rather than guess exactly
+  // how much margin 20 would have left.
+  const MAX_CANDIDATES_PER_CALL = 14
   const daysPerBatch = Math.max(1, Math.floor(MAX_CANDIDATES_PER_CALL / perDayCandidates))
   const dayBatches: number[][] = []
   for (let start = 1; start <= totalDays; start += daysPerBatch) {
@@ -174,19 +236,69 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
     dayBatches.push(Array.from({ length: end - start + 1 }, (_, i) => start + i))
   }
 
+  // Populated by the zone-planning call below before any batch prompt is
+  // actually built (batches don't run until after it resolves) — declared
+  // here, not const, because buildPrompt closes over it and needs to see
+  // whatever the planning call produced (or an empty map if it failed).
+  let zonesByDay = new Map<number, { zone: string; focus: string }>()
+
+  // Stage 1's prompt — plans the whole trip's day-by-day theme/area in one
+  // shot, the way a single unified call naturally would (confirmed live:
+  // asking Claude directly for a full 7-day itinerary in one conversation
+  // produces coherent, non-repeating, geographically sensible days, e.g.
+  // grouping 潭子摘星山莊 + 新社莊園 into one suburb day — exactly the kind
+  // of area stage 2's independent batches have no way to arrive at on their
+  // own). Output here is just short labels, not full place details, so it
+  // should stay fast even though it (unlike stage 2) covers every day at once.
+  function buildZonePlanPrompt(): string {
+    return [
+      `目的地：${destination}`,
+      travelStyle?.length ? `旅遊風格：${travelStyle.join('、')}` : '',
+      styleFlavorLines(travelStyle),
+      preferences?.length ? `興趣偏好：${preferences.join('、')}` : '',
+      additionalNotes ? `其他補充需求：${additionalNotes}（可能是想避開的地方，也可能是其他偏好或限制，請依內容判斷並納入行程考量）` : '',
+      '',
+      `請先幫我規劃一趟共 ${totalDays} 天行程的「每日主題與區域」大綱——還不用列出具體景點，只需要決定每天要去哪個區域、聚焦什麼主題。`,
+      `請通盤考慮全部 ${totalDays} 天：每天的區域/主題都要不一樣，不要讓同一個知名景點或商圈在兩天的主題描述裡都出現。`,
+      '主題請有變化，混合市區文化商圈、老街/夜市、自然景觀與近郊景點、歷史建築等不同類型——不要每天都侷限在市中心最知名的那幾個地方，也請適度考慮比較不那麼觀光客爆滿、但確實存在且值得一去的近郊區域。',
+      preferences?.length
+        ? '興趣偏好裡提到的類型，請確保至少反映在一天以上的主題安排裡（例如提到「自然秘境」，就該有一天以自然景觀/近郊為主）。'
+        : '',
+      '如果天數較多，可以把地理上相近的主題安排在相鄰的天數，讓整體動線比較順；不用嚴格照順序，但盡量避免同一趟行程在城市各角落之間跳來跳去。',
+      `每天請給一個簡短的「區域/主題」名稱（zone，例如「草悟道／勤美文青核心區」），和一句「聚焦內容」的簡短說明（focus，例如「文創園區、咖啡廳、老屋改造」）。用 day 欄位標明第幾天（1 到 ${totalDays} 的整數）。`,
+    ]
+      .filter(Boolean)
+      .join('\n')
+  }
+
   function buildPrompt(dayNumbers: number[]): string {
     const dayList = dayNumbers.join('、')
     const batchRequestCount = dayNumbers.length * perDayCandidates
+    // Stage 1's per-day theme, handed to whichever batch owns that day —
+    // this is what keeps this batch's picks geographically clustered and
+    // distinct from every other day's, instead of each batch freely
+    // choosing wherever it wants with no view of the other days.
+    const zoneLines = dayNumbers
+      .map((d) => {
+        const z = zonesByDay.get(d)
+        return z ? `第${d}天主題：「${z.zone}」——${z.focus}` : ''
+      })
+      .filter(Boolean)
+      .join('\n')
     return [
       `目的地：${destination}`,
-      `旅遊風格：${travelStyle || '文化'}`,
+      travelStyle?.length ? `旅遊風格：${travelStyle.join('、')}` : '',
+      styleFlavorLines(travelStyle),
       preferences?.length ? `興趣偏好：${preferences.join('、')}` : '',
-      avoidPlaces ? `想避開：${avoidPlaces}` : '',
+      additionalNotes ? `其他補充需求：${additionalNotes}（可能是想避開的地方，也可能是其他偏好或限制，請依內容判斷並納入行程考量）` : '',
       '',
       // This call only covers a slice of the trip (its own batch of days) —
       // told explicitly so the model doesn't try to pace itself as if this
       // were the whole itinerary.
       `這是一趟共 ${totalDays} 天行程裡的第 ${dayList} 天。請只規劃這幾天，每個景點都要用 day 欄位標明屬於第幾天（必須是 ${dayList} 其中之一），總共推薦約 ${batchRequestCount} 個景點候選。`,
+      zoneLines
+        ? `以下是已經先規劃好的每日主題，請在指定的區域/主題範圍內挑選具體、確實存在的地點，不要跳出這個主題去選其他區域的景點：\n${zoneLines}`
+        : '',
       `每一天請提供最多 ${perDayCandidates} 個候選景點——比當天實際需要的 ${placesPerDay} 個多 ${PER_DAY_BUFFER} 個，多出來的是備援（見下方說明）。同一天的候選請依你的信心排序，越有把握、越具體明確的排越前面。`,
       `每一天的候選景點裡，盡量包含一個適合當「午餐」的美食類地點（分類 food）、一個適合當「晚餐」的美食類地點（分類 food），其餘搭配文化、自然、購物、活動等不同類型。`,
       `重要：我們會把每個候選拿去真實地圖（Google 地圖）逐一驗證，每一天只會保留「確實查得到、能定位」的前 ${placesPerDay} 個（依你排的信心順序），查不到的直接丟棄。同一天的備援只會遞補同一天被丟棄的名額，不會被其他天借用——所以每一天請務必自己給滿 ${perDayCandidates} 個，不要因為某天景點少就少給。另外請「只」推薦你有把握真實存在、地圖上找得到的『具體、明確』地點——寧可某天候選數不足，也不要放模糊的類別式名稱（例如「清水在地小吃」「中信市場美食」這種不是特定店家/地標的名稱）或你不確定是否存在的名稱。`,
@@ -219,6 +331,45 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
 
   try {
     const client = new Anthropic({ apiKey })
+
+    // Stage 1: plan the whole trip's day-by-day zones in one call before any
+    // batch starts generating actual places (see buildZonePlanPrompt's
+    // comment). Best-effort — if this fails or times out, fall through with
+    // an empty zonesByDay and stage 2 just generates without zone hints,
+    // same behavior as before this feature existed. Never lets a zone-
+    // planning failure sink the whole trip.
+    try {
+      const zoneStream = client.messages.stream(
+        {
+          model: 'claude-sonnet-5',
+          // Output here is only ~totalDays short labels, nowhere near this
+          // ceiling — sized generously anyway since going over would force
+          // an early cutoff mid-JSON with no partial-result fallback.
+          max_tokens: 4000,
+          thinking: { type: 'disabled' },
+          output_config: { format: { type: 'json_schema', schema: ZONE_SCHEMA } },
+          messages: [{ role: 'user', content: buildZonePlanPrompt() }],
+        },
+        { signal: controller.signal },
+      )
+      const zoneResponse = await zoneStream.finalMessage()
+      const zoneTextBlock = zoneResponse.content.find((block) => block.type === 'text')
+      if (zoneTextBlock && zoneTextBlock.type === 'text') {
+        const zoneParsed = JSON.parse(zoneTextBlock.text) as {
+          days?: Array<{ day: number; zone: string; focus: string }>
+        }
+        for (const entry of zoneParsed.days ?? []) {
+          if (Number.isInteger(entry.day) && entry.day >= 1 && entry.day <= totalDays) {
+            zonesByDay.set(entry.day, { zone: entry.zone, focus: entry.focus })
+          }
+        }
+      }
+    } catch (error) {
+      console.error('[generate-trip] zone planning failed, continuing without zone hints', error)
+    }
+    console.log(
+      `[generate-trip] zone planning: ${Date.now() - handlerStart}ms elapsed, ${zonesByDay.size}/${totalDays} days planned`,
+    )
 
     // Batches run concurrently, capped — same reasoning as the Google
     // verification batch below: too many simultaneous requests queue rather
@@ -263,7 +414,7 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
         // silently land in a DIFFERENT day's bucket at merge time, both
         // stealing that day's slot and leaving this batch's real day looking
         // empty. Working theory for a live report (7-day trip, day 7 alone
-        // in its own batch, came back with zero pl aces) — not confirmed from
+        // in its own batch, came back with zero places) — not confirmed from
         // logs yet, but this guard is correct defense-in-depth regardless;
         // the mismatch counts logged below will confirm it next time if
         // it's the actual cause.
@@ -304,22 +455,13 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
 
     // geocodeQuery is passed through as-is (not stripBilingualName'd) — unlike
     // the display name, it's meant to stay in whatever language actually
-    // matches how the map provider indexes the place. Dedup by name: separate
-    // batches can't see each other's picks, so the same landmark occasionally
-    // gets suggested for two different days — drop the later duplicate rather
-    // than spend a verification call and a day's slot on a place that already
-    // appears earlier in the trip.
-    const seenNames = new Set<string>()
-    const aiPlaces = batchResults
-      .flat()
-      .map((place) => ({ ...place, name: stripBilingualName(place.name) }))
-      .filter((place) => {
-        const key = place.name.trim().toLowerCase()
-        if (!key || seenNames.has(key)) return false
-        seenNames.add(key)
-        return true
-      })
-    console.log(`[generate-trip] parsed ${aiPlaces.length} candidates after dedup, ${Date.now() - handlerStart}ms elapsed`)
+    // matches how the map provider indexes the place. Not deduped here —
+    // two candidates can only be known to be the same real place *after*
+    // Google verification resolves their identity (see the placeId-based
+    // dedup below); comparing the AI's own raw name strings at this stage
+    // misses exactly the collisions that matter.
+    const aiPlaces = batchResults.flat().map((place) => ({ ...place, name: stripBilingualName(place.name) }))
+    console.log(`[generate-trip] parsed ${aiPlaces.length} candidates, ${Date.now() - handlerStart}ms elapsed`)
 
     const googleKey = process.env.GOOGLE_PLACES_API_KEY
     if (!googleKey) {
@@ -360,16 +502,34 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
       `[generate-trip] verification: ${Date.now() - handlerStart}ms elapsed, ${verified.filter(Boolean).length}/${aiPlaces.length} verified`,
     )
 
+    // Dedup by Google's placeId, not the AI's name string — independent
+    // batches can't see each other's picks, so two differently-worded AI
+    // candidates for two different days can both fuzzy-match the SAME real
+    // Google place (confirmed live: 一中街 and 忠孝路夜市 each ended up
+    // verified onto two separate days of the same trip). placeId is the one
+    // signal that's reliable after verification's fuzzy matching resolves
+    // identity — a name-based dedup running before verification can't see
+    // this collision, because the names being compared haven't been
+    // resolved to a canonical place yet. Array order here is batch/day
+    // order, so the earlier day wins; the later duplicate is dropped, same
+    // as if it had simply failed verification (its day just has one fewer
+    // real option to fall back on).
+    const seenPlaceIds = new Set<string>()
+    const deduped = verified.filter((hit): hit is NonNullable<typeof hit> => {
+      if (!hit) return false
+      if (seenPlaceIds.has(hit.placeId)) return false
+      seenPlaceIds.add(hit.placeId)
+      return true
+    })
+
     // Group survivors by their `day` tag and cap each day independently at
     // placesPerDay, in the AI's own confidence order for that day — a bad day
     // can only lose its own places, never anyone else's (see the prompt
     // comment above for why this replaced flat-array slicing). An out-of-
     // range/non-integer day tag is dropped rather than guessed at.
-    const byDay = new Map<number, NonNullable<(typeof verified)[number]>[]>()
-    for (let i = 0; i < aiPlaces.length; i++) {
-      const hit = verified[i]
-      if (!hit) continue
-      const day = aiPlaces[i]!.day
+    const byDay = new Map<number, typeof deduped>()
+    for (const hit of deduped) {
+      const day = hit.day
       if (!Number.isInteger(day) || day < 1 || day > totalDays) continue
       const dayList = byDay.get(day) ?? []
       if (dayList.length >= placesPerDay) continue

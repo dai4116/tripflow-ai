@@ -27,20 +27,22 @@
 
       <BaseCard class="form-card">
         <h3>旅遊風格</h3>
+        <p class="form-card__hint">最多選 2 個</p>
         <div class="choice-grid">
           <button
             v-for="style in travelStyles"
             :key="style"
             type="button"
             class="choice-pill"
-            :class="{ 'choice-pill--selected': form.travelStyle === style }"
-            :aria-pressed="form.travelStyle === style"
-            @click="selectTravelStyle(style)"
+            :class="{ 'choice-pill--selected': selectedTravelStyles.includes(style) }"
+            :aria-pressed="selectedTravelStyles.includes(style)"
+            @click="toggleTravelStyle(style)"
           >
             <AppIcon :name="getStyleIcon(style)" :size="15" />
             {{ style }}
           </button>
         </div>
+        <p v-if="selectedStyleHints" class="form-card__hint form-card__hint--live">{{ selectedStyleHints }}</p>
       </BaseCard>
 
       <BaseCard class="form-card">
@@ -68,10 +70,10 @@
 
       <BaseCard class="form-card">
         <BaseInput
-          v-model="form.avoidPlaces"
-          label="想避開的地方"
+          v-model="form.additionalNotes"
+          label="其他補充"
           multiline
-          placeholder="例如：週末避開澀谷、跳過觀光客拉麵店..."
+          placeholder="例如：想避開觀光客拉麵店、想安排一天海邊、有素食需求..."
         />
       </BaseCard>
 
@@ -141,7 +143,7 @@ import BaseDateRangeInput from '../components/ui/BaseDateRangeInput.vue'
 import BaseInput from '../components/ui/BaseInput.vue'
 import type { IconName } from '../components/ui/icons'
 import { computeTripDays, toDateInputValue } from '../data/generateTrip'
-import { preferences, travelStyles } from '../data/mockPreferences'
+import { preferences, travelStyleHints, travelStyles } from '../data/mockPreferences'
 import { useTripsStore } from '../stores/trips'
 
 // The real generation call now runs concurrently with this cosmetic ticker
@@ -161,7 +163,11 @@ const currentStageIndex = ref(0)
 const destinationError = ref('')
 const dateRangeError = ref('')
 const destinationInputRef = ref<InstanceType<typeof BaseInput> | null>(null)
-const selectedPreferences = ref(['博物館', '在地美食', '建築'])
+const selectedPreferences = ref(['必吃美食', '人文古蹟', '特色建築'])
+// Max 2 — see paceForTravelStyles in generateTrip.ts for how a 2-style
+// selection resolves to one pace (averages their places-per-day numbers).
+const MAX_TRAVEL_STYLES = 2
+const selectedTravelStyles = ref(['深度探索'])
 
 const defaultStart = new Date()
 const defaultEnd = new Date()
@@ -174,8 +180,7 @@ const form = reactive({
   startDate: toDateInputValue(defaultStart),
   endDate: toDateInputValue(defaultEnd),
   travelers: '2',
-  travelStyle: '文化',
-  avoidPlaces: '',
+  additionalNotes: '',
 })
 
 // Clear each error as soon as its own field is actually fixed, rather than
@@ -198,6 +203,13 @@ watch(
 )
 
 const cityLabel = computed(() => form.destination.split(/[,，]/)[0].trim() || '你的')
+// Live caption under the style picker — a punchy 4-character label like
+// "深度探索" doesn't say what it actually changes about the itinerary, and
+// hover tooltips (the button's title attribute) don't work on touch, which
+// is most of this app's usage. Joins both hints when 2 styles are selected.
+const selectedStyleHints = computed(() =>
+  selectedTravelStyles.value.map((style) => travelStyleHints[style]).filter(Boolean).join('；'),
+)
 const tripDays = computed(() => computeTripDays({ startDate: form.startDate, endDate: form.endDate }))
 const stages = computed(() => [
   '讀取你的偏好設定',
@@ -229,8 +241,13 @@ function clearStageTimer() {
   }
 }
 
-function selectTravelStyle(style: string) {
-  form.travelStyle = style
+function toggleTravelStyle(style: string) {
+  if (selectedTravelStyles.value.includes(style)) {
+    selectedTravelStyles.value = selectedTravelStyles.value.filter((item) => item !== style)
+    return
+  }
+  if (selectedTravelStyles.value.length >= MAX_TRAVEL_STYLES) return
+  selectedTravelStyles.value = [...selectedTravelStyles.value, style]
 }
 
 function togglePreference(preference: string) {
@@ -244,12 +261,11 @@ function togglePreference(preference: string) {
 
 function getStyleIcon(style: string): IconName {
   const icons: Record<string, IconName> = {
-    冒險: 'mountain',
-    放鬆: 'coffee',
-    文化: 'museum',
-    美食: 'cutlery',
-    攝影: 'camera',
-    自然: 'leaf',
+    精準規劃: 'list',
+    自在慢旅: 'coffee',
+    深度探索: 'compass',
+    熱血冒險: 'mountain',
+    質感享受: 'star',
   }
 
   return icons[style] ?? 'sparkle'
@@ -326,8 +342,8 @@ async function finishGeneration() {
       startDate: form.startDate,
       endDate: form.endDate,
       travelers: Number(form.travelers) || 1,
-      travelStyle: form.travelStyle,
-      avoidPlaces: form.avoidPlaces,
+      travelStyle: selectedTravelStyles.value,
+      additionalNotes: form.additionalNotes,
       preferences: selectedPreferences.value,
     })
     requestInFlight = false
