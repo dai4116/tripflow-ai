@@ -92,8 +92,9 @@ export const useTripsStore = defineStore('trips', () => {
   }
 
   // Places generated through createTrip are now verified server-side against
-  // Google Places and arrive WITH real coordinates (see api/generate-trip.ts),
-  // so most of the time there's nothing to geocode here. This client-side
+  // Google Places and arrive WITH real coordinates (see
+  // api/generate-trip-day.ts), so most of the time there's nothing to
+  // geocode here. This client-side
   // Nominatim path is only for places that still start at 0,0: manually added
   // places (AddPlaceModal), and AI places from the no-Google-key interim path.
   // It runs in the background — geocodePlace's queue is rate-limited to
@@ -203,13 +204,14 @@ export const useTripsStore = defineStore('trips', () => {
   // look like a real (if bland) result instead of the failure it actually
   // is. CreateTripPage.vue catches this and shows a retry prompt instead of
   // navigating to a trip board. Trade-off: this also means trip creation
-  // hard-fails whenever /api/generate-trip is unreachable — including plain
-  // `vite dev` locally (no serverless routes there) and a misconfigured/
-  // missing ANTHROPIC_API_KEY in prod — there is no more silent degrade path.
+  // hard-fails whenever the generate-trip endpoints are unreachable —
+  // including plain `vite dev` locally (no serverless routes there) and a
+  // misconfigured/missing ANTHROPIC_API_KEY in prod — there is no more
+  // silent degrade path.
   async function createTrip(input: CreateTripInput): Promise<Trip> {
     const days = computeTripDays(input)
     const placesPerDay = placesPerDayForPace(paceForTravelStyles(input.travelStyle))
-    const aiPlaces = await fetchAiPlaces(input, days * placesPerDay, days, placesPerDay)
+    const aiPlaces = await fetchAiPlaces(input, days, placesPerDay)
     if (!aiPlaces) throw new Error('AI trip generation failed')
 
     const { trip, places: newPlaces } = generateTrip(

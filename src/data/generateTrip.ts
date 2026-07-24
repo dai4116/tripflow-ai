@@ -52,7 +52,7 @@ const TRAVEL_STYLE_PLACES_PER_DAY: Record<string, number> = {
 // when an AI suggestion exists for a slot, its own category is trusted as-is
 // (see the columns loop), so the two-meals structure for AI-generated trips
 // depends on the model actually following the matching instruction in
-// api/generate-trip.ts's prompt, not on anything enforced here.
+// api/_lib/tripGen.ts's prompt, not on anything enforced here.
 const PLACES_PER_DAY: Record<TripPace, number> = {
   relaxed: 3,
   balanced: 4,
@@ -181,7 +181,8 @@ export type PlaceSuggestion = {
   lng?: number
   placeId?: string
   // Which trip day (1-indexed) this suggestion belongs to, set by the AI and
-  // preserved through server-side verification (see api/generate-trip.ts).
+  // preserved through server-side verification (see
+  // api/generate-trip-day.ts).
   // generateTrip() groups by this field rather than by array position —
   // position-based day-chunking broke once verification could drop an
   // arbitrary subset of candidates: a shortfall early in the flat array
@@ -258,7 +259,8 @@ export function formatDateRange(startDate: string, endDate: string): string {
   return `${end.getFullYear()}年${startLabel} - ${endLabel}`
 }
 
-// aiPlaces (from the /api/generate-trip endpoint) supplies the
+// aiPlaces (merged from many /api/generate-trip-day requests — see
+// aiTripClient.ts) supplies the
 // name/category/description/travelTip for each place, in visit order, and —
 // when verified server-side against Google Places — its coordinates too. All
 // other bookkeeping (ids, palette, gradients, estimatedTime/cost) stays local

@@ -105,7 +105,7 @@ export type CreateTripInput = {
   travelStyle: string[]
   // Free-text catch-all for anything the structured fields don't cover —
   // places to avoid, but just as often a positive request (dietary needs, "want
-  // a beach day", traveling with kids) — see api/generate-trip.ts's prompt
+  // a beach day", traveling with kids) — see api/_lib/tripGen.ts's prompt
   // for why it's framed neutrally rather than as an exclusion list.
   additionalNotes: string
   preferences: string[]

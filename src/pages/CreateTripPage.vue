@@ -3,7 +3,7 @@
     <PageHeader
       title="規劃新行程 ✈️"
       description="填寫細節，AI 會幫你打造專屬行程。"
-      :back-to="{ name: 'dashboard' }"
+      :back-to="isGenerating ? undefined : { name: 'dashboard' }"
       back-label="返回首頁"
     />
 
@@ -92,7 +92,7 @@
           <AppIcon name="sparkle" :size="22" />
         </span>
         <h2 class="generating__title">正在為你打造 {{ cityLabel }} 行程</h2>
-        <p class="generating__subtitle">請稍候…</p>
+        <p class="generating__subtitle">{{ progressSubtitle }}</p>
 
         <ol class="generating__stages">
           <li
@@ -149,17 +149,35 @@ import { useTripsStore } from '../stores/trips'
 // The real generation call now runs concurrently with this cosmetic ticker
 // (see generateTrip/finishGeneration below), not after it — so this is how
 // long the fake progression takes to cross all stages, not a delay before
-// the real work starts. Sized to roughly span the real wait (batched Claude
-// calls + Google verification typically land in the 40-60s range) so the
-// user sees stages actively advancing through most of it, instead of 1.65s
-// of motion followed by a long freeze on the last stage.
-const STAGE_DURATION = 12000
+// the real work starts. Real generation is now many small parallel per-day
+// requests (see aiTripClient.ts) rather than one fixed-length request, so
+// its total wait scales with trip length — computeStageDuration() below
+// scales this per-stage duration the same way, instead of a flat value sized
+// for the old single-request design's 40-60s (which left long trips frozen
+// on the last stage for minutes with no further feedback).
+let stageDurationMs = 12000
+
+// Roughly matches real wait: a zone-planning call plus ceil(days /
+// MAX_PARALLEL_REQUESTS) waves of per-day requests (see aiTripClient.ts) —
+// not exact (there's no progress channel from fetchAiPlaces up to this
+// component), just enough to keep the animation actively advancing through
+// most of a long trip's wait instead of completing in a fixed 36s regardless
+// of day count.
+function computeStageDuration(): number {
+  return Math.max(12000, Math.round((tripDays.value / 4) * 4000))
+}
 
 const router = useRouter()
 const tripsStore = useTripsStore()
 const isGenerating = ref(false)
 const generationFailed = ref(false)
 const currentStageIndex = ref(0)
+// Flips true once the cosmetic animation reaches its last stage while the
+// real request is still in flight — the animation alone can't show real
+// progress past that point (see computeStageDuration's comment), so this
+// swaps in a message that at least tells the user long waits are expected,
+// instead of leaving the subtitle looking frozen/stuck.
+const showLongWaitNotice = ref(false)
 const destinationError = ref('')
 const dateRangeError = ref('')
 const destinationInputRef = ref<InstanceType<typeof BaseInput> | null>(null)
@@ -217,6 +235,7 @@ const stages = computed(() => [
   '規劃每日行程',
   '優化路線',
 ])
+const progressSubtitle = computed(() => (showLongWaitNotice.value ? '天數較多時可能需要幾分鐘，請耐心等候…' : '請稍候…'))
 
 let stageTimer: number | undefined
 
@@ -295,6 +314,8 @@ function generateTrip() {
   generationFailed.value = false
   isGenerating.value = true
   currentStageIndex.value = 0
+  showLongWaitNotice.value = false
+  stageDurationMs = computeStageDuration()
   advanceStage()
   finishGeneration()
 }
@@ -307,6 +328,8 @@ function retryGeneration() {
   if (requestInFlight) return
   generationFailed.value = false
   currentStageIndex.value = 0
+  showLongWaitNotice.value = false
+  stageDurationMs = computeStageDuration()
   advanceStage()
   finishGeneration()
 }
@@ -327,12 +350,26 @@ function advanceStage() {
   stageTimer = window.setTimeout(() => {
     if (currentStageIndex.value >= stages.value.length - 1) {
       stageTimer = undefined
+      showLongWaitNotice.value = true
       return
     }
     currentStageIndex.value += 1
     advanceStage()
-  }, STAGE_DURATION)
+  }, stageDurationMs)
 }
+
+// Set once this component unmounts (navigated away mid-generation) so the
+// in-flight createTrip() call below — which keeps running regardless, since
+// unmounting a Vue component doesn't cancel a pending Promise — can tell not
+// to act on its own result anymore. Without this, a user who navigates away
+// and starts a SECOND trip generation elsewhere would have whichever call
+// finishes last force-navigate them (via the shared router singleton) to
+// that trip's board, no matter where they currently are. The trip itself
+// still gets created and saved either way (tripsStore.createTrip() already
+// completed by the time this is checked) — this only skips the unrequested
+// navigation and failure-UI update for a generation nobody's looking at
+// anymore.
+let cancelled = false
 
 async function finishGeneration() {
   requestInFlight = true
@@ -347,6 +384,7 @@ async function finishGeneration() {
       preferences: selectedPreferences.value,
     })
     requestInFlight = false
+    if (cancelled) return
     // The real call can finish before the cosmetic ticker reaches the end
     // (or after backToForm cleared it) — snap every stage to done rather
     // than leaving the UI mid-sequence for the instant before navigation.
@@ -355,6 +393,7 @@ async function finishGeneration() {
     router.push({ name: 'trip-board', params: { tripId: trip.id }, query: { fresh: '1' } })
   } catch {
     requestInFlight = false
+    if (cancelled) return
     clearStageTimer()
     generationFailed.value = true
   }
@@ -362,5 +401,6 @@ async function finishGeneration() {
 
 onBeforeUnmount(() => {
   clearStageTimer()
+  cancelled = true
 })
 </script>

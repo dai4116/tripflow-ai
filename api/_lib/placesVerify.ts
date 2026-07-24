@@ -20,7 +20,7 @@
 const TEXT_SEARCH_URL = 'https://places.googleapis.com/v1/places:searchText'
 
 // Per-request cap. A trip verifies dozens of candidates in parallel (see
-// verifyPlace's caller in api/generate-trip.ts) — with no timeout here, a
+// verifyPlace's caller in api/generate-trip-day.ts) — with no timeout here, a
 // single slow/hung Google response blocked the whole Promise.all batch until
 // Vercel's own 60s function limit killed the entire request (confirmed live:
 // every call in that batch is wasted, not just the one that was actually
@@ -57,7 +57,18 @@ type TextSearchResponse = {
 
 // One raw Text Search call. Throws on network / non-2xx so the caller can
 // decide whether to cache (genuine empty) or not (transient failure).
-async function textSearch(apiKey: string, textQuery: string, bias: GeoPoint | null): Promise<VerifiedPlace | null> {
+//
+// externalSignal (optional) lets a caller tie this call to its own request
+// lifetime (e.g. the client disconnecting) on top of the fixed timeout below
+// — without it, a disconnect only cancels whatever's racing this call (a
+// Claude stream, say) while this fetch keeps running and billing for the
+// full REQUEST_TIMEOUT_MS regardless.
+async function textSearch(
+  apiKey: string,
+  textQuery: string,
+  bias: GeoPoint | null,
+  externalSignal?: AbortSignal,
+): Promise<VerifiedPlace | null> {
   const body: Record<string, unknown> = {
     textQuery,
     // Prefer Traditional Chinese names where Google has them; falls back to
@@ -72,8 +83,9 @@ async function textSearch(apiKey: string, textQuery: string, bias: GeoPoint | nu
     }
   }
 
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  const timeoutController = new AbortController()
+  const timer = setTimeout(() => timeoutController.abort(), REQUEST_TIMEOUT_MS)
+  const signal = externalSignal ? AbortSignal.any([externalSignal, timeoutController.signal]) : timeoutController.signal
   let response: Response
   try {
     response = await fetch(TEXT_SEARCH_URL, {
@@ -87,7 +99,7 @@ async function textSearch(apiKey: string, textQuery: string, bias: GeoPoint | nu
         'X-Goog-FieldMask': 'places.id,places.displayName,places.location,places.businessStatus',
       },
       body: JSON.stringify(body),
-      signal: controller.signal,
+      signal,
     })
   } finally {
     clearTimeout(timer)
@@ -109,20 +121,25 @@ async function textSearch(apiKey: string, textQuery: string, bias: GeoPoint | nu
   return { placeId: first.id, name: first.displayName?.text ?? '', lat, lng }
 }
 
-async function textSearchCached(apiKey: string, query: string, bias: GeoPoint | null): Promise<VerifiedPlace | null> {
+async function textSearchCached(
+  apiKey: string,
+  query: string,
+  bias: GeoPoint | null,
+  signal?: AbortSignal,
+): Promise<VerifiedPlace | null> {
   const key = query.trim().toLowerCase()
   if (!key) return null
 
   const cached = cache.get(key)
   if (cached !== undefined) return cached
 
-  const result = await textSearch(apiKey, query, bias)
+  const result = await textSearch(apiKey, query, bias, signal)
   cache.set(key, result)
   return result
 }
 
 // Haversine distance in km — the structural guard against a wrong-city hit
-// slipping past the location bias. Exported: generate-trip.ts reuses this
+// slipping past the location bias. Exported: generate-trip-day.ts reuses this
 // same math for its own same-day distance check (see its "day anchor"
 // comment), rather than duplicating the formula.
 export function distanceKm(a: GeoPoint, b: GeoPoint): number {
@@ -139,9 +156,9 @@ export function distanceKm(a: GeoPoint, b: GeoPoint): number {
 // sanity-check) every place lookup. One call per trip. Returns null if the
 // destination itself can't be resolved — the caller then verifies without a
 // bias, relying on the query's own city/country tokens.
-export async function geocodeCityCenter(apiKey: string, destination: string): Promise<GeoPoint | null> {
+export async function geocodeCityCenter(apiKey: string, destination: string, signal?: AbortSignal): Promise<GeoPoint | null> {
   try {
-    const result = await textSearchCached(apiKey, destination, null)
+    const result = await textSearchCached(apiKey, destination, null, signal)
     return result ? { lat: result.lat, lng: result.lng } : null
   } catch {
     return null
@@ -156,12 +173,13 @@ export async function verifyPlace(
   apiKey: string,
   queries: string[],
   cityCenter: GeoPoint | null,
+  signal?: AbortSignal,
 ): Promise<VerifiedPlace | null> {
   for (const query of queries) {
     if (!query?.trim()) continue
     let result: VerifiedPlace | null
     try {
-      result = await textSearchCached(apiKey, query, cityCenter)
+      result = await textSearchCached(apiKey, query, cityCenter, signal)
     } catch {
       // Transient failure (network / rate limit) — not cached; try the next
       // query, and this place stays eligible on a later generation attempt.
