@@ -79,9 +79,19 @@ async function planZones(ctx: TripContext, totalDays: number, signal: AbortSigna
     const textBlock = response.content.find((block) => block.type === 'text')
     if (!textBlock || textBlock.type !== 'text') return []
     const parsed = JSON.parse(textBlock.text) as { days?: ZoneHint[] }
-    return (parsed.days ?? []).filter(
-      (entry) => Number.isInteger(entry.day) && entry.day >= 1 && entry.day <= totalDays,
-    )
+    // assignedPreferences is free-text-adjacent (the schema only constrains
+    // it to an array of strings, not to the user's actual preference list),
+    // so it's sanitized against ctx.preferences here — a hallucinated or
+    // paraphrased value would otherwise flow straight into
+    // generate-trip-day.ts's "今天請至少包含..." instruction referencing a
+    // preference the user never actually selected.
+    const validPreferences = new Set(ctx.preferences ?? [])
+    return (parsed.days ?? [])
+      .filter((entry) => Number.isInteger(entry.day) && entry.day >= 1 && entry.day <= totalDays)
+      .map((entry) => ({
+        ...entry,
+        assignedPreferences: (entry.assignedPreferences ?? []).filter((preference) => validPreferences.has(preference)),
+      }))
   } catch (error) {
     console.error('[plan-trip-zones] zone planning failed, returning no hints', error)
     return []

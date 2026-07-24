@@ -69,8 +69,17 @@ export const ZONE_SCHEMA = {
           day: { type: 'integer' },
           zone: { type: 'string' },
           focus: { type: 'string' },
+          // Which of the user's selected interest preferences (verbatim
+          // strings, not paraphrased) this day is meant to satisfy — empty
+          // array if none. Structured rather than left for the day-generation
+          // call to infer from `focus`'s free text: that would chain two
+          // separate AI calls' worth of interpretation (this call deciding
+          // what a day is "about", a later call guessing what that implies
+          // for category selection) instead of stating the requirement
+          // plainly. See buildZonePlanPrompt's distribution instruction.
+          assignedPreferences: { type: 'array', items: { type: 'string' } },
         },
-        required: ['day', 'zone', 'focus'],
+        required: ['day', 'zone', 'focus', 'assignedPreferences'],
         additionalProperties: false,
       },
     },
@@ -91,7 +100,6 @@ const STYLE_FLAVOR: Record<string, string> = {
   自在慢旅: '景點數不用多，重視氛圍與步調，不趕行程',
   深度探索: '偏好小眾景點、巷弄與在地生活體驗，避免只選熱門觀光打卡點',
   熱血冒險: '偏好戶外、有挑戰性、新奇的活動與體驗',
-  質感享受: '偏好美食、購物、住宿品質等舒適體驗',
 }
 
 export function styleFlavorLines(travelStyle: string[] | undefined): string {
@@ -107,6 +115,17 @@ export function styleFlavorLines(travelStyle: string[] | undefined): string {
 // below needs it; nothing outside this file should reach in and read it.
 const PER_DAY_BUFFER = 2
 
+// The one interest-preference option (see src/data/mockPreferences.ts's
+// `preferences` list) that signals the user actually wants food built into
+// the itinerary — gates the forced food slot in buildDayPrompt, and is
+// excluded from buildZonePlanPrompt's "distribute every preference across at
+// least one day" list below since it's already guaranteed EVERY day rather
+// than needing an "at least one day" assignment. Pre-selected by default on
+// the form, but not hardcoded around: a user who deselects it (or picks a
+// food-agnostic travel style like 熱血冒險) shouldn't have a day's place
+// burned on a meal they never asked for.
+const FOOD_PREFERENCE = '必吃美食'
+
 export type TripContext = {
   destination: string
   travelStyle?: string[]
@@ -114,7 +133,7 @@ export type TripContext = {
   additionalNotes?: string
 }
 
-export type ZoneHint = { day: number; zone: string; focus: string }
+export type ZoneHint = { day: number; zone: string; focus: string; assignedPreferences: string[] }
 
 export type AiPlace = {
   day: number
@@ -190,6 +209,9 @@ export async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (i
 }
 
 export function buildZonePlanPrompt(ctx: TripContext, totalDays: number): string {
+  // FOOD_PREFERENCE excluded — see its own comment for why (guaranteed every
+  // day already, doesn't need an "at least one day" assignment here).
+  const distributablePreferences = (ctx.preferences ?? []).filter((preference) => preference !== FOOD_PREFERENCE)
   return [
     `目的地：${ctx.destination}`,
     ctx.travelStyle?.length ? `旅遊風格：${ctx.travelStyle.join('、')}` : '',
@@ -202,11 +224,11 @@ export function buildZonePlanPrompt(ctx: TripContext, totalDays: number): string
     `請先幫我規劃一趟共 ${totalDays} 天行程的「每日主題與區域」大綱——還不用列出具體景點，只需要決定每天要去哪個區域、聚焦什麼主題。`,
     `請通盤考慮全部 ${totalDays} 天：每天的區域/主題都要不一樣，不要讓同一個知名景點或商圈在兩天的主題描述裡都出現。`,
     '主題請有變化，混合市區文化商圈、老街/夜市、自然景觀與近郊景點、歷史建築等不同類型——不要每天都侷限在市中心最知名的那幾個地方，也請適度考慮比較不那麼觀光客爆滿、但確實存在且值得一去的近郊區域。',
-    ctx.preferences?.length
-      ? '興趣偏好裡提到的類型，請確保至少反映在一天以上的主題安排裡（例如提到「自然秘境」，就該有一天以自然景觀/近郊為主）。'
+    distributablePreferences.length
+      ? `以下每一個興趣偏好都請至少分配到一天：${distributablePreferences.join('、')}。請把每個偏好指派給主題/區域最適合它的那一天（例如「逛街購物」指派給有商圈的那天、「自然秘境」指派給近郊/自然景觀的那天），並在該天的 assignedPreferences 欄位填入對應的偏好文字（必須用原字串，不要改寫或翻譯）。天數比偏好數量多時，沒被指派偏好的天可以自由發揮、assignedPreferences 填空陣列；天數比偏好數量少時，允許同一天指派多個偏好。`
       : '',
     '如果天數較多，可以把地理上相近的主題安排在相鄰的天數，讓整體動線比較順；不用嚴格照順序，但盡量避免同一趟行程在城市各角落之間跳來跳去。',
-    `每天請給一個簡短的「區域/主題」名稱（zone，例如「草悟道／勤美文青核心區」），和一句「聚焦內容」的簡短說明（focus，例如「文創園區、咖啡廳、老屋改造」）。用 day 欄位標明第幾天（1 到 ${totalDays} 的整數）。`,
+    `每天請給一個簡短的「區域/主題」名稱（zone，例如「草悟道／勤美文青核心區」），和一句「聚焦內容」的簡短說明（focus，例如「文創園區、咖啡廳、老屋改造」）。用 day 欄位標明第幾天（1 到 ${totalDays} 的整數），並填寫 assignedPreferences 欄位（沒有指派偏好就填空陣列 []）。`,
   ]
     .filter(Boolean)
     .join('\n')
@@ -228,6 +250,15 @@ export function buildDayPrompt(
   const perDayCandidates = placesPerDay + PER_DAY_BUFFER
   const hint = zoneHints.find((entry) => entry.day === day)
   const zoneLine = hint ? `第${day}天主題：「${hint.zone}」——${hint.focus}` : ''
+  // Stage 1 already decided WHICH preferences this day should satisfy (and
+  // picked a zone/focus compatible with them — see buildZonePlanPrompt) —
+  // this states it plainly rather than expecting the model to re-derive
+  // "logic implies shopping" from the zoneLine's free-text focus a second
+  // time in this separate call.
+  const assignedPreferencesLine = hint?.assignedPreferences?.length
+    ? `今天請至少包含 1 個符合以下偏好的地點：${hint.assignedPreferences.join('、')}。`
+    : ''
+  const wantsMealSlots = ctx.preferences?.includes(FOOD_PREFERENCE) ?? false
   return [
     `目的地：${ctx.destination}`,
     ctx.travelStyle?.length ? `旅遊風格：${ctx.travelStyle.join('、')}` : '',
@@ -244,8 +275,11 @@ export function buildDayPrompt(
     zoneLine
       ? `以下是已經先規劃好的當日主題，請在指定的區域/主題範圍內挑選具體、確實存在的地點，不要跳出這個主題去選其他區域的景點：\n${zoneLine}`
       : '',
+    assignedPreferencesLine,
     `每一天請提供最多 ${perDayCandidates} 個候選景點——比當天實際需要的 ${placesPerDay} 個多 ${PER_DAY_BUFFER} 個，多出來的是備援（見下方說明）。同一天的候選請依你的信心排序，越有把握、越具體明確的排越前面。`,
-    `每一天的候選景點裡，盡量包含一個適合當「午餐」的美食類地點（分類 food）、一個適合當「晚餐」的美食類地點（分類 food），其餘搭配文化、自然、購物、活動等不同類型。`,
+    wantsMealSlots
+      ? `每一天的候選景點裡，請至少包含一個美食類地點（分類 food，適合當午餐或晚餐皆可），其餘搭配文化、自然、購物、活動等不同類型——不用強求午餐、晚餐都各自安排一個，一天有一個吃的就好，把名額留給這天的其他主題/偏好。`
+      : '這趟行程沒有特別要求美食類地點，請完全依旅遊風格與興趣偏好決定每天的地點類型組成，不用刻意安排美食地點——如果某個地點剛好符合風格或偏好、恰好是美食類也可以，但不要為了湊「每天都要有吃的」而特地加入。',
     `重要：我們會把每個候選拿去真實地圖（Google 地圖）逐一驗證，每一天只會保留「確實查得到、能定位」的前 ${placesPerDay} 個（依你排的信心順序），查不到的直接丟棄。同一天的備援只會遞補同一天被丟棄的名額，不會被其他天借用——所以每一天請務必自己給滿 ${perDayCandidates} 個，不要因為某天景點少就少給。另外請「只」推薦你有把握真實存在、地圖上找得到的『具體、明確』地點——寧可某天候選數不足，也不要放模糊的類別式名稱（例如「清水在地小吃」「中信市場美食」這種不是特定店家/地標的名稱）或你不確定是否存在的名稱。`,
     '每個景點包含分類、名稱、一句簡短描述（繁體中文），以及可選的一句實用小提示（travelTip）。',
     '名稱優先使用繁體中文慣用名稱，不要同時附上英文原文或重複的括號翻譯（例如寫「洽圖洽週末市場」，不要寫「Chatuchak Weekend Market（洽圖洽週末市場）」）。若沒有通行的繁體中文名稱，或外文是官方品牌名稱，請保留官方名稱；分店、分校、校區等必要辨識資訊可用繁體中文括號註明（例如「Wall Street English（信義分校）」）。',

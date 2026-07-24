@@ -40,7 +40,6 @@ const TRAVEL_STYLE_PLACES_PER_DAY: Record<string, number> = {
   自在慢旅: 3,
   深度探索: 4,
   熱血冒險: 5,
-  質感享受: 4,
 }
 
 // How many places make up one day's column, by pace — a relaxed trip leaves

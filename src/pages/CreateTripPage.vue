@@ -284,7 +284,6 @@ function getStyleIcon(style: string): IconName {
     自在慢旅: 'coffee',
     深度探索: 'compass',
     熱血冒險: 'mountain',
-    質感享受: 'star',
   }
 
   return icons[style] ?? 'sparkle'

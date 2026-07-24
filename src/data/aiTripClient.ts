@@ -47,7 +47,7 @@ const DAYS_PER_REQUEST = 1
 // same constant (see its comment) so the two stay coordinated.
 const MAX_PARALLEL_REQUESTS = 4
 
-type ZoneHint = { day: number; zone: string; focus: string }
+type ZoneHint = { day: number; zone: string; focus: string; assignedPreferences: string[] }
 type GeoPoint = { lat: number; lng: number }
 
 // Runs `fn` over `items` with at most `limit` in flight at once — the
