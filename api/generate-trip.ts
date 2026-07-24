@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { stripBilingualName } from './_lib/placeName.js'
-import { geocodeCityCenter, verifyPlace } from './_lib/placesVerify.js'
+import { distanceKm, geocodeCityCenter, verifyPlace, type GeoPoint } from './_lib/placesVerify.js'
 
 // Vercel's default Node function duration (10s) is too tight for a cold
 // start + first-use structured-output schema compilation + generation time
@@ -527,12 +527,41 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
     // can only lose its own places, never anyone else's (see the prompt
     // comment above for why this replaced flat-array slicing). An out-of-
     // range/non-integer day tag is dropped rather than guessed at.
+    //
+    // Same-day geographic coherence: verification's own city-wide 80km guard
+    // (placesVerify.ts) intentionally stays loose, so a legitimate but
+    // far-from-downtown zone (大坑, 新社, 清水 海線) still survives — but that
+    // means a candidate can be real and in-bounds for the whole CITY while
+    // still being impractically far from the OTHER places already accepted
+    // for the SAME day (confirmed live: a 大坑 day's food pick resolved to a
+    // real branch in 龍井, same city, ~20km away — no day should span that).
+    // Anchors on the first (highest-confidence) accepted candidate for each
+    // day rather than a separately geocoded zone center, so this costs zero
+    // extra Google calls — the coordinates already came back from
+    // verification above; a later candidate too far from that anchor is
+    // dropped, same as if it had simply failed verification (its day's
+    // buffer just has one fewer real option to fall back on).
+    const MAX_KM_FROM_DAY_ANCHOR = 12
+    const dayAnchors = new Map<number, GeoPoint>()
     const byDay = new Map<number, typeof deduped>()
     for (const hit of deduped) {
       const day = hit.day
       if (!Number.isInteger(day) || day < 1 || day > totalDays) continue
       const dayList = byDay.get(day) ?? []
       if (dayList.length >= placesPerDay) continue
+
+      const anchor = dayAnchors.get(day)
+      const hitPoint: GeoPoint = { lat: hit.lat, lng: hit.lng }
+      if (anchor) {
+        const km = distanceKm(anchor, hitPoint)
+        if (km > MAX_KM_FROM_DAY_ANCHOR) {
+          console.error(`[generate-trip] day ${day}: dropped "${hit.name}" — ${km.toFixed(1)}km from the day's anchor`)
+          continue
+        }
+      } else {
+        dayAnchors.set(day, hitPoint)
+      }
+
       dayList.push(hit)
       byDay.set(day, dayList)
     }

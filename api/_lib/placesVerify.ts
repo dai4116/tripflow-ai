@@ -51,6 +51,7 @@ type TextSearchResponse = {
     id?: string
     displayName?: { text?: string }
     location?: { latitude?: number; longitude?: number }
+    businessStatus?: string
   }>
 }
 
@@ -81,9 +82,9 @@ async function textSearch(apiKey: string, textQuery: string, bias: GeoPoint | nu
         'Content-Type': 'application/json',
         'X-Goog-Api-Key': apiKey,
         // Field mask is required by the Places API (New). location is what
-        // makes this a Pro-tier call; id/displayName ride along at no extra
-        // tier cost.
-        'X-Goog-FieldMask': 'places.id,places.displayName,places.location',
+        // makes this a Pro-tier call; id/displayName/businessStatus ride
+        // along at no extra tier cost.
+        'X-Goog-FieldMask': 'places.id,places.displayName,places.location,places.businessStatus',
       },
       body: JSON.stringify(body),
       signal: controller.signal,
@@ -98,6 +99,13 @@ async function textSearch(apiKey: string, textQuery: string, bias: GeoPoint | nu
   const lat = first?.location?.latitude
   const lng = first?.location?.longitude
   if (!first?.id || typeof lat !== 'number' || typeof lng !== 'number') return null
+  // Google's own text-match existing doesn't mean it's still open — a stale
+  // or not-yet-updated listing (confirmed live: the AI's "東山樂園" resolved
+  // to a real place that's since rebranded/closed) would otherwise pass
+  // straight through as a "verified, real" pin. CLOSED_TEMPORARILY is left
+  // alone — a listing that's temporarily closed today may well be open again
+  // by the trip's actual dates, which this app has no way to check.
+  if (first.businessStatus === 'CLOSED_PERMANENTLY') return null
   return { placeId: first.id, name: first.displayName?.text ?? '', lat, lng }
 }
 
@@ -114,8 +122,10 @@ async function textSearchCached(apiKey: string, query: string, bias: GeoPoint | 
 }
 
 // Haversine distance in km — the structural guard against a wrong-city hit
-// slipping past the location bias.
-function distanceKm(a: GeoPoint, b: GeoPoint): number {
+// slipping past the location bias. Exported: generate-trip.ts reuses this
+// same math for its own same-day distance check (see its "day anchor"
+// comment), rather than duplicating the formula.
+export function distanceKm(a: GeoPoint, b: GeoPoint): number {
   const R = 6371
   const dLat = ((b.lat - a.lat) * Math.PI) / 180
   const dLng = ((b.lng - a.lng) * Math.PI) / 180
