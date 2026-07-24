@@ -52,8 +52,29 @@ type TextSearchResponse = {
     displayName?: { text?: string }
     location?: { latitude?: number; longitude?: number }
     businessStatus?: string
+    types?: string[]
   }>
 }
+
+// Google's own record for a place can outlive the place itself — a name
+// that used to be a leisure/attraction spot gets repurposed (confirmed live:
+// the AI's "東山樂園" resolved to a real, OPERATIONAL Google place that's now
+// a bus interchange) and businessStatus alone can't catch this, since the
+// location is genuinely still operating, just as something else entirely.
+// These are google.com/maps "types" that are never what a trip itinerary
+// should be pointing at, regardless of what category the AI thought it was
+// suggesting — a transit hub or parking lot slipping past verification as a
+// "real, verified" pin is wrong in every case, not just some.
+const DISQUALIFYING_TYPES = new Set([
+  'transit_station',
+  'bus_station',
+  'train_station',
+  'subway_station',
+  'light_rail_station',
+  'airport',
+  'parking',
+  'gas_station',
+])
 
 // One raw Text Search call. Throws on network / non-2xx so the caller can
 // decide whether to cache (genuine empty) or not (transient failure).
@@ -94,9 +115,9 @@ async function textSearch(
         'Content-Type': 'application/json',
         'X-Goog-Api-Key': apiKey,
         // Field mask is required by the Places API (New). location is what
-        // makes this a Pro-tier call; id/displayName/businessStatus ride
+        // makes this a Pro-tier call; id/displayName/businessStatus/types ride
         // along at no extra tier cost.
-        'X-Goog-FieldMask': 'places.id,places.displayName,places.location,places.businessStatus',
+        'X-Goog-FieldMask': 'places.id,places.displayName,places.location,places.businessStatus,places.types',
       },
       body: JSON.stringify(body),
       signal,
@@ -118,6 +139,10 @@ async function textSearch(
   // alone — a listing that's temporarily closed today may well be open again
   // by the trip's actual dates, which this app has no way to check.
   if (first.businessStatus === 'CLOSED_PERMANENTLY') return null
+  // See DISQUALIFYING_TYPES above — a place whose Google record is now a
+  // transit hub / parking lot / gas station is rejected outright rather than
+  // pinned under whatever category the AI originally suggested it as.
+  if (first.types?.some((type) => DISQUALIFYING_TYPES.has(type))) return null
   return { placeId: first.id, name: first.displayName?.text ?? '', lat, lng }
 }
 
