@@ -211,7 +211,8 @@
           >
             <AppIcon name="edit" :size="13" />
           </button>
-          <div class="place-drawer__image" :style="{ background: drawerPlace.imageGradient }">
+          <div class="place-drawer__image" :style="showDrawerPhoto ? undefined : { background: drawerPlace.imageGradient }">
+            <img v-if="showDrawerPhoto" class="place-drawer__photo" :src="drawerPhotoUrl" alt="" @error="onDrawerPhotoError" />
             <h2>{{ drawerPlace.name }}</h2>
           </div>
 
@@ -486,6 +487,7 @@ import TimePickerSheet from '../components/ui/TimePickerSheet.vue'
 import { useColumnSchedule } from '../composables/useColumnSchedule'
 import { useConfirmDialog } from '../composables/useConfirmDialog'
 import { useIsMobile } from '../composables/useIsMobile'
+import { usePlacePhoto } from '../composables/usePlacePhoto'
 import { cityFromDestination, computeTripDays, formatDateRange, toDateInputValue } from '../data/generateTrip'
 import {
   addMinutes,
@@ -639,6 +641,11 @@ const focusedPlaces = computed(() => {
 // this page.
 const focusedPlaceIds = computed(() => focusedPlaces.value.map((place) => place.id))
 const drawerPlace = computed(() => tripPlaces.value.find((place) => place.id === drawerPlaceId.value))
+// 1000 = 2x the drawer's ~500px ($map-panel-width) banner, for retina.
+const { showPhoto: showDrawerPhoto, photoUrl: drawerPhotoUrl, onPhotoError: onDrawerPhotoError } = usePlacePhoto(
+  drawerPlace,
+  1000,
+)
 const drawerPlaceSchedule = computed(() => getPlaceSchedule(drawerPlace.value))
 const shouldLockBodyScroll = computed(() => isMobile.value && Boolean(drawerPlace.value))
 const cityName = computed(() => cityFromDestination(activeTrip.value.destination))

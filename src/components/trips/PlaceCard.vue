@@ -7,7 +7,8 @@
     }"
   >
     <button type="button" class="place-card__open" @click="emit('open')">
-      <div class="place-card__media" :style="{ background: place.imageGradient }">
+      <div class="place-card__media" :style="showPhoto ? undefined : { background: place.imageGradient }">
+        <img v-if="showPhoto" class="place-card__photo" :src="photoUrl" alt="" loading="lazy" @error="onPhotoError" />
         <span class="place-card__index">{{ order }}</span>
       </div>
       <div class="place-card__content">
@@ -39,7 +40,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, toRef } from 'vue'
+import { usePlacePhoto } from '../../composables/usePlacePhoto'
 import { formatStayDuration } from '../../data/placeSchedule'
 import type { Place } from '../../types'
 import AppIcon from '../ui/AppIcon.vue'
@@ -69,6 +71,9 @@ const emit = defineEmits<{
 const warningMessage = computed(() =>
   props.overlapReason === 'departure' ? '離開時間有重疊喔！' : '抵達時間有重疊喔！',
 )
+
+// 128 = 2x the 64px .place-card__media box, for retina.
+const { showPhoto, photoUrl, onPhotoError } = usePlacePhoto(toRef(props, 'place'), 128)
 
 const stayLabel = computed(() => formatStayDuration(props.place.estimatedTime))
 const scheduleLabel = computed(() =>

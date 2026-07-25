@@ -171,7 +171,7 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
       // garbled AI name can still fuzzy-match some real nearby place, which
       // gets a real pin but was never actually confirmed to be *that* place.
       const verifiedName = hit.name.trim() ? stripBilingualName(hit.name) : place.name
-      return { ...place, name: verifiedName, lat: hit.lat, lng: hit.lng, placeId: hit.placeId }
+      return { ...place, name: verifiedName, lat: hit.lat, lng: hit.lng, placeId: hit.placeId, photoRef: hit.photoRef }
     })
 
     // Dedup by Google's placeId within this request's own candidates only.

@@ -14,8 +14,12 @@
 //
 // Billing: the field mask requests places.location (a Pro-tier field), so
 // each call is a "Text Search Pro" SKU — 5,000 free requests/month, then
-// $32/1000. The module-level cache below reuses results within a warm
-// serverless instance to keep billable calls down.
+// $32/1000. Callers that also want a cover photo (verifyPlace) opt into
+// places.photos, which bumps THAT call to the pricier Enterprise tier — see
+// includePhotos below. geocodeCityCenter never sets it, since it only reads
+// lat/lng and would otherwise pay Enterprise pricing for a photo it discards.
+// The module-level cache below reuses results within a warm serverless
+// instance to keep billable calls down.
 
 const TEXT_SEARCH_URL = 'https://places.googleapis.com/v1/places:searchText'
 
@@ -39,11 +43,17 @@ const BIAS_RADIUS_M = 40000
 const MAX_KM_FROM_CITY = 80
 
 export type GeoPoint = { lat: number; lng: number }
-export type VerifiedPlace = { placeId: string; name: string; lat: number; lng: number }
+export type VerifiedPlace = { placeId: string; name: string; lat: number; lng: number; photoRef?: string }
 
-// Keyed by lowercased query string. Stores `null` for a genuine no-match so
-// the same dud query isn't re-billed; a network/non-2xx failure is NOT cached
-// (see textSearchCached) so it can be retried on a later call.
+// Keyed by `${includePhotos}:${lowercased query}`. The includePhotos flag is
+// part of the key (not just the query) because the two callers below share
+// this cache but request different field masks — without it, whichever call
+// happens to run first for a given query would silently decide whether the
+// other one ever sees a photoRef, e.g. geocodeCityCenter caching a
+// photo-less result that verifyPlace then reuses for an identical query text.
+// Stores `null` for a genuine no-match so the same dud query isn't re-billed;
+// a network/non-2xx failure is NOT cached (see textSearchCached) so it can be
+// retried on a later call.
 const cache = new Map<string, VerifiedPlace | null>()
 
 type TextSearchResponse = {
@@ -53,6 +63,7 @@ type TextSearchResponse = {
     location?: { latitude?: number; longitude?: number }
     businessStatus?: string
     types?: string[]
+    photos?: Array<{ name?: string }>
   }>
 }
 
@@ -88,6 +99,7 @@ async function textSearch(
   apiKey: string,
   textQuery: string,
   bias: GeoPoint | null,
+  includePhotos: boolean,
   externalSignal?: AbortSignal,
 ): Promise<VerifiedPlace | null> {
   const body: Record<string, unknown> = {
@@ -114,10 +126,14 @@ async function textSearch(
       headers: {
         'Content-Type': 'application/json',
         'X-Goog-Api-Key': apiKey,
-        // Field mask is required by the Places API (New). location is what
-        // makes this a Pro-tier call; id/displayName/businessStatus/types ride
-        // along at no extra tier cost.
-        'X-Goog-FieldMask': 'places.id,places.displayName,places.location,places.businessStatus,places.types',
+        // Field mask is required by the Places API (New). location alone
+        // makes this a Pro-tier call; places.photos (only requested when
+        // includePhotos is set) bumps it to Enterprise tier (higher $/1000,
+        // see Google's Places API SKU table) since photos isn't available at
+        // Pro — a deliberate cost/feature tradeoff, scoped to only the calls
+        // that actually use the photo. id/displayName/businessStatus/types
+        // ride along at no extra tier cost either way.
+        'X-Goog-FieldMask': `places.id,places.displayName,places.location,places.businessStatus,places.types${includePhotos ? ',places.photos' : ''}`,
       },
       body: JSON.stringify(body),
       signal,
@@ -143,22 +159,28 @@ async function textSearch(
   // transit hub / parking lot / gas station is rejected outright rather than
   // pinned under whatever category the AI originally suggested it as.
   if (first.types?.some((type) => DISQUALIFYING_TYPES.has(type))) return null
-  return { placeId: first.id, name: first.displayName?.text ?? '', lat, lng }
+  // Not every place has a Google-hosted photo (small/unlisted businesses
+  // especially) — absent means the caller falls back to the decorative
+  // gradient, same as before this field existed.
+  const photoRef = first.photos?.[0]?.name
+  return { placeId: first.id, name: first.displayName?.text ?? '', lat, lng, photoRef }
 }
 
 async function textSearchCached(
   apiKey: string,
   query: string,
   bias: GeoPoint | null,
+  includePhotos: boolean,
   signal?: AbortSignal,
 ): Promise<VerifiedPlace | null> {
-  const key = query.trim().toLowerCase()
-  if (!key) return null
+  const trimmed = query.trim().toLowerCase()
+  if (!trimmed) return null
+  const key = `${includePhotos ? '1' : '0'}:${trimmed}`
 
   const cached = cache.get(key)
   if (cached !== undefined) return cached
 
-  const result = await textSearch(apiKey, query, bias, signal)
+  const result = await textSearch(apiKey, query, bias, includePhotos, signal)
   cache.set(key, result)
   return result
 }
@@ -183,7 +205,7 @@ export function distanceKm(a: GeoPoint, b: GeoPoint): number {
 // bias, relying on the query's own city/country tokens.
 export async function geocodeCityCenter(apiKey: string, destination: string, signal?: AbortSignal): Promise<GeoPoint | null> {
   try {
-    const result = await textSearchCached(apiKey, destination, null, signal)
+    const result = await textSearchCached(apiKey, destination, null, false, signal)
     return result ? { lat: result.lat, lng: result.lng } : null
   } catch {
     return null
@@ -204,7 +226,7 @@ export async function verifyPlace(
     if (!query?.trim()) continue
     let result: VerifiedPlace | null
     try {
-      result = await textSearchCached(apiKey, query, cityCenter, signal)
+      result = await textSearchCached(apiKey, query, cityCenter, true, signal)
     } catch {
       // Transient failure (network / rate limit) — not cached; try the next
       // query, and this place stays eligible on a later generation attempt.

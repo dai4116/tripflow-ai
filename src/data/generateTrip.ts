@@ -179,6 +179,9 @@ export type PlaceSuggestion = {
   lat?: number
   lng?: number
   placeId?: string
+  // Google Places photo resource name, carried through from verification —
+  // see the matching field on Place in types/index.ts.
+  photoRef?: string
   // Which trip day (1-indexed) this suggestion belongs to, set by the AI and
   // preserved through server-side verification (see
   // api/generate-trip-day.ts).
@@ -406,6 +409,7 @@ export function generateTrip(
       geocodeQueryAlt: suggestion?.geocodeQueryAlt,
       columnId,
       imageGradient: PLACE_GRADIENTS[places.length % PLACE_GRADIENTS.length],
+      photoRef: suggestion?.photoRef,
     }
     places.push(place)
     return place
