@@ -1696,6 +1696,33 @@ h3 {
   gap: 14px;
 }
 
+.trips-empty {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 64px 24px;
+  border: 1.5px dashed $color-border;
+  border-radius: $radius-lg;
+  color: $color-muted;
+  text-align: center;
+}
+
+.trips-empty .app-icon {
+  color: $color-subtle;
+}
+
+.trips-empty h3 {
+  color: $color-ink;
+}
+
+.trips-empty p {
+  max-width: 360px;
+}
+
+.trips-empty .base-button {
+  margin-top: 6px;
+}
+
 // ---------------------------------------------------------------------------
 // Create trip
 // ---------------------------------------------------------------------------
@@ -3793,6 +3820,89 @@ h3 {
   font-weight: 750;
 }
 
+.ask-ai-suggestions {
+  display: grid;
+  gap: 6px;
+  justify-self: start;
+  max-width: 92%;
+}
+
+.ask-ai-suggestion {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 13px;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+  background: $color-bg;
+  color: $color-text;
+  font-size: $fs-small;
+  font-weight: 650;
+  text-align: left;
+}
+
+.ask-ai-suggestion:hover {
+  border-color: $color-primary;
+  color: $color-primary-text;
+}
+
+.ask-ai-suggestion:focus-visible {
+  @include focus-ring;
+}
+
+.ask-ai-day-picker {
+  display: grid;
+  gap: 8px;
+  justify-self: start;
+  max-width: 92%;
+}
+
+.ask-ai-day-picker__prompt {
+  color: $color-muted;
+  font-size: $fs-caption;
+  font-weight: 700;
+}
+
+.ask-ai-day-picker__days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ask-ai-day-chip {
+  padding: 6px 12px;
+  border: 1px solid $color-border;
+  border-radius: $radius-pill;
+  background: $color-bg;
+  color: $color-text;
+  font-size: $fs-caption;
+  font-weight: 700;
+}
+
+.ask-ai-day-chip:hover {
+  border-color: $color-primary;
+  color: $color-primary-text;
+}
+
+.ask-ai-day-chip:focus-visible {
+  @include focus-ring;
+}
+
+.ask-ai-day-picker__back {
+  justify-self: start;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: $color-subtle;
+  font-size: $fs-caption;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.ask-ai-suggestion .app-icon {
+  color: $color-primary-text;
+}
+
 .ask-ai-message--thinking {
   padding: 12px 13px;
 }
@@ -4154,7 +4264,6 @@ h3 {
   }
 
   body {
-    padding-bottom: 74px;
     font-size: $font-size-sm;
   }
 

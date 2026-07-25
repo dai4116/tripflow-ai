@@ -13,8 +13,6 @@ import {
   regionFromDestination,
 } from '../data/generateTrip'
 import { geocodePlace, geocodeRawQuery } from '../data/geocode'
-import { places as seedPlaces } from '../data/mockPlaces'
-import { trips as seedTrips } from '../data/mockTrips'
 import { fetchTravelTime } from '../data/routing'
 import type { CreateTripInput, Place, PlaceCategory, Trip, TravelMode } from '../types'
 
@@ -37,10 +35,11 @@ export const useTripsStore = defineStore('trips', () => {
   // Bumped to v2 when the Planning/Done columns were removed from the board
   // structure, then to v3 when trips gained a startDate field — old
   // localStorage data under earlier keys is stale/incompatible, so browsers
-  // with existing data fall back to the fresh seed instead of silently
-  // missing fields the UI now expects.
-  const trips = useStorage<Trip[]>('tripflow-trips-v3', seedTrips)
-  const places = useStorage<Place[]>('tripflow-places-v3', seedPlaces)
+  // with existing data fall back to blank instead of silently missing
+  // fields the UI now expects. New visitors start blank too — no seed/demo
+  // data until there's a real account system to scope it to.
+  const trips = useStorage<Trip[]>('tripflow-trips-v3', [])
+  const places = useStorage<Place[]>('tripflow-places-v3', [])
 
   function getTripById(tripId: string) {
     return trips.value.find((trip) => trip.id === tripId)
@@ -296,6 +295,17 @@ export const useTripsStore = defineStore('trips', () => {
     fillMissingTravelTimes(trip.id)
   }
 
+  function reorderColumnPlaces(tripId: string, columnId: string, placeIds: string[]) {
+    const trip = trips.value.find((item) => item.id === tripId)
+    const column = trip?.columns.find((item) => item.id === columnId)
+    if (!column) return
+
+    column.placeIds = placeIds
+    // Reordering changes which place is "next" for every gap in this column —
+    // same reasoning as onDragEnd's manual-reorder path in TripBoardPage.
+    fillMissingTravelTimes(tripId)
+  }
+
   function updatePlace(
     placeId: string,
     patch: Partial<
@@ -376,6 +386,7 @@ export const useTripsStore = defineStore('trips', () => {
     addPlace,
     removePlace,
     movePlaceToColumn,
+    reorderColumnPlaces,
     updatePlace,
     recalcPlaceCount,
     removeTrip,

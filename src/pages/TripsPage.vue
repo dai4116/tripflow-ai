@@ -6,7 +6,14 @@
     >
     </PageHeader>
 
-    <div class="trips-list">
+    <div v-if="trips.length === 0" class="trips-empty">
+      <AppIcon name="compass" :size="28" />
+      <h3>還沒有任何行程</h3>
+      <p>建立你的第一趟旅程，開始規劃景點與行程安排。</p>
+      <BaseButton :to="{ name: 'trip-create' }" variant="primary">建立行程</BaseButton>
+    </div>
+
+    <div v-else class="trips-list">
       <RouterLink
         v-for="trip in trips"
         :key="trip.id"
@@ -32,6 +39,8 @@
 import { storeToRefs } from 'pinia'
 import PageHeader from '../components/layout/PageHeader.vue'
 import TripCard from '../components/trips/TripCard.vue'
+import AppIcon from '../components/ui/AppIcon.vue'
+import BaseButton from '../components/ui/BaseButton.vue'
 import ConfirmModal from '../components/ui/ConfirmModal.vue'
 import { useConfirmDialog } from '../composables/useConfirmDialog'
 import { useTripsStore } from '../stores/trips'

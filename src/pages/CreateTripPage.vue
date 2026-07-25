@@ -58,11 +58,6 @@
             :aria-pressed="selectedPreferences.includes(preference)"
             @click="togglePreference(preference)"
           >
-            <AppIcon
-              v-if="selectedPreferences.includes(preference)"
-              name="check"
-              :size="11"
-            />
             {{ preference }}
           </button>
         </div>

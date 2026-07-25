@@ -67,6 +67,37 @@
           </span>
         </div>
 
+        <div v-if="messages.length === 1 && !pendingSuggestion" class="ask-ai-suggestions">
+          <button
+            v-for="chip in suggestionChips"
+            :key="chip.kind"
+            type="button"
+            class="ask-ai-suggestion"
+            @click="pickSuggestion(chip.kind)"
+          >
+            <AppIcon :name="chip.icon" :size="14" />
+            {{ chip.label }}
+          </button>
+        </div>
+
+        <div v-else-if="pendingSuggestion" class="ask-ai-day-picker">
+          <p class="ask-ai-day-picker__prompt">第幾天？</p>
+          <div class="ask-ai-day-picker__days">
+            <button
+              v-for="column in activeTrip?.columns ?? []"
+              :key="column.id"
+              type="button"
+              class="ask-ai-day-chip"
+              @click="pickDay(column.dayNumber)"
+            >
+              第 {{ column.dayNumber }} 天
+            </button>
+          </div>
+          <button type="button" class="ask-ai-day-picker__back" @click="cancelSuggestion">
+            返回
+          </button>
+        </div>
+
         <div v-if="isThinking" class="ask-ai-message ask-ai-message--ai ask-ai-message--thinking">
           <span class="ask-ai-typing"><i /><i /><i /></span>
         </div>
@@ -76,7 +107,7 @@
         <input
           v-model="draft"
           type="text"
-          placeholder="例如：把博物館搬到第 1 天..."
+          placeholder="例如：推薦我第 1 天附近的景點..."
           aria-label="傳送訊息給 AI"
         />
         <button type="submit" class="ask-ai-panel__send" :disabled="!draft.trim()" aria-label="送出訊息">
@@ -98,6 +129,7 @@ import type { PlaceSuggestion } from '../../data/generateTrip'
 import { useTripsStore } from '../../stores/trips'
 import type { Place, TripColumn } from '../../types'
 import AppIcon from '../ui/AppIcon.vue'
+import type { IconName } from '../ui/icons'
 
 // Shown while waiting for the AI reply (or the keyword-mock fallback) so a
 // near-instant fallback doesn't flash the typing indicator on and off.
@@ -117,6 +149,7 @@ type AiIntent =
   | { type: 'move'; placeId: string; toColumnId: string }
   | { type: 'remove'; placeId: string }
   | { type: 'add'; columnId: string; places: PlaceSuggestion[] }
+  | { type: 'reorder'; columnId: string; placeIds: string[] }
 type AiMessage = {
   id: string
   role: 'ai' | 'user'
@@ -144,9 +177,23 @@ function suggestionActions(): AiAction[] {
   ]
 }
 
-// Seeds the panel's opening demo conversation and doubles as the fallback
-// heuristic in buildAiResponse() below when the real AI call in
-// sendMessage() fails — keyword/regex matching, not a language model.
+// Quick-start prompts shown under the opening greeting, before the user has
+// sent anything — spares them typing out the three things AI can do that
+// manual drag/delete can't (recommend places, judge pace, optimize a day's
+// route by real coordinates). None of them make sense without a day, so
+// picking one doesn't send yet — it opens the day picker below (see
+// pendingSuggestion) and the day click sends/runs the full request.
+type SuggestionKind = 'suggest' | 'pace' | 'route'
+const suggestionChips: { kind: SuggestionKind; icon: IconName; label: string }[] = [
+  { kind: 'suggest', icon: 'sparkle', label: '推薦附近景點' },
+  { kind: 'pace', icon: 'clock', label: '看看節奏會不會太趕' },
+  { kind: 'route', icon: 'compass', label: '依路線排序' },
+]
+const pendingSuggestion = ref<SuggestionKind | null>(null)
+
+// Doubles as the fallback heuristic in buildAiResponse() below when the
+// real AI call in sendMessage() fails — keyword/regex matching, not a
+// language model.
 function computeRebalanceSuggestion(): { place: Place; fromColumn: TripColumn; toColumn: TripColumn } | null {
   const columns = activeTrip.value?.columns ?? []
   if (columns.length < 2) return null
@@ -172,6 +219,82 @@ function rebalanceMessage(suggestion: { place: Place; fromColumn: TripColumn; to
   }
 }
 
+// Route ordering is deterministic geography, not something worth asking a
+// language model to guess at from place names — so unlike the other two
+// suggestion kinds, this never goes through sendMessage()/the real AI call.
+// It's computed straight from each place's lat/lng with a nearest-neighbor
+// heuristic, anchored at the day's current first stop.
+type RouteOrderResult =
+  | { status: 'insufficient' }
+  | { status: 'optimal' }
+  | { status: 'reordered'; placeIds: string[] }
+
+// Flight arrivals and hotel check-ins aren't stops you visit for their
+// location — they're fixed obligations at a fixed time. Letting the
+// geography heuristic move them would happily schedule "check into hotel"
+// as the day's last stop just because it's the nearest thing to the final
+// sightseeing spot. These stay pinned at their original slot; only the
+// places between/around them get reordered.
+function isRouteAnchor(place: Place): boolean {
+  return place.category === 'transport' || place.category === 'stay'
+}
+
+function computeRouteOrder(column: TripColumn): RouteOrderResult {
+  const columnPlaces = column.placeIds.map((id) => tripPlaces.value.find((place) => place.id === id))
+  if (columnPlaces.length < 3 || columnPlaces.some((place) => !place || (place.lat === 0 && place.lng === 0))) {
+    return { status: 'insufficient' }
+  }
+
+  const places = columnPlaces as Place[]
+  const flexible = places.filter((place) => !isRouteAnchor(place))
+  if (flexible.length < 2) return { status: 'optimal' }
+
+  const remaining = new Set(flexible)
+  const start = flexible[0]!
+  remaining.delete(start)
+  const ordered = [start]
+  let current = start
+
+  while (remaining.size > 0) {
+    let nearest: Place | undefined
+    let nearestDistance = Infinity
+    for (const candidate of remaining) {
+      const dLat = current.lat - candidate.lat
+      const dLng = current.lng - candidate.lng
+      const distance = dLat * dLat + dLng * dLng
+      if (distance < nearestDistance) {
+        nearestDistance = distance
+        nearest = candidate
+      }
+    }
+    ordered.push(nearest!)
+    remaining.delete(nearest!)
+    current = nearest!
+  }
+
+  // Anchors keep their original index; the reordered flexible places fill
+  // in the remaining slots in order.
+  let flexibleIndex = 0
+  const placeIds = places.map((place) => (isRouteAnchor(place) ? place.id : ordered[flexibleIndex++]!.id))
+
+  const isSameOrder = placeIds.every((id, index) => id === column.placeIds[index])
+  return isSameOrder ? { status: 'optimal' } : { status: 'reordered', placeIds }
+}
+
+function routeReplyMessage(column: TripColumn, result: RouteOrderResult): Omit<AiMessage, 'id' | 'role'> {
+  if (result.status === 'insufficient') {
+    return { text: `第 ${column.dayNumber} 天的地點還不夠，或還有座標資料沒抓到，暫時沒辦法排路線。` }
+  }
+  if (result.status === 'optimal') {
+    return { text: `第 ${column.dayNumber} 天目前的順序已經很順路了，不用調整！` }
+  }
+  return {
+    text: `第 ${column.dayNumber} 天的順序繞了一些路，我照地理位置重新排了一次，要套用嗎？`,
+    actions: suggestionActions(),
+    intent: { type: 'reorder', columnId: column.id, placeIds: result.placeIds },
+  }
+}
+
 function findMentionedPlace(text: string): Place | undefined {
   const lower = text.toLowerCase()
   return tripPlaces.value.find((place) => lower.includes(place.name.toLowerCase()))
@@ -184,21 +307,12 @@ function extractDayNumber(text: string): number | null {
   return Number.isFinite(num) ? num : null
 }
 
-const initialSuggestion = computeRebalanceSuggestion()
 const messages = ref<AiMessage[]>([
   {
     id: nanoid(),
     role: 'ai',
-    text: '我可以幫你調整行程順序、更換地點，或調整節奏。你想改什麼呢？',
+    text: '需要我幫什麼忙？',
   },
-  {
-    id: nanoid(),
-    role: 'user',
-    text: '這天感覺排太滿了，可以幫我分散一下嗎？',
-  },
-  initialSuggestion
-    ? { id: nanoid(), role: 'ai', ...rebalanceMessage(initialSuggestion) }
-    : { id: nanoid(), role: 'ai', text: '你的行程天數已經很平均了，安排得不錯！' },
 ])
 
 function toggleOpen() {
@@ -229,6 +343,12 @@ function applyIntent(intent: AiIntent) {
         geocodeQueryAlt: place.geocodeQueryAlt,
       })
     }
+    emit('applied', intent.columnId)
+    return
+  }
+
+  if (intent.type === 'reorder') {
+    tripsStore.reorderColumnPlaces(props.tripId, intent.columnId, intent.placeIds)
     emit('applied', intent.columnId)
     return
   }
@@ -351,6 +471,44 @@ async function sendMessage() {
 
   const reply = result ? messageFromAskAiResult(result) : buildAiResponse(text)
   messages.value.push({ id: nanoid(), role: 'ai', ...reply })
+  scrollToBottom()
+}
+
+function pickSuggestion(kind: SuggestionKind) {
+  pendingSuggestion.value = kind
+}
+
+function cancelSuggestion() {
+  pendingSuggestion.value = null
+}
+
+function pickDay(dayNumber: number) {
+  const kind = pendingSuggestion.value
+  pendingSuggestion.value = null
+  if (!kind) return
+
+  if (kind === 'route') {
+    sendRouteRequest(dayNumber)
+    return
+  }
+
+  draft.value =
+    kind === 'suggest' ? `推薦我第 ${dayNumber} 天附近的景點` : `幫我看看第 ${dayNumber} 天會不會太趕`
+  sendMessage()
+}
+
+async function sendRouteRequest(dayNumber: number) {
+  const column = activeTrip.value?.columns.find((item) => item.dayNumber === dayNumber)
+  if (!column) return
+
+  messages.value.push({ id: nanoid(), role: 'user', text: `幫我把第 ${dayNumber} 天的順序按路線排一下` })
+  scrollToBottom()
+
+  isThinking.value = true
+  await new Promise((resolve) => window.setTimeout(resolve, MIN_THINKING_MS))
+  isThinking.value = false
+
+  messages.value.push({ id: nanoid(), role: 'ai', ...routeReplyMessage(column, computeRouteOrder(column)) })
   scrollToBottom()
 }
 
