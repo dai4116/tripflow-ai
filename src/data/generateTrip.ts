@@ -189,6 +189,11 @@ export type PlaceSuggestion = {
   // remaining day silently came up empty. Absent for locally-templated
   // suggestions (AddPlaceModal), which don't belong to a generated trip.
   day?: number
+  // AI-supplied guess at when this place is typically/best visited (a night
+  // market is 'evening', a large mall is 'anytime') — drives orderDayPlaces
+  // below. Absent for locally-templated suggestions, which orderDayPlaces
+  // treats the same as 'anytime' (no ordering opinion).
+  timeOfDay?: 'morning' | 'afternoon' | 'evening' | 'anytime'
 }
 
 // Same curated templates AI generation draws from — reused so manually added
@@ -256,6 +261,78 @@ export function formatDateRange(startDate: string, endDate: string): string {
   const endLabel = sameMonth ? `${end.getDate()}日` : end.toLocaleDateString('zh-TW', { month: 'long', day: 'numeric' })
 
   return `${end.getFullYear()}年${startLabel} - ${endLabel}`
+}
+
+type GeoPoint = { lat: number; lng: number }
+
+function hasCoords(suggestion: PlaceSuggestion): suggestion is PlaceSuggestion & GeoPoint {
+  return typeof suggestion.lat === 'number' && typeof suggestion.lng === 'number'
+}
+
+// Haversine distance in km. Duplicated from api/_lib/placesVerify.ts's
+// identical formula rather than imported — api/ and src/ are independent
+// deployable units (same reasoning as the mapWithConcurrency/PLACE_CATEGORIES
+// copies already split that way elsewhere in this codebase).
+function distanceKm(a: GeoPoint, b: GeoPoint): number {
+  const R = 6371
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180
+  const lat1 = (a.lat * Math.PI) / 180
+  const lat2 = (b.lat * Math.PI) / 180
+  const h = Math.sin(dLat / 2) ** 2 + Math.sin(dLng / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2)
+  return 2 * R * Math.asin(Math.sqrt(h))
+}
+
+// 'anytime' shares 'afternoon''s weight — no strong timing opinion reads as
+// flexible middle-of-day filler, not as its own separate slot.
+const TIME_BUCKET_WEIGHT: Record<string, number> = { morning: 0, afternoon: 1, anytime: 1, evening: 2 }
+
+// Orders a day's places into a same-day-sensible sequence instead of
+// whatever order they happened to survive AI generation + verification in.
+// Two passes: group by time-of-day bucket first (morning before afternoon
+// before evening) — this has to come first because computeArrivalTimes
+// (placeSchedule.ts) turns display order directly into clock times starting
+// at 08:00, so a night-market-type place landing early in the array would
+// show an absurd morning arrival time. Within each bucket, chain by nearest
+// neighbor (greedy, not true shortest-path — overkill for the 3-5 stops a
+// day actually has) so the route itself doesn't zigzag. Places missing
+// coordinates (the no-Google-key fallback path) just keep their relative
+// order within their bucket, since there's nothing to measure distance from.
+function orderDayPlaces(suggestions: PlaceSuggestion[]): PlaceSuggestion[] {
+  if (suggestions.length <= 1) return suggestions
+
+  const buckets = new Map<number, PlaceSuggestion[]>()
+  for (const suggestion of suggestions) {
+    const weight = TIME_BUCKET_WEIGHT[suggestion.timeOfDay ?? 'anytime'] ?? TIME_BUCKET_WEIGHT.afternoon!
+    const bucket = buckets.get(weight) ?? []
+    bucket.push(suggestion)
+    buckets.set(weight, bucket)
+  }
+
+  const ordered: PlaceSuggestion[] = []
+  let current: GeoPoint | null = null
+  for (const weight of [...buckets.keys()].sort((a, b) => a - b)) {
+    const remaining = buckets.get(weight)!
+    while (remaining.length > 0) {
+      let nextIndex = 0
+      if (current) {
+        let bestDistance = Infinity
+        for (let i = 0; i < remaining.length; i++) {
+          const candidate = remaining[i]!
+          if (!hasCoords(candidate)) continue
+          const distance = distanceKm(current, candidate)
+          if (distance < bestDistance) {
+            bestDistance = distance
+            nextIndex = i
+          }
+        }
+      }
+      const [next] = remaining.splice(nextIndex, 1)
+      ordered.push(next!)
+      if (hasCoords(next!)) current = { lat: next!.lat, lng: next!.lng }
+    }
+  }
+  return ordered
 }
 
 // aiPlaces (merged from many /api/generate-trip-day requests — see
@@ -337,9 +414,11 @@ export function generateTrip(
   // Lunch and dinner anchor each day: lunch sits roughly mid-day, dinner is
   // always the last slot, with other categories filling the rest — same
   // math for every pace (3/4/5 per day), e.g. 4 gives [activity, lunch,
-  // activity, dinner]. Only applies when there's no AI suggestion for that
-  // slot already carrying its own category (the AI prompt asks for the same
-  // lunch/dinner structure itself).
+  // activity, dinner]. Only actually used by the local-template fallback
+  // below (`addPlace` ignores `mealHint` whenever a real AI `suggestion`
+  // exists) — AI-generated trips place their (now optional, see
+  // api/_lib/tripGen.ts's FOOD_PREFERENCE gating) food candidate wherever
+  // orderDayPlaces puts it, not at a fixed index.
   const lunchSlotIndex = Math.floor((resolvedPlacesPerDay - 1) / 2)
   const dinnerSlotIndex = resolvedPlacesPerDay - 1
 
@@ -361,7 +440,7 @@ export function generateTrip(
   const columns: TripColumn[] = Array.from({ length: days }, (_, index) => {
     const dayNumber = index + 1
     const columnId = `day-${dayNumber}`
-    const dayPlaces = suggestionsByDay.get(dayNumber) ?? []
+    const dayPlaces = orderDayPlaces(suggestionsByDay.get(dayNumber) ?? [])
     const placeIds: string[] = []
     for (let i = 0; i < resolvedPlacesPerDay; i++) {
       const suggestion = dayPlaces[i]

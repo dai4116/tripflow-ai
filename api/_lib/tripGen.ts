@@ -21,6 +21,17 @@ const PLACE_CATEGORIES = [
   'other',
 ] as const
 
+// When a candidate is typically/best visited — drives client-side ordering
+// (orderDayPlaces in src/data/generateTrip.ts), which places time-of-day
+// before geography when sequencing a day: display order becomes clock time
+// directly (computeArrivalTimes in placeSchedule.ts starts each day at 08:00
+// and cascades forward), so an evening-only spot (a night market, say) has to
+// be kept late in the sequence regardless of how close it is to the day's
+// other stops. 'anytime' is a real, valid answer (a mall, a general museum)
+// — not a stand-in for "the model didn't bother," but the prompt below tells
+// the model not to default to it lazily either.
+const TIME_OF_DAY_OPTIONS = ['morning', 'afternoon', 'evening', 'anytime'] as const
+
 export const PLACE_SCHEMA = {
   type: 'object',
   properties: {
@@ -41,8 +52,9 @@ export const PLACE_SCHEMA = {
           geocodeQueryAlt: { type: 'string' },
           description: { type: 'string' },
           travelTip: { type: 'string' },
+          timeOfDay: { type: 'string', enum: TIME_OF_DAY_OPTIONS },
         },
-        required: ['day', 'category', 'name', 'geocodeQuery', 'description'],
+        required: ['day', 'category', 'name', 'geocodeQuery', 'description', 'timeOfDay'],
         additionalProperties: false,
       },
     },
@@ -143,6 +155,7 @@ export type AiPlace = {
   geocodeQueryAlt?: string
   description: string
   travelTip?: string
+  timeOfDay?: (typeof TIME_OF_DAY_OPTIONS)[number]
 }
 
 // Loosely typed on purpose — Vercel's Node runtime augments these at runtime
@@ -282,6 +295,7 @@ export function buildDayPrompt(
       : '這趟行程沒有特別要求美食類地點，請完全依旅遊風格與興趣偏好決定每天的地點類型組成，不用刻意安排美食地點——如果某個地點剛好符合風格或偏好、恰好是美食類也可以，但不要為了湊「每天都要有吃的」而特地加入。',
     `重要：我們會把每個候選拿去真實地圖（Google 地圖）逐一驗證，每一天只會保留「確實查得到、能定位」的前 ${placesPerDay} 個（依你排的信心順序），查不到的直接丟棄。同一天的備援只會遞補同一天被丟棄的名額，不會被其他天借用——所以每一天請務必自己給滿 ${perDayCandidates} 個，不要因為某天景點少就少給。另外請「只」推薦你有把握真實存在、地圖上找得到的『具體、明確』地點——寧可某天候選數不足，也不要放模糊的類別式名稱（例如「清水在地小吃」「中信市場美食」這種不是特定店家/地標的名稱）或你不確定是否存在的名稱。`,
     '每個景點包含分類、名稱、一句簡短描述（繁體中文），以及可選的一句實用小提示（travelTip）。',
+    '另外每個景點都要填 timeOfDay 欄位，標示這個地點通常/最適合什麼時段前往：morning（適合上午，例如市場、日出景點）、afternoon（適合下午，沒有明顯時段限制的多數景點也可以用這個）、evening（只適合晚上或傍晚以後，例如夜市、酒吧、夜景、只供應晚餐的餐廳）、anytime（真的完全不受時段限制，例如大型商場、一般博物館）。請依你對這個地點的實際了解判斷，不要每個都填同一個值敷衍——這個欄位會直接影響行程排序與顯示時間。',
     '名稱優先使用繁體中文慣用名稱，不要同時附上英文原文或重複的括號翻譯（例如寫「洽圖洽週末市場」，不要寫「Chatuchak Weekend Market（洽圖洽週末市場）」）。若沒有通行的繁體中文名稱，或外文是官方品牌名稱，請保留官方名稱；分店、分校、校區等必要辨識資訊可用繁體中文括號註明（例如「Wall Street English（信義分校）」）。',
     '另外提供 geocodeQuery 欄位：這是給地圖服務（OpenStreetMap）查詢定位用的完整字串，不會顯示給使用者。格式必須是「地點官方名稱, 城市, 國家」，三段全部使用同一種語言，而且優先使用當地官方語言（地圖資料庫幾乎都是用當地語言登記地點名稱，翻成英文常常查不到、或誤配到完全不相關的地方）；只有目的地本身是英語系國家，或這個地點是國際連鎖品牌、慣用英文名稱時，才用英文。絕對不要中文和其他語言混用在同一個 geocodeQuery 裡。例如目的地是義大利佛羅倫斯，應填寫「Galleria degli Uffizi, Firenze, Italia」（義大利文），不要翻成「Uffizi Gallery, Florence, Italy」；目的地是韓國釜山，應填寫「부산시립미술관, 부산, 대한민국」（韓文），不要翻成「Busan Museum of Art, Busan, South Korea」。只有目的地本身是華語地區時，才整段使用中文（例如「九份老街, 新北市, 台灣」）。',
     '如果不確定這個地點在地圖服務上的正式登記名稱（例如是複合式建築、市場、商圈，官方全名可能跟通俗說法不同），請額外提供 geocodeQueryAlt 欄位，格式同 geocodeQuery，但改用更簡短、更通用的常見說法（例如 geocodeQuery 是「Mercato Centrale di San Lorenzo, Firenze, Italia」，geocodeQueryAlt 可以是「Mercato Centrale, Firenze, Italia」），作為查詢失敗時的備援；有把握的話可以不用提供這個欄位。另一種常見狀況是地點名稱本身已經把城市名黏在前面（例如「부산영화체험박물관」），這種寫法常常查不到，這時 geocodeQueryAlt 請把城市名從地點名稱裡拿掉、只留給城市那個欄位（例如寫成「영화체험박물관, 부산, 대한민국」）。',
