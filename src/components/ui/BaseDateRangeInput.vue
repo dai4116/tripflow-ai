@@ -5,12 +5,28 @@
     <div class="date-range-field__row">
       <div class="base-field__control date-range-field__control" @click="openPicker(startInputEl)">
         <AppIcon name="calendar" :size="15" />
-        <input ref="startInputEl" type="date" :min="min" :value="start" @input="onStartInput" />
+        <span class="date-range-field__value" aria-hidden="true">{{ startLabel }}</span>
+        <input
+          ref="startInputEl"
+          type="date"
+          aria-label="開始日期"
+          :min="min"
+          :value="start"
+          @input="onStartInput"
+        />
       </div>
       <AppIcon name="arrow-right" :size="13" class="date-range-field__arrow" />
       <div class="base-field__control date-range-field__control" @click="openPicker(endInputEl)">
         <AppIcon name="calendar" :size="15" />
-        <input ref="endInputEl" type="date" :min="start || min" :value="end" @input="onEndInput" />
+        <span class="date-range-field__value" aria-hidden="true">{{ endLabel }}</span>
+        <input
+          ref="endInputEl"
+          type="date"
+          aria-label="結束日期"
+          :min="start || min"
+          :value="end"
+          @input="onEndInput"
+        />
       </div>
     </div>
 
@@ -39,6 +55,19 @@ const emit = defineEmits<{
 const startInputEl = ref<HTMLInputElement | null>(null)
 const endInputEl = ref<HTMLInputElement | null>(null)
 
+// Native date text is laid out differently by iOS WebKit and cannot be
+// styled reliably across releases. Keep the native input for its picker,
+// but display a stable app-owned label above it.
+function formatDateValue(value?: string) {
+  const match = value?.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!match) return ''
+
+  return `${Number(match[1])}年${Number(match[2])}月${Number(match[3])}日`
+}
+
+const startLabel = computed(() => formatDateValue(props.start))
+const endLabel = computed(() => formatDateValue(props.end))
+
 function onStartInput(event: Event) {
   emit('update:start', (event.target as HTMLInputElement).value)
 }
@@ -47,9 +76,8 @@ function onEndInput(event: Event) {
   emit('update:end', (event.target as HTMLInputElement).value)
 }
 
-// The native picker-indicator icon is hidden (see CSS) so there's only one
-// calendar glyph per box — clicking anywhere in the box has to open the
-// picker itself, not just focus the input, or there'd be no way to open it.
+// The transparent native input covers the control (see CSS), while this
+// fallback also lets the surrounding control open the picker consistently.
 function openPicker(input: HTMLInputElement | null) {
   if (!input) return
 

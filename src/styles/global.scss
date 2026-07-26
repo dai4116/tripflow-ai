@@ -19,6 +19,10 @@
 body {
   min-width: 320px;
   min-height: 100vh;
+  // dvh tracks the *current* browser-chrome state instead of the largest
+  // possible viewport, so mobile Chrome/Safari don't leave a sliver of
+  // phantom scroll below content that already fits on screen.
+  min-height: 100dvh;
   margin: 0;
   color: $color-text;
   font-size: $font-size-sm;
@@ -200,6 +204,7 @@ h3 {
   display: grid;
   grid-template-columns: $sidebar-width minmax(0, 1fr);
   min-height: 100vh;
+  min-height: 100dvh;
   background: $color-bg;
 }
 
@@ -614,26 +619,35 @@ h3 {
 }
 
 .date-range-field__control {
+  position: relative;
   flex: 1;
   min-width: 0;
   cursor: pointer;
 }
 
-// Native date inputs have a browser-enforced intrinsic minimum width (the
-// mm/dd/yyyy segments can't wrap) — without this, the input ignores its
-// flex container's min-width: 0 and refuses to shrink, overflowing the
-// row past the viewport on narrow screens.
-.date-range-field__control input[type='date'] {
+.date-range-field__value {
   min-width: 0;
+  color: $color-text;
+  font-size: $fs-ui;
+  font-weight: 550;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
-// Native date inputs render their own calendar-icon affordance on the
-// right — hide it entirely since AppIcon's calendar glyph on the left
-// already signals what the field is (two icons per box read as clutter),
-// and the whole box now opens the picker via JS (see openPicker in
-// BaseDateRangeInput.vue) so the indicator isn't needed as a click target.
-.date-range-field__control input[type='date']::-webkit-calendar-picker-indicator {
-  display: none;
+// Use the native date input only as an interaction layer. iOS WebKit owns
+// the internal date text layout and may end-align it even when its private
+// pseudo-elements are overridden, so the visible value is rendered above.
+.date-range-field__control input[type='date'] {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
 }
 
 .date-range-field__arrow {
@@ -1711,7 +1725,7 @@ h3 {
   display: grid;
   justify-items: center;
   gap: 10px;
-  padding: 64px 24px;
+  padding: 64px 10px;
   border: 1.5px dashed $color-border;
   border-radius: $radius-lg;
   color: $color-muted;
@@ -4281,7 +4295,15 @@ h3 {
   body,
   #app {
     max-width: 100%;
-    overflow-x: hidden;
+    // Document-level scroll is what iOS Chrome/Safari rubber-bands past
+    // content that already fits — 100vh/100dvh both chase a viewport size
+    // that changes as the address bar animates, so neither can be trusted
+    // to land exactly on the visible height. Pinning the shell below with
+    // position: fixed sidesteps that entirely (fixed elements always match
+    // the true visible viewport), so html/body/#app never need to scroll —
+    // only .workspace-shell__main does, deliberately.
+    height: 100%;
+    overflow: hidden;
   }
 
   body {
@@ -4303,16 +4325,20 @@ h3 {
   }
 
   .workspace-shell {
+    position: fixed;
+    inset: 0;
     display: block;
-    min-height: 100vh;
     max-width: 100%;
-    overflow-x: hidden;
+    overflow: hidden;
     padding-top: 48px;
   }
 
   .workspace-shell__main {
+    height: 100%;
     max-width: 100%;
     overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     padding: 16px 12px 94px;
   }
 
