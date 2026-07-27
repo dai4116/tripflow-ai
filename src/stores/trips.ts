@@ -29,17 +29,25 @@ export type NewPlaceInput = {
   travelTip?: string
   geocodeQuery?: string
   geocodeQueryAlt?: string
+  // Present when the place was picked from a verified Google Places search
+  // result (see AddPlaceModal.vue) — already pinned, so addPlace skips the
+  // Nominatim geocode fallback below (see hasCoords in geocodeNewPlaces).
+  lat?: number
+  lng?: number
+  photoRef?: string
 }
 
 export const useTripsStore = defineStore('trips', () => {
   // Bumped to v2 when the Planning/Done columns were removed from the board
-  // structure, then to v3 when trips gained a startDate field — old
-  // localStorage data under earlier keys is stale/incompatible, so browsers
-  // with existing data fall back to blank instead of silently missing
-  // fields the UI now expects. New visitors start blank too — no seed/demo
-  // data until there's a real account system to scope it to.
-  const trips = useStorage<Trip[]>('tripflow-trips-v3', [])
-  const places = useStorage<Place[]>('tripflow-places-v3', [])
+  // structure, to v3 when trips gained a startDate field, then to v4 when
+  // PlaceCategory shrank from 10 values to 6 (cafe/culture/nature/museum/
+  // activity folded into food/attraction) — old localStorage data under
+  // earlier keys is stale/incompatible, so browsers with existing data fall
+  // back to blank instead of silently rendering a category that no longer
+  // exists. New visitors start blank too — no seed/demo data until there's a
+  // real account system to scope it to.
+  const trips = useStorage<Trip[]>('tripflow-trips-v4', [])
+  const places = useStorage<Place[]>('tripflow-places-v4', [])
 
   function getTripById(tripId: string) {
     return trips.value.find((trip) => trip.id === tripId)
@@ -197,16 +205,15 @@ export const useTripsStore = defineStore('trips', () => {
     if (place) place.travelToNext = { toPlaceId, mode, durationMin, distanceKm }
   }
 
-  // Throws rather than silently falling back to the local CATEGORY_TEMPLATES
-  // generator on AI failure — this app's whole pitch is an AI-built
-  // itinerary, so handing back generic canned places without saying so would
-  // look like a real (if bland) result instead of the failure it actually
-  // is. CreateTripPage.vue catches this and shows a retry prompt instead of
-  // navigating to a trip board. Trade-off: this also means trip creation
-  // hard-fails whenever the generate-trip endpoints are unreachable —
-  // including plain `vite dev` locally (no serverless routes there) and a
-  // misconfigured/missing ANTHROPIC_API_KEY in prod — there is no more
-  // silent degrade path.
+  // Throws rather than silently falling back to a generic local itinerary on
+  // AI failure — this app's whole pitch is an AI-built itinerary, so handing
+  // back generic canned places without saying so would look like a real (if
+  // bland) result instead of the failure it actually is. CreateTripPage.vue
+  // catches this and shows a retry prompt instead of navigating to a trip
+  // board. Trade-off: this also means trip creation hard-fails whenever the
+  // generate-trip endpoints are unreachable — including plain `vite dev`
+  // locally (no serverless routes there) and a misconfigured/missing
+  // ANTHROPIC_API_KEY in prod — there is no more silent degrade path.
   async function createTrip(input: CreateTripInput): Promise<Trip> {
     const days = computeTripDays(input)
     const placesPerDay = placesPerDayForPace(paceForTravelStyles(input.travelStyle))
@@ -243,14 +250,15 @@ export const useTripsStore = defineStore('trips', () => {
       category: input.category,
       estimatedTime: 1,
       address: trip.destination,
-      lat: 0,
-      lng: 0,
+      lat: input.lat ?? 0,
+      lng: input.lng ?? 0,
       description: input.description,
       travelTip: input.travelTip,
       geocodeQuery: input.geocodeQuery,
       geocodeQueryAlt: input.geocodeQueryAlt,
       columnId: input.columnId,
       imageGradient: PLACE_GRADIENTS[places.value.length % PLACE_GRADIENTS.length],
+      photoRef: input.photoRef,
     }
 
     places.value.push(place)

@@ -188,16 +188,16 @@ const previewColumns: { title: string; places: PreviewPlace[] }[] = [
   {
     title: '第1天',
     places: [
-      { name: '淺草寺', category: 'culture', time: '08:00', duration: '2 小時', gradient: 'linear-gradient(135deg, #18233c, #c23b5c 50%, #f1a15f)' },
+      { name: '淺草寺', category: 'attraction', time: '08:00', duration: '2 小時', gradient: 'linear-gradient(135deg, #18233c, #c23b5c 50%, #f1a15f)' },
       { name: '築地場外市場', category: 'food', time: '10:00', duration: '2 小時', gradient: 'linear-gradient(135deg, #22465c, #d96b4b 45%, #f3d0bb)' },
-      { name: '上野公園', category: 'nature', time: '12:00', duration: '2 小時', gradient: 'linear-gradient(135deg, #9fbf8f, #d9ecc8 55%, #f2f7e6)' },
+      { name: '上野公園', category: 'attraction', time: '12:00', duration: '2 小時', gradient: 'linear-gradient(135deg, #9fbf8f, #d9ecc8 55%, #f2f7e6)' },
     ],
   },
   {
     title: '第2天',
     places: [
-      { name: '澀谷十字路口', category: 'activity', time: '08:00', duration: '1 小時', gradient: 'linear-gradient(135deg, #183c5d, #4a7de0 55%, #ff7a59)' },
-      { name: '明治神宮', category: 'culture', time: '09:00', duration: '1.5 小時', gradient: 'linear-gradient(135deg, #22303c, #8161e6 60%, #cbbcf2)' },
+      { name: '澀谷十字路口', category: 'attraction', time: '08:00', duration: '1 小時', gradient: 'linear-gradient(135deg, #183c5d, #4a7de0 55%, #ff7a59)' },
+      { name: '明治神宮', category: 'attraction', time: '09:00', duration: '1.5 小時', gradient: 'linear-gradient(135deg, #22303c, #8161e6 60%, #cbbcf2)' },
       { name: '原宿街區', category: 'shopping', time: '10:30', duration: '2 小時', gradient: 'linear-gradient(135deg, #17384d, #e8618c 60%, #ffc3d4)' },
     ],
   },
@@ -205,7 +205,7 @@ const previewColumns: { title: string; places: PreviewPlace[] }[] = [
     title: '第3天',
     places: [
       { name: '秋葉原', category: 'shopping', time: '08:00', duration: '3 小時', gradient: 'linear-gradient(135deg, #2a4562, #00c5ab 45%, #f26157)' },
-      { name: '台場海濱', category: 'activity', time: '11:00', duration: '2 小時', gradient: 'linear-gradient(135deg, #1e4b64, #0eb4cb 45%, #ee6554)' },
+      { name: '台場海濱', category: 'attraction', time: '11:00', duration: '2 小時', gradient: 'linear-gradient(135deg, #1e4b64, #0eb4cb 45%, #ee6554)' },
     ],
   },
 ]

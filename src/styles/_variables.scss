@@ -34,16 +34,12 @@ $color-danger-soft: #fbeaea;
 
 // Place category palette (kanban chips, map pins, legend)
 $place-categories: (
-  'culture': #8161e6,
   'food': #ef7a3a,
-  'nature': #2e9e62,
+  'attraction': #8161e6,
   'shopping': #e8618c,
-  'activity': #4a7de0,
-  'transport': #7a8699,
   'stay': #c7935b,
-  'cafe': #c7935b,
-  'museum': #8161e6,
-  'other': #7a8699,
+  'transport': #7a8699,
+  'other': #4a7de0,
 );
 
 $radius-xs: 6px;

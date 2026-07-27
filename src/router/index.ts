@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
+import { useTripsStore } from '../stores/trips'
 
 const routes: RouteRecordRaw[] = [
   {
@@ -37,6 +38,18 @@ const routes: RouteRecordRaw[] = [
     name: 'trip-board',
     component: () => import('../pages/TripBoardPage.vue'),
     meta: { layout: 'workspace' },
+    // TripBoardPage.vue falls back to trips[0] when :tripId doesn't match any
+    // real trip (e.g. the hardcoded 'tokyo-explorer' demo id) — a graceful
+    // fallback as long as SOME trip exists. With zero trips (fresh visitor,
+    // or a stale tab open from before a localStorage version bump wiped
+    // incompatible data — see tripflow-trips-v4 in stores/trips.ts) that
+    // fallback itself is undefined, and the page crashes trying to read
+    // properties off it. Redirect before the component ever mounts instead of
+    // guarding every property access in that file.
+    beforeEnter: () => {
+      const tripsStore = useTripsStore()
+      if (tripsStore.trips.length === 0) return { name: 'dashboard' }
+    },
   },
   {
     path: '/trips/new',

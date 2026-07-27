@@ -17,18 +17,7 @@ type VercelLikeResponse = {
   json: (body: unknown) => void
 }
 
-const PLACE_CATEGORIES = [
-  'food',
-  'cafe',
-  'shopping',
-  'culture',
-  'nature',
-  'museum',
-  'transport',
-  'stay',
-  'activity',
-  'other',
-] as const
+const PLACE_CATEGORIES = ['food', 'attraction', 'shopping', 'stay', 'transport', 'other'] as const
 
 // Each tool carries its own `message` field — a Traditional Chinese
 // confirmation sentence — so the whole exchange (decide + explain) happens

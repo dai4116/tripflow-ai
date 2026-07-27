@@ -15,27 +15,19 @@ import type { IconName } from '../ui/icons'
 
 export const categoryIcons: Record<PlaceCategory, IconName> = {
   food: 'cutlery',
-  cafe: 'coffee',
+  attraction: 'camera',
   shopping: 'bag',
-  culture: 'museum',
-  nature: 'leaf',
-  museum: 'museum',
-  transport: 'train',
   stay: 'bed',
-  activity: 'ticket',
+  transport: 'train',
   other: 'sparkle',
 }
 
 export const categoryLabels: Record<PlaceCategory, string> = {
   food: '美食',
-  cafe: '咖啡廳',
+  attraction: '景點',
   shopping: '購物',
-  culture: '文化',
-  nature: '自然',
-  museum: '博物館',
-  transport: '交通',
   stay: '住宿',
-  activity: '活動',
+  transport: '交通',
   other: '其他',
 }
 
@@ -52,6 +44,12 @@ const props = defineProps<{
   iconOnly?: boolean
 }>()
 
-const categoryIcon = computed(() => categoryIcons[props.category])
-const categoryLabel = computed(() => categoryLabels[props.category])
+// `?? categoryIcons.other` / `?? categoryLabels.other` guards a category
+// value TypeScript can't actually verify at this boundary — `props.category`
+// ultimately traces back to an AI response cast to PlaceSuggestion[] with no
+// runtime enum check (see aiTripClient.ts), so a schema-drift or version-skew
+// value outside the current 6 would otherwise be `undefined` here and crash
+// AppIcon's template reading `.body` off it.
+const categoryIcon = computed(() => categoryIcons[props.category] ?? categoryIcons.other)
+const categoryLabel = computed(() => categoryLabels[props.category] ?? categoryLabels.other)
 </script>

@@ -8,18 +8,7 @@
 // batches losing a whole day to AI day-tag mistagging with no way to detect
 // or correct it after the fact. See each caller for its own reasoning.
 
-const PLACE_CATEGORIES = [
-  'food',
-  'cafe',
-  'shopping',
-  'culture',
-  'nature',
-  'museum',
-  'transport',
-  'stay',
-  'activity',
-  'other',
-] as const
+const PLACE_CATEGORIES = ['food', 'attraction', 'shopping', 'stay', 'transport', 'other'] as const
 
 // When a candidate is typically/best visited — drives client-side ordering
 // (orderDayPlaces in src/data/generateTrip.ts), which places time-of-day
@@ -291,7 +280,7 @@ export function buildDayPrompt(
     assignedPreferencesLine,
     `每一天請提供最多 ${perDayCandidates} 個候選景點——比當天實際需要的 ${placesPerDay} 個多 ${PER_DAY_BUFFER} 個，多出來的是備援（見下方說明）。同一天的候選請依你的信心排序，越有把握、越具體明確的排越前面。`,
     wantsMealSlots
-      ? `每一天的候選景點裡，請至少包含一個美食類地點（分類 food，適合當午餐或晚餐皆可），其餘搭配文化、自然、購物、活動等不同類型——不用強求午餐、晚餐都各自安排一個，一天有一個吃的就好，把名額留給這天的其他主題/偏好。`
+      ? `每一天的候選景點裡，請至少包含一個美食類地點（分類 food，適合當午餐或晚餐皆可），其餘搭配景點、購物、住宿等不同類型——不用強求午餐、晚餐都各自安排一個，一天有一個吃的就好，把名額留給這天的其他主題/偏好。`
       : '這趟行程沒有特別要求美食類地點，請完全依旅遊風格與興趣偏好決定每天的地點類型組成，不用刻意安排美食地點——如果某個地點剛好符合風格或偏好、恰好是美食類也可以，但不要為了湊「每天都要有吃的」而特地加入。',
     `重要：我們會把每個候選拿去真實地圖（Google 地圖）逐一驗證，每一天只會保留「確實查得到、能定位」的前 ${placesPerDay} 個（依你排的信心順序），查不到的直接丟棄。同一天的備援只會遞補同一天被丟棄的名額，不會被其他天借用——所以每一天請務必自己給滿 ${perDayCandidates} 個，不要因為某天景點少就少給。另外請「只」推薦你有把握真實存在、地圖上找得到的『具體、明確』地點——寧可某天候選數不足，也不要放模糊的類別式名稱（例如「清水在地小吃」「中信市場美食」這種不是特定店家/地標的名稱）或你不確定是否存在的名稱。`,
     '每個景點包含分類、名稱、一句簡短描述（繁體中文），以及可選的一句實用小提示（travelTip）。',

@@ -2,14 +2,10 @@ export type TripPace = 'relaxed' | 'balanced' | 'packed'
 
 export type PlaceCategory =
   | 'food'
-  | 'cafe'
+  | 'attraction'
   | 'shopping'
-  | 'culture'
-  | 'nature'
-  | 'museum'
-  | 'transport'
   | 'stay'
-  | 'activity'
+  | 'transport'
   | 'other'
 
 export type PlaceScheduleMode = 'duration' | 'departure'

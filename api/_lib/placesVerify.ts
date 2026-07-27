@@ -87,14 +87,55 @@ const DISQUALIFYING_TYPES = new Set([
   'gas_station',
 ])
 
+// Extracts + validates one raw Google Places hit against the checks every
+// caller needs regardless of whether it wants exactly one result (textSearch)
+// or many (searchPlaces): real coordinates, not permanently closed, and not
+// one of DISQUALIFYING_TYPES (see its own comment). `fallbackName` covers a
+// missing/blank displayName — textSearch passes '' (its callers already fall
+// back further, to the AI's original name — see generate-trip-day.ts's
+// `verifiedName`), searchPlaces passes the user's own search text, since a
+// human-typed query has nothing else to fall back to.
+type RawPlace = NonNullable<TextSearchResponse['places']>[number]
+type ParsedHit = { placeId: string; name: string; lat: number; lng: number; types: string[]; photoRef?: string }
+
+function parseHit(raw: RawPlace, fallbackName: string): ParsedHit | null {
+  const lat = raw.location?.latitude
+  const lng = raw.location?.longitude
+  if (!raw.id || typeof lat !== 'number' || typeof lng !== 'number') return null
+  // Google's own text-match existing doesn't mean it's still open — a stale
+  // or not-yet-updated listing (confirmed live: the AI's "東山樂園" resolved
+  // to a real place that's since rebranded/closed) would otherwise pass
+  // straight through as a "verified, real" pin. CLOSED_TEMPORARILY is left
+  // alone — a listing that's temporarily closed today may well be open again
+  // by the trip's actual dates, which this app has no way to check.
+  if (raw.businessStatus === 'CLOSED_PERMANENTLY') return null
+  const types = raw.types ?? []
+  // See DISQUALIFYING_TYPES above — a place whose Google record is now a
+  // transit hub / parking lot / gas station is rejected outright rather than
+  // pinned under whatever category the AI originally suggested it as.
+  if (types.some((type) => DISQUALIFYING_TYPES.has(type))) return null
+  // `.trim() || fallback` (not `??`) deliberately treats a present-but-blank
+  // displayName the same as a missing one — Google occasionally returns
+  // `{ text: '' }` rather than omitting the field entirely.
+  return { placeId: raw.id, name: raw.displayName?.text?.trim() || fallbackName, lat, lng, types, photoRef: raw.photos?.[0]?.name }
+}
+
+// Shared timeout wiring: bounds one Google fetch to REQUEST_TIMEOUT_MS,
+// merged with an optional caller-supplied signal (e.g. the client
+// disconnecting) so either one aborts the request — without it, a disconnect
+// only cancels whatever's racing this call (a Claude stream, say) while this
+// fetch keeps running and billing for the full REQUEST_TIMEOUT_MS regardless.
+// Caller must call `clear()` once the fetch settles (success or failure) to
+// release the timer.
+function withTimeout(externalSignal?: AbortSignal): { signal: AbortSignal; clear: () => void } {
+  const timeoutController = new AbortController()
+  const timer = setTimeout(() => timeoutController.abort(), REQUEST_TIMEOUT_MS)
+  const signal = externalSignal ? AbortSignal.any([externalSignal, timeoutController.signal]) : timeoutController.signal
+  return { signal, clear: () => clearTimeout(timer) }
+}
+
 // One raw Text Search call. Throws on network / non-2xx so the caller can
 // decide whether to cache (genuine empty) or not (transient failure).
-//
-// externalSignal (optional) lets a caller tie this call to its own request
-// lifetime (e.g. the client disconnecting) on top of the fixed timeout below
-// — without it, a disconnect only cancels whatever's racing this call (a
-// Claude stream, say) while this fetch keeps running and billing for the
-// full REQUEST_TIMEOUT_MS regardless.
 async function textSearch(
   apiKey: string,
   textQuery: string,
@@ -116,9 +157,7 @@ async function textSearch(
     }
   }
 
-  const timeoutController = new AbortController()
-  const timer = setTimeout(() => timeoutController.abort(), REQUEST_TIMEOUT_MS)
-  const signal = externalSignal ? AbortSignal.any([externalSignal, timeoutController.signal]) : timeoutController.signal
+  const { signal, clear } = withTimeout(externalSignal)
   let response: Response
   try {
     response = await fetch(TEXT_SEARCH_URL, {
@@ -139,31 +178,19 @@ async function textSearch(
       signal,
     })
   } finally {
-    clearTimeout(timer)
+    clear()
   }
   if (!response.ok) throw new Error(`Places search failed: ${response.status}`)
 
   const data = (await response.json()) as TextSearchResponse
   const first = data.places?.[0]
-  const lat = first?.location?.latitude
-  const lng = first?.location?.longitude
-  if (!first?.id || typeof lat !== 'number' || typeof lng !== 'number') return null
-  // Google's own text-match existing doesn't mean it's still open — a stale
-  // or not-yet-updated listing (confirmed live: the AI's "東山樂園" resolved
-  // to a real place that's since rebranded/closed) would otherwise pass
-  // straight through as a "verified, real" pin. CLOSED_TEMPORARILY is left
-  // alone — a listing that's temporarily closed today may well be open again
-  // by the trip's actual dates, which this app has no way to check.
-  if (first.businessStatus === 'CLOSED_PERMANENTLY') return null
-  // See DISQUALIFYING_TYPES above — a place whose Google record is now a
-  // transit hub / parking lot / gas station is rejected outright rather than
-  // pinned under whatever category the AI originally suggested it as.
-  if (first.types?.some((type) => DISQUALIFYING_TYPES.has(type))) return null
-  // Not every place has a Google-hosted photo (small/unlisted businesses
-  // especially) — absent means the caller falls back to the decorative
-  // gradient, same as before this field existed.
-  const photoRef = first.photos?.[0]?.name
-  return { placeId: first.id, name: first.displayName?.text ?? '', lat, lng, photoRef }
+  if (!first) return null
+  // Preserves textSearch's original fallback exactly: '' rather than the
+  // query text, since its callers (verifyPlace → generate-trip-day.ts) fall
+  // back further to the AI's own name, not to the geocode query string.
+  const hit = parseHit(first, '')
+  if (!hit) return null
+  return { placeId: hit.placeId, name: hit.name, lat: hit.lat, lng: hit.lng, photoRef: hit.photoRef }
 }
 
 async function textSearchCached(
@@ -237,4 +264,147 @@ export async function verifyPlace(
     return result
   }
   return null
+}
+
+// AddPlaceModal.vue's category chips → a single Google Places (New) Table A
+// type, passed as Text Search's `includedType` to let Google filter
+// server-side. includedType only accepts one type per request (not an
+// array), so each chip maps to the single broadest type that covers it
+// (confirmed against Google's place-types docs) rather than a precise OR of
+// several narrower ones. No entry for 'other' — that chip is the unfiltered
+// catch-all, so it deliberately omits includedType entirely. Exported (as a
+// real literal union, not a bare string) so api/places-search.ts can validate
+// a request body's `category` against it before it ever reaches this file —
+// mirrors the `as const` PLACE_CATEGORIES pattern already used twice
+// elsewhere in api/, rather than leaving the link untyped.
+export const SEARCHABLE_CATEGORIES = ['food', 'attraction', 'shopping', 'stay'] as const
+export type SearchableCategory = (typeof SEARCHABLE_CATEGORIES)[number]
+
+const CATEGORY_SEARCH_TYPE: Record<SearchableCategory, string> = {
+  food: 'restaurant',
+  attraction: 'tourist_attraction',
+  shopping: 'store',
+  stay: 'lodging',
+}
+
+// The reverse direction of CATEGORY_SEARCH_TYPE, plus a few common synonyms
+// Google returns that aren't themselves a chip's includedType (e.g. 'cafe'
+// rather than 'restaurant') — lets a result found under the unfiltered 'all'
+// chip get tagged with a real guessed category instead of AddPlaceModal.vue
+// blindly defaulting everything to 'other' in that case. `types` is checked
+// in order (first match wins), since Google returns the primary type first.
+const GOOGLE_TYPE_TO_CATEGORY: Record<string, SearchableCategory> = {
+  restaurant: 'food',
+  cafe: 'food',
+  bakery: 'food',
+  bar: 'food',
+  tourist_attraction: 'attraction',
+  museum: 'attraction',
+  art_gallery: 'attraction',
+  park: 'attraction',
+  amusement_park: 'attraction',
+  zoo: 'attraction',
+  aquarium: 'attraction',
+  lodging: 'stay',
+  hotel: 'stay',
+  store: 'shopping',
+  shopping_mall: 'shopping',
+  supermarket: 'shopping',
+  clothing_store: 'shopping',
+}
+
+function inferCategory(types: string[]): SearchableCategory | undefined {
+  for (const type of types) {
+    const category = GOOGLE_TYPE_TO_CATEGORY[type]
+    if (category) return category
+  }
+  return undefined
+}
+
+export type PlaceSearchResult = {
+  placeId: string
+  name: string
+  lat: number
+  lng: number
+  photoRef?: string
+  // Best-guess app category inferred from Google's own place `types` (see
+  // GOOGLE_TYPE_TO_CATEGORY) — absent when nothing in `types` matches. Only
+  // meaningful to a caller that didn't already have its own category filter
+  // active (AddPlaceModal.vue's 'all' chip).
+  category?: SearchableCategory
+}
+
+// Multi-result Text Search backing AddPlaceModal's interactive search — unlike
+// verifyPlace (exactly one AI-suggested name, confirmed against Google), this
+// is a human browsing real candidates typed by hand, so it asks for up to
+// SEARCH_RESULT_COUNT results and applies the same closed/disqualified-type
+// AND distance-from-city checks verifyPlace does. Kept modest (not Google's
+// max of 20) since every result here also pays for a photo (Enterprise tier,
+// see the field mask below) that most of them will never be clicked for.
+// Deliberately uncached (unlike textSearchCached above): callers are live
+// keystrokes, where the query itself is the varying part and a photo-inclusive
+// Enterprise-tier call isn't worth caching against the odds of an exact repeat.
+const SEARCH_RESULT_COUNT = 6
+
+export async function searchPlaces(
+  apiKey: string,
+  query: string,
+  category: SearchableCategory | undefined,
+  cityCenter: GeoPoint | null,
+  signal?: AbortSignal,
+): Promise<PlaceSearchResult[]> {
+  const trimmed = query.trim()
+  if (!trimmed) return []
+
+  const body: Record<string, unknown> = {
+    textQuery: trimmed,
+    languageCode: 'zh-TW',
+    maxResultCount: SEARCH_RESULT_COUNT,
+  }
+  if (cityCenter) {
+    body.locationBias = { circle: { center: { latitude: cityCenter.lat, longitude: cityCenter.lng }, radius: BIAS_RADIUS_M } }
+  }
+  const includedType = category ? CATEGORY_SEARCH_TYPE[category] : undefined
+  if (includedType) body.includedType = includedType
+
+  const { signal: combinedSignal, clear } = withTimeout(signal)
+
+  try {
+    const response = await fetch(TEXT_SEARCH_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask':
+          'places.id,places.displayName,places.location,places.businessStatus,places.types,places.photos',
+      },
+      body: JSON.stringify(body),
+      signal: combinedSignal,
+    })
+    if (!response.ok) throw new Error(`Places search failed: ${response.status}`)
+
+    const data = (await response.json()) as TextSearchResponse
+    const results: PlaceSearchResult[] = []
+    for (const place of data.places ?? []) {
+      const hit = parseHit(place, trimmed)
+      if (!hit) continue
+      // Structural guard against a wrong-city fuzzy match, same as
+      // verifyPlace above — locationBias only biases ranking, it doesn't
+      // exclude, so without this a strongly-matching same-name place in a
+      // different city could still surface with nothing in the UI to warn
+      // the user it's ~100km+ away.
+      if (cityCenter && distanceKm(cityCenter, { lat: hit.lat, lng: hit.lng }) > MAX_KM_FROM_CITY) continue
+      results.push({
+        placeId: hit.placeId,
+        name: hit.name,
+        lat: hit.lat,
+        lng: hit.lng,
+        photoRef: hit.photoRef,
+        category: inferCategory(hit.types),
+      })
+    }
+    return results
+  } finally {
+    clear()
+  }
 }

@@ -1,5 +1,5 @@
 <template>
-  <section class="trip-board-page">
+  <section v-if="activeTrip" class="trip-board-page">
     <PageHeader :title="activeTrip.title">
       <template #description>
         {{ activeTrip.destination }} ·
@@ -412,7 +412,7 @@
         :column-id="addModalColumnId"
         :column-title="addModalColumnTitle"
         :city="cityName"
-        :existing-names="tripPlaces.map((place) => place.name)"
+        :destination="activeTrip.destination"
         @close="showAddModal = false"
         @add="onAddPlace"
       />
@@ -459,6 +459,10 @@
       </div>
     </Transition>
   </section>
+  <!-- Momentary render while the watch above redirects to the dashboard —
+       trips went empty (see the watch's own comment) and there's nothing
+       left here to safely read .title/.columns/etc. off of. -->
+  <section v-else class="trip-board-page" />
 </template>
 
 <script setup lang="ts">
@@ -540,7 +544,7 @@ const isMoveMenuOpen = ref(false)
 const isEditingPlace = ref(false)
 const editForm = reactive({
   name: '',
-  category: 'activity' as PlaceCategory,
+  category: 'attraction' as PlaceCategory,
   description: '',
   travelTip: '',
   arrivalTimeMode: 'auto' as 'auto' | 'manual',
@@ -561,6 +565,21 @@ const activeTrip = computed(() => {
   return trips.value.find((trip) => trip.id === tripId) ?? trips.value[0]
 })
 
+// Covers a case router/index.ts's `beforeEnter` guard can't: trips going
+// empty via a REACTIVE change while this page is already mounted (e.g.
+// another browser tab deleting the last trip — `trips` is a `useStorage` ref
+// that syncs across tabs via the native `storage` event, with no navigation
+// involved here) rather than through a fresh navigation into this route,
+// which is the only time `beforeEnter` runs. The template's `v-if="activeTrip"`
+// guard below covers the same-tick render race until this redirect completes.
+watch(
+  activeTrip,
+  (trip) => {
+    if (!trip) router.replace({ name: 'dashboard' })
+  },
+  { immediate: true },
+)
+
 // Seed trips ship with `columns: []` until someone actually opens the board.
 // Materialize real day columns onto the trip itself (rather than just
 // rendering a placeholder) so id-based lookups — like adding a place, which
@@ -568,7 +587,7 @@ const activeTrip = computed(() => {
 // write into.
 function ensureColumns() {
   const trip = activeTrip.value
-  if (trip.columns.length > 0) return
+  if (!trip || trip.columns.length > 0) return
 
   const dayCount = Math.max(1, trip.days || 3)
   trip.columns = Array.from({ length: dayCount }, (_, index) => ({
@@ -662,6 +681,12 @@ watch(
 watch(
   () => route.params.tripId,
   () => {
+    // Guards the same undefined-activeTrip case the watch above redirects
+    // on — this one fires on a same-route tripId param change (Vue Router
+    // doesn't remount the component for that), which the redirect watch
+    // doesn't itself prevent from running first.
+    if (!activeTrip.value) return
+
     selectedPlaceId.value = null
     drawerPlaceId.value = null
     closeOverlapWarning()
@@ -820,7 +845,15 @@ function confirmDeleteDayById(columnId: string) {
   if (column) confirmDeleteDay(column)
 }
 
-function onAddPlace(payload: { columnId: string; name: string; category: PlaceCategory; description: string }) {
+function onAddPlace(payload: {
+  columnId: string
+  name: string
+  category: PlaceCategory
+  description: string
+  lat?: number
+  lng?: number
+  photoRef?: string
+}) {
   tripsStore.addPlace({ tripId: activeTrip.value.id, ...payload })
 }
 
