@@ -1882,6 +1882,11 @@ h3 {
   color: $color-primary-text;
 }
 
+.preference-chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .trip-form__submit {
   width: 100%;
   min-height: 50px;

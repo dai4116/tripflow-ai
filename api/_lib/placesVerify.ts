@@ -441,32 +441,18 @@ export async function searchPlaces(
 
 const NEARBY_SEARCH_URL = 'https://places.googleapis.com/v1/places:searchNearby'
 
-// Browse-by-category with no typed query yet — AddPlaceModal.vue's chip click
-// while its search box is still empty. Unlike searchPlaces (Text Search),
-// Nearby Search needs no query text at all: it takes a location + type and
-// defaults to rankPreference: POPULARITY, genuinely surfacing well-known
-// nearby places rather than whatever a synthesized keyword (e.g. "餐廳") would
-// turn up via Text Search's relevance-only ranking. Needs SOME location to
-// search around, but that can be `dayAnchor` alone — `cityCenter` is only
-// actually used below for the wrong-city sanity check, not the search itself,
-// so a destination-geocoding failure (cityCenter null) no longer disables
-// this entirely as long as the day already has pinned places to anchor on
-// (confirmed live: requiring cityCenter unconditionally meant one failed
-// geocode disabled category browsing for the rest of the modal session).
-export async function nearbyPlaces(
+// One Nearby Search attempt around a single circle. Split out of
+// nearbyPlaces so that function can retry with a wider circle without
+// duplicating the request/parse logic (see nearbyPlaces' own comment on why
+// a retry is needed at all).
+async function fetchNearby(
   apiKey: string,
   category: SearchableCategory,
-  // Day-column centroid anchor — see resolveAnchor and searchPlaces'
-  // identical parameter.
-  dayAnchor: GeoPoint | null,
+  anchorPoint: GeoPoint,
+  radius: number,
   cityCenter: GeoPoint | null,
   signal?: AbortSignal,
 ): Promise<PlaceSearchResult[]> {
-  const { point: anchorPoint, radius } = resolveAnchor(dayAnchor, cityCenter)
-  // Nothing to search around at all — no day anchor, and the destination
-  // itself couldn't be geocoded either.
-  if (!anchorPoint) return []
-
   const body = {
     locationRestriction: {
       circle: { center: { latitude: anchorPoint.lat, longitude: anchorPoint.lng }, radius },
@@ -517,4 +503,44 @@ export async function nearbyPlaces(
   } finally {
     clear()
   }
+}
+
+// Browse-by-category with no typed query yet — AddPlaceModal.vue's chip click
+// while its search box is still empty. Unlike searchPlaces (Text Search),
+// Nearby Search needs no query text at all: it takes a location + type and
+// defaults to rankPreference: POPULARITY, genuinely surfacing well-known
+// nearby places rather than whatever a synthesized keyword (e.g. "餐廳") would
+// turn up via Text Search's relevance-only ranking. Needs SOME location to
+// search around, but that can be `dayAnchor` alone — `cityCenter` is only
+// actually used below for the wrong-city sanity check, not the search itself,
+// so a destination-geocoding failure (cityCenter null) no longer disables
+// this entirely as long as the day already has pinned places to anchor on
+// (confirmed live: requiring cityCenter unconditionally meant one failed
+// geocode disabled category browsing for the rest of the modal session).
+export async function nearbyPlaces(
+  apiKey: string,
+  category: SearchableCategory,
+  // Day-column centroid anchor — see resolveAnchor and searchPlaces'
+  // identical parameter.
+  dayAnchor: GeoPoint | null,
+  cityCenter: GeoPoint | null,
+  signal?: AbortSignal,
+): Promise<PlaceSearchResult[]> {
+  const { point: anchorPoint, radius } = resolveAnchor(dayAnchor, cityCenter)
+  // Nothing to search around at all — no day anchor, and the destination
+  // itself couldn't be geocoded either.
+  if (!anchorPoint) return []
+
+  const results = await fetchNearby(apiKey, category, anchorPoint, radius, cityCenter, signal)
+  // Unlike searchPlaces' locationBias (a soft ranking preference),
+  // locationRestriction is a hard filter for Nearby Search — DAY_ANCHOR_RADIUS_M's
+  // tight 8km can legitimately come back with nothing in a sparse/suburban
+  // day, where the identical anchor+category under Text Search would still
+  // have found something farther away, just ranked lower. Rather than
+  // showing "nothing found" when the city itself likely has some, retry once
+  // widened to the whole destination. Only meaningful when the first attempt
+  // actually used the tight radius (dayAnchor was set) and there's a
+  // cityCenter to widen to — otherwise this was already the widest attempt.
+  if (results.length > 0 || !dayAnchor || !cityCenter) return results
+  return fetchNearby(apiKey, category, cityCenter, BIAS_RADIUS_M, cityCenter, signal)
 }

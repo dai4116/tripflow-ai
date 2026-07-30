@@ -21,6 +21,7 @@
               type="button"
               class="preference-chip"
               :class="{ 'preference-chip--selected': activeCategory === category }"
+              :disabled="isLoading"
               @click="toggleCategory(category)"
             >
               {{ categoryLabels[category] }}
@@ -233,6 +234,12 @@ watch(search, () => {
   debounceTimer = window.setTimeout(runSearch, DEBOUNCE_MS)
 })
 
+// No debounce here (unlike the search watcher below) — a chip click should
+// feel instant. The template's `:disabled="isLoading"` on the chips is what
+// actually keeps this cheap: it can't fire a second billed Nearby/Text
+// Search (or a second, redundant geocode before cachedCityCenter resolves)
+// until the current one finishes, since `isLoading` flips true synchronously
+// here, before runSearch's own await.
 watch(activeCategory, () => {
   isLoading.value = true
   window.clearTimeout(debounceTimer)
