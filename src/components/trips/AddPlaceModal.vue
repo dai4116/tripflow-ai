@@ -31,7 +31,7 @@
 
         <div class="add-place-modal__suggestions">
           <p v-if="isUnfiltered" class="add-place-modal__empty">
-            輸入地點名稱開始搜尋，或選一個分類看附近熱門地點。
+            輸入地點名稱開始搜尋<br>或選一個分類看附近熱門地點
           </p>
           <p v-else-if="isLoading" class="add-place-modal__empty">搜尋中…</p>
           <p v-else-if="searchFailed" class="add-place-modal__empty">搜尋發生問題，請稍後再試。</p>
@@ -172,6 +172,21 @@ function onPhotoError(placeId: string) {
 // no way to recover short of closing and reopening the modal).
 let cachedCityCenter: GeoPoint | undefined
 
+// A category-only browse (no typed query) is deterministic for the same
+// category — Google returns the same POPULARITY-ranked list every time, so
+// re-selecting a chip the user already viewed this session reuses that
+// fetch instead of billing Google again. Keyed by category only, since this
+// only ever applies to the no-query browse path (see runSearch) — a typed
+// query is never cached, since every keystroke is a genuinely different
+// search. Cleared whenever dayAnchor shifts (the day gained/lost a pinned
+// place, changing what "nearby" even means), so a stale anchor's results
+// can't linger once a fresher one exists.
+const categoryResultsCache = new Map<PlaceCategory, PlaceSearchResult[]>()
+watch(
+  () => props.dayAnchor,
+  () => categoryResultsCache.clear(),
+)
+
 // Debounced so every keystroke doesn't fire its own Google-backed request —
 // only the last one after the user pauses does. The in-flight request is
 // aborted (not just ignored) when a newer one supersedes it, so a slow
@@ -193,6 +208,17 @@ async function runSearch() {
     hasSearched.value = false
     searchFailed.value = false
     return
+  }
+
+  const isBrowse = !query && category !== null
+  if (isBrowse) {
+    const cached = categoryResultsCache.get(category)
+    if (cached) {
+      isLoading.value = false
+      hasSearched.value = true
+      results.value = cached.filter((result) => !addedPlaceIds.value.has(result.placeId))
+      return
+    }
   }
 
   const controller = new AbortController()
@@ -217,6 +243,7 @@ async function runSearch() {
     return
   }
   if (cachedCityCenter === undefined && response.cityCenter) cachedCityCenter = response.cityCenter
+  if (isBrowse) categoryResultsCache.set(category, response.results)
   results.value = response.results.filter((result) => !addedPlaceIds.value.has(result.placeId))
 }
 

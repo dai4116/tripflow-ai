@@ -395,7 +395,14 @@ export async function searchPlaces(
     body.locationBias = { circle: { center: { latitude: anchorPoint.lat, longitude: anchorPoint.lng }, radius } }
   }
   const includedType = category ? CATEGORY_SEARCH_TYPE[category] : undefined
-  if (includedType) body.includedType = includedType
+  if (includedType) {
+    body.includedType = includedType
+    // Without this, Google applies type filtering only loosely ("for certain
+    // queries, depending on applicability") — confirmed live: a "food" chip
+    // search surfaced department stores and hotels that merely have a
+    // restaurant floor. Forces the filter to actually apply to every query.
+    body.strictTypeFiltering = true
+  }
 
   const { signal: combinedSignal, clear } = withTimeout(signal)
 
@@ -457,7 +464,13 @@ async function fetchNearby(
     locationRestriction: {
       circle: { center: { latitude: anchorPoint.lat, longitude: anchorPoint.lng }, radius },
     },
-    includedTypes: [CATEGORY_SEARCH_TYPE[category]],
+    // includedPrimaryTypes (not includedTypes) — includedTypes matches
+    // against a place's FULL types array, so a department store with a food
+    // floor, or a hotel/cinema with an in-house restaurant, would still match
+    // includedTypes: ['restaurant'] despite not being one (confirmed live: a
+    // "food" chip browse surfaced exactly this). includedPrimaryTypes matches
+    // only the place's single primary classification.
+    includedPrimaryTypes: [CATEGORY_SEARCH_TYPE[category]],
     maxResultCount: SEARCH_RESULT_COUNT,
     rankPreference: 'POPULARITY',
     languageCode: 'zh-TW',
