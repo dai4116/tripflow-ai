@@ -413,6 +413,7 @@
         :column-title="addModalColumnTitle"
         :city="cityName"
         :destination="activeTrip.destination"
+        :day-anchor="addModalDayAnchor"
         @close="showAddModal = false"
         @add="onAddPlace"
       />
@@ -493,6 +494,7 @@ import { useConfirmDialog } from '../composables/useConfirmDialog'
 import { useIsMobile } from '../composables/useIsMobile'
 import { usePlacePhoto } from '../composables/usePlacePhoto'
 import { cityFromDestination, computeTripDays, formatDateRange, toDateInputValue } from '../data/generateTrip'
+import type { GeoPoint } from '../data/placesSearchClient'
 import {
   addMinutes,
   computeArrivalTimes,
@@ -634,6 +636,23 @@ const boardColumns = computed(() => (isMobile.value ? mobileColumns.value : disp
 const addModalColumnTitle = computed(
   () => displayedColumns.value.find((column) => column.id === addModalColumnId.value)?.title ?? '',
 )
+// Centroid of the day the modal was opened for (places with real coordinates
+// only) — biases AddPlaceModal's search toward what's actually convenient to
+// add to THAT day, not just "somewhere in the city" (see dayAnchor in
+// api/_lib/placesVerify.ts). null for an empty day or one whose places
+// haven't been geocoded yet, which the search falls back to the whole
+// destination city for.
+const addModalDayAnchor = computed<GeoPoint | null>(() => {
+  const columnPlaces = tripPlaces.value.filter(
+    (place) => place.columnId === addModalColumnId.value && (place.lat !== 0 || place.lng !== 0),
+  )
+  if (columnPlaces.length === 0) return null
+
+  return {
+    lat: columnPlaces.reduce((sum, place) => sum + place.lat, 0) / columnPlaces.length,
+    lng: columnPlaces.reduce((sum, place) => sum + place.lng, 0) / columnPlaces.length,
+  }
+})
 const focusedColumnTitle = computed(
   () => displayedColumns.value.find((column) => column.id === focusedColumnId.value)?.title ?? '',
 )
@@ -853,6 +872,7 @@ function onAddPlace(payload: {
   lat?: number
   lng?: number
   photoRef?: string
+  placeId?: string
 }) {
   tripsStore.addPlace({ tripId: activeTrip.value.id, ...payload })
 }

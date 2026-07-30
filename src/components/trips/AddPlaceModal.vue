@@ -16,20 +16,12 @@
           <BaseInput v-model="search" icon="search" :placeholder="`搜尋${city}的地點...`" />
           <div class="add-place-modal__pills">
             <button
-              type="button"
-              class="preference-chip"
-              :class="{ 'preference-chip--selected': activeCategory === 'all' }"
-              @click="activeCategory = 'all'"
-            >
-              全部
-            </button>
-            <button
               v-for="category in SEARCH_CATEGORIES"
               :key="category"
               type="button"
               class="preference-chip"
               :class="{ 'preference-chip--selected': activeCategory === category }"
-              @click="activeCategory = category"
+              @click="toggleCategory(category)"
             >
               {{ categoryLabels[category] }}
             </button>
@@ -37,7 +29,9 @@
         </div>
 
         <div class="add-place-modal__suggestions">
-          <p v-if="!search.trim()" class="add-place-modal__empty">輸入地點名稱開始搜尋。</p>
+          <p v-if="isUnfiltered" class="add-place-modal__empty">
+            輸入地點名稱開始搜尋，或選一個分類看附近熱門地點。
+          </p>
           <p v-else-if="isLoading" class="add-place-modal__empty">搜尋中…</p>
           <p v-else-if="searchFailed" class="add-place-modal__empty">搜尋發生問題，請稍後再試。</p>
           <template v-else>
@@ -65,7 +59,7 @@
             </button>
 
             <p v-if="hasSearched && results.length === 0" class="add-place-modal__empty">
-              沒有符合的地點，換個關鍵字試試。
+              沒有符合的地點，換個關鍵字或分類試試。
             </p>
           </template>
         </div>
@@ -91,6 +85,10 @@ const props = defineProps<{
   // api/_lib/placesVerify.ts), which a bare city name can't disambiguate as
   // reliably for common place names.
   destination: string
+  // Centroid of this column's already-added places (with real coordinates),
+  // computed by TripBoardPage.vue — null for an empty/unpinned day, in which
+  // case the search falls back to biasing around the whole destination city.
+  dayAnchor: GeoPoint | null
 }>()
 
 const emit = defineEmits<{
@@ -104,19 +102,34 @@ const emit = defineEmits<{
       lat?: number
       lng?: number
       photoRef?: string
+      placeId?: string
     },
   ]
 }>()
 
 // Narrower than the full PlaceCategory taxonomy: 'transport' isn't something
 // a user searches Google Places for (it's a flight/booking detail typed in by
-// hand), and 'other' would just duplicate 'all' — see pickResult below, which
-// falls back to Google's own inferred category (or finally 'other') for
-// anything found under the unfiltered chip.
+// hand). No 'other' chip either — see pickResult below, which falls back to
+// Google's own inferred category (or finally 'other') for anything found
+// with no chip selected.
 const SEARCH_CATEGORIES: PlaceCategory[] = ['food', 'attraction', 'shopping', 'stay']
 
 const search = ref('')
-const activeCategory = ref<PlaceCategory | 'all'>('all')
+// null = no chip selected — an unfiltered typed search (there's no separate
+// "all" chip for this; toggleCategory below just lets any chip be clicked
+// back off to this same state) and, with an empty search box too, nothing to
+// search for at all (see the template's empty-state message).
+const activeCategory = ref<PlaceCategory | null>(null)
+
+function toggleCategory(category: PlaceCategory) {
+  activeCategory.value = activeCategory.value === category ? null : category
+}
+
+// Nothing typed and no chip selected — the fully-unfiltered empty state,
+// nothing to search for. Shared by the template's empty-state message and
+// runSearch's early-return guard so the two can't drift out of sync.
+const isUnfiltered = computed(() => !search.value.trim() && !activeCategory.value)
+
 const results = ref<PlaceSearchResult[]>([])
 const isLoading = ref(false)
 const hasSearched = ref(false)
@@ -132,7 +145,7 @@ const addedPlaceIds = ref(new Set<string>())
 
 const fallbackIcon = computed(() => {
   const category = activeCategory.value
-  return category === 'all' ? 'pin' : categoryIcons[category]
+  return category ? categoryIcons[category] : 'pin'
 })
 
 function photoUrl(result: PlaceSearchResult): string {
@@ -147,12 +160,16 @@ function onPhotoError(placeId: string) {
   failedPhotoIds.value.add(placeId)
 }
 
-// Resolved once per modal session (on the first search) and reused on every
-// later search — undefined means "not resolved yet", null means "resolution
-// failed, search unbiased" (both distinct from a real GeoPoint). Without
-// this, every keystroke search would re-resolve the trip's own unchanging
-// destination server-side.
-let cachedCityCenter: GeoPoint | null | undefined
+// Resolved once per modal session and reused on every later search — stays
+// `undefined` ("not resolved yet") until a search actually returns a real
+// GeoPoint. A `null` response (destination geocoding failed — often
+// transient: a rate limit, a timeout) is deliberately NOT cached here: it's
+// the same as leaving this `undefined`, so the NEXT search retries the
+// geocode server-side instead of the whole session being stuck with no
+// cityCenter (confirmed live: caching the null outright disabled the
+// distance-guard/nearby-browse safety nets for the rest of the session with
+// no way to recover short of closing and reopening the modal).
+let cachedCityCenter: GeoPoint | undefined
 
 // Debounced so every keystroke doesn't fire its own Google-backed request —
 // only the last one after the user pauses does. The in-flight request is
@@ -164,9 +181,12 @@ let activeController: AbortController | null = null
 
 async function runSearch() {
   const query = search.value.trim()
+  const category = activeCategory.value
   activeController?.abort()
 
-  if (!query) {
+  // A chip alone (no query) still searches: the server browses nearby via
+  // nearbyPlaces instead of Text Search — see api/places-search.ts.
+  if (isUnfiltered.value) {
     results.value = []
     isLoading.value = false
     hasSearched.value = false
@@ -178,8 +198,14 @@ async function runSearch() {
   activeController = controller
   searchFailed.value = false
 
-  const category = activeCategory.value === 'all' ? undefined : activeCategory.value
-  const response = await searchPlaces(query, category, props.destination, cachedCityCenter, controller.signal)
+  const response = await searchPlaces(
+    query,
+    category ?? undefined,
+    props.destination,
+    props.dayAnchor,
+    cachedCityCenter,
+    controller.signal,
+  )
   if (controller.signal.aborted) return
 
   isLoading.value = false
@@ -189,7 +215,7 @@ async function runSearch() {
     results.value = []
     return
   }
-  if (cachedCityCenter === undefined) cachedCityCenter = response.cityCenter
+  if (cachedCityCenter === undefined && response.cityCenter) cachedCityCenter = response.cityCenter
   results.value = response.results.filter((result) => !addedPlaceIds.value.has(result.placeId))
 }
 
@@ -227,14 +253,15 @@ function pickResult(result: PlaceSearchResult) {
   emit('add', {
     columnId: props.columnId,
     name: result.name,
-    // Trust the active chip when the user picked one; under the unfiltered
-    // 'all' chip, fall back to Google's own place-type-derived guess before
-    // finally giving up and tagging it 'other'.
-    category: chipCategory === 'all' ? (inferredCategory ?? 'other') : chipCategory,
+    // Trust the active chip when the user picked one; with no chip selected,
+    // fall back to Google's own place-type-derived guess before finally
+    // giving up and tagging it 'other'.
+    category: chipCategory ?? inferredCategory ?? 'other',
     description: '',
     lat: result.lat,
     lng: result.lng,
     photoRef: result.photoRef,
+    placeId: result.placeId,
   })
   addedPlaceIds.value.add(result.placeId)
   // Remove it from the visible list immediately — without this the button

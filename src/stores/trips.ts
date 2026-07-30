@@ -35,6 +35,9 @@ export type NewPlaceInput = {
   lat?: number
   lng?: number
   photoRef?: string
+  // Google Places id — when present, addPlace rejects a duplicate add of the
+  // same real-world place already anywhere in the trip (see addPlace).
+  placeId?: string
 }
 
 export const useTripsStore = defineStore('trips', () => {
@@ -243,6 +246,17 @@ export const useTripsStore = defineStore('trips', () => {
     const column = trip?.columns.find((item) => item.id === input.columnId)
     if (!trip || !column) return undefined
 
+    // A Google placeId uniquely identifies a real-world location — if it's
+    // already anywhere in this trip, don't push a second Place for it.
+    // AddPlaceModal.vue's own "already added" tracking is session-local (a
+    // fresh Set every time the modal is reopened), so without this check,
+    // closing/reopening the modal and re-picking the same search result
+    // would silently create a duplicate.
+    if (input.placeId) {
+      const existing = places.value.find((item) => item.tripId === input.tripId && item.placeId === input.placeId)
+      if (existing) return existing
+    }
+
     const place: Place = {
       id: nanoid(8),
       tripId: input.tripId,
@@ -259,6 +273,7 @@ export const useTripsStore = defineStore('trips', () => {
       columnId: input.columnId,
       imageGradient: PLACE_GRADIENTS[places.value.length % PLACE_GRADIENTS.length],
       photoRef: input.photoRef,
+      placeId: input.placeId,
     }
 
     places.value.push(place)

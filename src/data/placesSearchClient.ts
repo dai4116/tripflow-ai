@@ -38,6 +38,16 @@ export async function searchPlaces(
   query: string,
   category: string | undefined,
   destination: string,
+  // Centroid of the day column the modal was opened from — see
+  // TripBoardPage.vue's computed of the same name and api/places-search.ts's
+  // handling of it. null when that day has no places with real coordinates
+  // yet, not just "not computed" (unlike cityCenter, this is never cached/
+  // resolved server-side — the caller always knows it upfront). Ordered
+  // before cityCenter to match api/_lib/placesVerify.ts's searchPlaces/
+  // nearbyPlaces parameter order — the two "same-named, same-purpose"
+  // functions previously disagreed, an easy trap for a future edit since
+  // both parameters share the identical GeoPoint | null type.
+  dayAnchor: GeoPoint | null,
   cityCenter: GeoPoint | null | undefined,
   signal?: AbortSignal,
 ): Promise<PlacesSearchResponse | undefined> {
@@ -49,7 +59,7 @@ export async function searchPlaces(
     const response = await fetch('/api/places-search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, category, destination, cityCenter }),
+      body: JSON.stringify({ query, category, destination, cityCenter, dayAnchor }),
       signal: combinedSignal,
     })
     if (!response.ok) return undefined

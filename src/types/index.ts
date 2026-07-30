@@ -92,6 +92,12 @@ export type Place = {
   // Travel from this place to whichever place follows it in the same day —
   // absent until calculated (see routing.ts / trips store's auto-fill).
   travelToNext?: TravelToNext
+  // Google Places id, present when the place came from a verified Google
+  // Places result (AddPlaceModal.vue's search, or server-side AI
+  // verification) — lets stores/trips.ts's addPlace reject a duplicate add
+  // of the same real-world place. Absent for places added without Google
+  // verification (e.g. AskAiPanel.vue's chat-suggested places).
+  placeId?: string
 }
 
 export type CreateTripInput = {

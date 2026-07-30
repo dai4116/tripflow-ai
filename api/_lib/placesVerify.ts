@@ -37,6 +37,27 @@ const REQUEST_TIMEOUT_MS = 8000
 // disambiguating between cities.
 const BIAS_RADIUS_M = 40000
 
+// Used instead of BIAS_RADIUS_M when searchPlaces/nearbyPlaces are anchored
+// to a specific day's already-added stops (see dayAnchor on both) rather than
+// the whole destination city — the point of anchoring to "what today already
+// looks like" is a same-day-convenient result, which a 40km net (basically
+// still city-wide) would defeat. 8km comfortably covers same-day walking-plus-
+// short-hop range without narrowing so far it starves a day anchored in a
+// sparser part of the city.
+const DAY_ANCHOR_RADIUS_M = 8000
+
+// Shared by searchPlaces and nearbyPlaces: prefers dayAnchor (with its
+// tighter radius) over cityCenter, falling back to cityCenter (city-wide
+// radius) when there's no day anchor yet, and to no anchor at all when
+// neither is available. Kept as one function so a future change to this
+// fallback policy (a third tier, a different precedence) only needs editing
+// once instead of staying in sync by hand across both call sites.
+function resolveAnchor(dayAnchor: GeoPoint | null, cityCenter: GeoPoint | null): { point: GeoPoint | null; radius: number } {
+  const point = dayAnchor ?? cityCenter
+  const radius = dayAnchor ? DAY_ANCHOR_RADIUS_M : BIAS_RADIUS_M
+  return { point, radius }
+}
+
 // A verified hit further than this from the destination city center is
 // rejected as a wrong-city fuzzy match (Taichung -> Taipei is ~130km, well
 // past this). Generous enough to keep legit day-trip / suburban spots.
@@ -289,10 +310,11 @@ const CATEGORY_SEARCH_TYPE: Record<SearchableCategory, string> = {
 
 // The reverse direction of CATEGORY_SEARCH_TYPE, plus a few common synonyms
 // Google returns that aren't themselves a chip's includedType (e.g. 'cafe'
-// rather than 'restaurant') — lets a result found under the unfiltered 'all'
-// chip get tagged with a real guessed category instead of AddPlaceModal.vue
-// blindly defaulting everything to 'other' in that case. `types` is checked
-// in order (first match wins), since Google returns the primary type first.
+// rather than 'restaurant') — lets a result found with no category chip
+// selected get tagged with a real guessed category instead of
+// AddPlaceModal.vue blindly defaulting everything to 'other' in that case.
+// `types` is checked in order (first match wins), since Google returns the
+// primary type first.
 const GOOGLE_TYPE_TO_CATEGORY: Record<string, SearchableCategory> = {
   restaurant: 'food',
   cafe: 'food',
@@ -329,8 +351,9 @@ export type PlaceSearchResult = {
   photoRef?: string
   // Best-guess app category inferred from Google's own place `types` (see
   // GOOGLE_TYPE_TO_CATEGORY) — absent when nothing in `types` matches. Only
-  // meaningful to a caller that didn't already have its own category filter
-  // active (AddPlaceModal.vue's 'all' chip).
+  // set by searchPlaces, for its unfiltered case (AddPlaceModal.vue has no
+  // category chip selected); nearbyPlaces below already knows its category
+  // from the chip that triggered it, so it sets this directly instead.
   category?: SearchableCategory
 }
 
@@ -350,6 +373,12 @@ export async function searchPlaces(
   apiKey: string,
   query: string,
   category: SearchableCategory | undefined,
+  // Centroid of the day column the modal was opened from (already-added
+  // places with real coordinates), when there are any — biases results
+  // toward what's actually convenient to add to THAT day, not just
+  // "somewhere in the city." Absent (empty day, or none of its places are
+  // pinned yet) falls back to cityCenter, same as before this existed.
+  dayAnchor: GeoPoint | null,
   cityCenter: GeoPoint | null,
   signal?: AbortSignal,
 ): Promise<PlaceSearchResult[]> {
@@ -361,8 +390,9 @@ export async function searchPlaces(
     languageCode: 'zh-TW',
     maxResultCount: SEARCH_RESULT_COUNT,
   }
-  if (cityCenter) {
-    body.locationBias = { circle: { center: { latitude: cityCenter.lat, longitude: cityCenter.lng }, radius: BIAS_RADIUS_M } }
+  const { point: anchorPoint, radius } = resolveAnchor(dayAnchor, cityCenter)
+  if (anchorPoint) {
+    body.locationBias = { circle: { center: { latitude: anchorPoint.lat, longitude: anchorPoint.lng }, radius } }
   }
   const includedType = category ? CATEGORY_SEARCH_TYPE[category] : undefined
   if (includedType) body.includedType = includedType
@@ -402,6 +432,86 @@ export async function searchPlaces(
         photoRef: hit.photoRef,
         category: inferCategory(hit.types),
       })
+    }
+    return results
+  } finally {
+    clear()
+  }
+}
+
+const NEARBY_SEARCH_URL = 'https://places.googleapis.com/v1/places:searchNearby'
+
+// Browse-by-category with no typed query yet — AddPlaceModal.vue's chip click
+// while its search box is still empty. Unlike searchPlaces (Text Search),
+// Nearby Search needs no query text at all: it takes a location + type and
+// defaults to rankPreference: POPULARITY, genuinely surfacing well-known
+// nearby places rather than whatever a synthesized keyword (e.g. "餐廳") would
+// turn up via Text Search's relevance-only ranking. Needs SOME location to
+// search around, but that can be `dayAnchor` alone — `cityCenter` is only
+// actually used below for the wrong-city sanity check, not the search itself,
+// so a destination-geocoding failure (cityCenter null) no longer disables
+// this entirely as long as the day already has pinned places to anchor on
+// (confirmed live: requiring cityCenter unconditionally meant one failed
+// geocode disabled category browsing for the rest of the modal session).
+export async function nearbyPlaces(
+  apiKey: string,
+  category: SearchableCategory,
+  // Day-column centroid anchor — see resolveAnchor and searchPlaces'
+  // identical parameter.
+  dayAnchor: GeoPoint | null,
+  cityCenter: GeoPoint | null,
+  signal?: AbortSignal,
+): Promise<PlaceSearchResult[]> {
+  const { point: anchorPoint, radius } = resolveAnchor(dayAnchor, cityCenter)
+  // Nothing to search around at all — no day anchor, and the destination
+  // itself couldn't be geocoded either.
+  if (!anchorPoint) return []
+
+  const body = {
+    locationRestriction: {
+      circle: { center: { latitude: anchorPoint.lat, longitude: anchorPoint.lng }, radius },
+    },
+    includedTypes: [CATEGORY_SEARCH_TYPE[category]],
+    maxResultCount: SEARCH_RESULT_COUNT,
+    rankPreference: 'POPULARITY',
+    languageCode: 'zh-TW',
+  }
+
+  const { signal: combinedSignal, clear } = withTimeout(signal)
+
+  try {
+    const response = await fetch(NEARBY_SEARCH_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask':
+          'places.id,places.displayName,places.location,places.businessStatus,places.types,places.photos',
+      },
+      body: JSON.stringify(body),
+      signal: combinedSignal,
+    })
+    if (!response.ok) throw new Error(`Nearby search failed: ${response.status}`)
+
+    const data = (await response.json()) as TextSearchResponse
+    const results: PlaceSearchResult[] = []
+    for (const place of data.places ?? []) {
+      // No user-typed text to fall back to here (unlike searchPlaces) — a
+      // place with no real displayName has nothing meaningful to show, so
+      // it's dropped rather than given a placeholder name.
+      const hit = parseHit(place, '')
+      if (!hit || !hit.name) continue
+      // Same wrong-city guard searchPlaces applies, and same reasoning for
+      // skipping it when cityCenter is unavailable — there's no city
+      // reference to check distance against, and a day anchor on its own
+      // (already within DAY_ANCHOR_RADIUS_M) doesn't need re-validating
+      // against itself.
+      if (cityCenter && distanceKm(cityCenter, { lat: hit.lat, lng: hit.lng }) > MAX_KM_FROM_CITY) continue
+      // Already known from the chip that triggered this browse — every
+      // result was explicitly requested via includedTypes above, so trust
+      // that over re-deriving it from `types` (which could disagree if a
+      // place carries multiple overlapping types).
+      results.push({ placeId: hit.placeId, name: hit.name, lat: hit.lat, lng: hit.lng, photoRef: hit.photoRef, category })
     }
     return results
   } finally {
