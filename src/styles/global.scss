@@ -873,9 +873,15 @@ h3 {
 }
 
 .place-card__photo {
-  // Own border-radius/object-fit rather than relying on the parent's
-  // overflow (deliberately unset above) — this crops itself internally
-  // while the index badge still overlaps its corner uncropped.
+  // position: absolute + inset: 0 (not width/height: 100% as a grid item)
+  // — Safari doesn't reliably resolve a grid item's percentage height back
+  // to .place-card__media's definite 64px once place-items: center is in
+  // play, and falls back to the image's own aspect ratio for that axis,
+  // rendering a stretched rectangle instead of a 64x64 square. Sizing off
+  // the containing block via inset avoids that grid-percentage ambiguity
+  // entirely — same fix already in place for .place-drawer__photo below.
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   border-radius: $radius-sm;
@@ -3462,6 +3468,7 @@ h3 {
 }
 
 .add-place-suggestion__media {
+  position: relative;
   display: grid;
   flex: none;
   width: 40px;
@@ -3474,6 +3481,11 @@ h3 {
 }
 
 .add-place-suggestion__media img {
+  // position: absolute + inset: 0, not width/height: 100% as a grid item —
+  // see the matching comment on .place-card__photo for why (Safari grid +
+  // place-items: center percentage-height quirk).
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
