@@ -75,6 +75,9 @@ export const icons = {
   camera: {
     body: `<rect x="3.5" y="7" width="17" height="13" rx="2.5" ${STROKE}/><path d="M9 7l1.4-2.4h3.2L15 7" ${STROKE}/><circle cx="12" cy="13.3" r="3.4" ${STROKE}/>`,
   },
+  image: {
+    body: `<rect x="3" y="4.5" width="18" height="15" rx="2.5" ${STROKE}/><circle cx="8.3" cy="9.5" r="1.6" ${STROKE}/><path d="M3.8 16.5l5.2-5 3.4 3.2 2.4-2.4 5.4 5.4" ${STROKE}/>`,
+  },
   leaf: {
     body: `<path d="M19 5c-9 0-14 4-14 10 0 2.5 1.5 4 4 4 6 0 10-5 10-14z" ${STROKE}/><path d="M5.5 18.5C9 14 13 11 17 8.5" ${STROKE}/>`,
   },

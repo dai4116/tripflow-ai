@@ -844,16 +844,32 @@ h3 {
   font: inherit;
   text-align: left;
   cursor: grab;
+  opacity: 1;
+  transition: opacity 180ms ease;
+}
+
+// Held invisible (not unmounted — the photo underneath still needs to load
+// while hidden) until usePlacePhoto's `ready` says the photo and name can
+// appear together instead of the name popping in first. See usePlacePhoto.ts.
+// pointer-events: none (paired with the template's :tabindex="-1") keeps an
+// invisible card from being clicked or opened — plain opacity:0 alone leaves
+// it fully hit-testable and focusable.
+.place-card__open--pending {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .place-card__media {
   position: relative;
+  display: grid;
   width: 64px;
   height: 64px;
+  place-items: center;
   border-radius: $radius-sm;
+  background: $color-surface-soft;
+  color: $color-subtle;
   // No overflow: hidden — the index badge deliberately hangs outside this
-  // box (negative top/left) to overlap the thumbnail's corner. The gradient
-  // background itself already respects border-radius without needing it.
+  // box (negative top/left) to overlap the thumbnail's corner.
 }
 
 .place-card__photo {
@@ -865,6 +881,12 @@ h3 {
   border-radius: $radius-sm;
   object-fit: cover;
   display: block;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+.place-card__photo--loaded {
+  opacity: 1;
 }
 
 .place-card__index {
@@ -2960,7 +2982,31 @@ h3 {
   display: flex;
   align-items: flex-end;
   padding: 14px 16px;
+  background: $color-surface-soft;
   color: $color-surface;
+  opacity: 1;
+  transition: opacity 180ms ease;
+}
+
+// Held invisible until usePlacePhoto's `ready` says the photo and place name
+// can appear together — see usePlacePhoto.ts.
+.place-drawer__image--pending {
+  opacity: 0;
+}
+
+// No photo: the ::after scrim and $color-surface (light) <h2> below only make
+// sense over a real photo — without one they'd render near-white text on the
+// light placeholder background.
+.place-drawer__image--fallback {
+  color: $color-text;
+}
+
+.place-drawer__image-icon {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  color: $color-subtle;
+  transform: translate(-50%, -50%);
 }
 
 .place-drawer__photo {
@@ -2971,6 +3017,12 @@ h3 {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+.place-drawer__photo--loaded {
+  opacity: 1;
 }
 
 .place-drawer__image::after {
@@ -2978,6 +3030,12 @@ h3 {
   inset: 0;
   background: linear-gradient(180deg, rgba($color-dusk, 0) 30%, rgba($color-dusk, 0.62));
   content: '';
+}
+
+// Must come after the base ::after rule above — same specificity, so source
+// order decides the cascade winner.
+.place-drawer__image--fallback::after {
+  content: none;
 }
 
 .place-drawer__image h2 {
@@ -3379,9 +3437,19 @@ h3 {
   border-radius: $radius-md;
   background: $color-surface;
   text-align: left;
+  opacity: 1;
   transition:
     border-color 140ms ease,
-    background 140ms ease;
+    background 140ms ease,
+    opacity 180ms ease;
+}
+
+// Held invisible until the row's own photo is loaded/failed/timed-out — see
+// usePlacePhoto.ts's `ready` for the shared reasoning (this row tracks the
+// same thing locally in AddPlaceModal.vue since results aren't the Place type
+// that composable works with).
+.add-place-suggestion--pending {
+  opacity: 0;
 }
 
 .add-place-suggestion:hover {
@@ -3409,6 +3477,12 @@ h3 {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+.add-place-suggestion__media img.add-place-suggestion__photo--loaded {
+  opacity: 1;
 }
 
 .add-place-suggestion__body {
@@ -4309,7 +4383,7 @@ h3 {
     // to land exactly on the visible height. Pinning the shell below with
     // position: fixed sidesteps that entirely (fixed elements always match
     // the true visible viewport), so html/body/#app never need to scroll —
-    // only .workspace-shell__main does, deliberately.
+    // only .workspace-shell__main / .marketing-shell do, deliberately.
     height: 100%;
     overflow: hidden;
   }
@@ -4348,6 +4422,18 @@ h3 {
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     padding: 16px 12px 94px;
+  }
+
+  // .marketing-shell has no scroll container of its own (unlike
+  // .workspace-shell__main above) — without this it inherits #app's
+  // overflow: hidden from the rule above and the landing page simply can't
+  // scroll past one viewport's worth of content.
+  .marketing-shell {
+    height: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .app-sidebar {

@@ -8,20 +8,11 @@ const TRIP_PALETTE = [
   { color: '#4a7de0', imageGradient: 'linear-gradient(135deg, #182a4d, #4a7de0 50%, #d5e2f8)' },
 ]
 
-export const PLACE_GRADIENTS = [
-  'linear-gradient(135deg, #18233c, #c23b5c 50%, #f1a15f)',
-  'linear-gradient(135deg, #183c5d, #4a7de0 55%, #ff7a59)',
-  'linear-gradient(135deg, #22465c, #d96b4b 45%, #f3d0bb)',
-  'linear-gradient(135deg, #9fbf8f, #d9ecc8 55%, #f2f7e6)',
-  'linear-gradient(135deg, #22303c, #8161e6 60%, #cbbcf2)',
-  'linear-gradient(135deg, #2a4562, #00c5ab 45%, #f26157)',
-]
-
 // Distinct per-day colors for the trip map (pins + route line) — reused
-// from colors already used elsewhere in the app (TRIP_PALETTE, the accent
-// tones in PLACE_GRADIENTS) rather than inventing a new set, so the map
-// stays visually consistent with the rest of the UI instead of introducing
-// its own palette. Cycles for trips longer than 6 days.
+// from colors already used elsewhere in the app (TRIP_PALETTE) rather than
+// inventing a new set, so the map stays visually consistent with the rest of
+// the UI instead of introducing its own palette. Cycles for trips longer
+// than 6 days.
 export const DAY_COLORS = ['#00c5ab', '#4a7de0', '#d98324', '#8161e6', '#4d9166', '#e8618c']
 
 export function dayColorForIndex(index: number): string {
@@ -302,7 +293,6 @@ export function generateTrip(
       geocodeQuery: suggestion.geocodeQuery,
       geocodeQueryAlt: suggestion.geocodeQueryAlt,
       columnId,
-      imageGradient: PLACE_GRADIENTS[places.length % PLACE_GRADIENTS.length],
       photoRef: suggestion.photoRef,
     }
     places.push(place)

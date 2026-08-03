@@ -9,7 +9,6 @@ import {
   generateTrip,
   paceForTravelStyles,
   placesPerDayForPace,
-  PLACE_GRADIENTS,
   regionFromDestination,
 } from '../data/generateTrip'
 import { geocodePlace, geocodeRawQuery } from '../data/geocode'
@@ -271,7 +270,6 @@ export const useTripsStore = defineStore('trips', () => {
       geocodeQuery: input.geocodeQuery,
       geocodeQueryAlt: input.geocodeQueryAlt,
       columnId: input.columnId,
-      imageGradient: PLACE_GRADIENTS[places.value.length % PLACE_GRADIENTS.length],
       photoRef: input.photoRef,
       placeId: input.placeId,
     }

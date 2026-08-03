@@ -82,12 +82,12 @@ export type Place = {
   scheduleMode?: PlaceScheduleMode
   departureTime?: string
   columnId: string
-  imageGradient: string
   // Google Places photo resource name (e.g. "places/xxx/photos/yyy"), present
   // when the place was verified server-side and Google has a photo on record
   // — see api/_lib/placesVerify.ts. Resolved to an actual image URL via
   // /api/place-photo (never fetched directly; that endpoint keeps the
-  // Places API key server-side). Absent falls back to imageGradient.
+  // Places API key server-side). Absent falls back to a generic placeholder
+  // — see usePlacePhoto.ts.
   photoRef?: string
   // Travel from this place to whichever place follows it in the same day —
   // absent until calculated (see routing.ts / trips store's auto-fill).

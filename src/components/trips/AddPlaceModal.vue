@@ -41,17 +41,24 @@
               :key="result.placeId"
               type="button"
               class="add-place-suggestion"
+              :class="{ 'add-place-suggestion--pending': !isReady(result) }"
+              :disabled="!isReady(result)"
               @click="pickResult(result)"
             >
               <span class="add-place-suggestion__media">
+                <!-- No loading="lazy": the row itself stays invisible via
+                     add-place-suggestion--pending until this loads (or times
+                     out), so deferring the fetch would just make the row
+                     wait on a fetch that hasn't even started yet. -->
                 <img
                   v-if="showPhoto(result)"
+                  :class="{ 'add-place-suggestion__photo--loaded': isPhotoLoaded(result) }"
                   :src="photoUrl(result)"
                   alt=""
-                  loading="lazy"
+                  @load="onPhotoLoad(result.placeId)"
                   @error="onPhotoError(result.placeId)"
                 />
-                <AppIcon v-else :name="fallbackIcon" :size="16" />
+                <AppIcon v-else name="image" :size="16" />
               </span>
               <span class="add-place-suggestion__body">
                 <strong>{{ result.name }}</strong>
@@ -75,7 +82,14 @@ import { searchPlaces, type GeoPoint, type PlaceSearchResult } from '../../data/
 import type { PlaceCategory } from '../../types'
 import AppIcon from '../ui/AppIcon.vue'
 import BaseInput from '../ui/BaseInput.vue'
-import { categoryIcons, categoryLabels } from './CategoryChip.vue'
+import {
+  addedPlaceIdsFor,
+  categoryCacheKey,
+  categoryResultsCache,
+  cityCenterByDestination,
+  sameAnchor,
+} from './addPlaceModalCache'
+import { categoryLabels } from './CategoryChip.vue'
 
 const props = defineProps<{
   columnId: string
@@ -136,18 +150,11 @@ const isLoading = ref(false)
 const hasSearched = ref(false)
 const searchFailed = ref(false)
 const failedPhotoIds = ref(new Set<string>())
-// Tracks places added THIS modal session, by Google placeId (not name — a
-// name-based check would also hide a different real place that just happens
-// to share a name with something already in the trip, e.g. a second
-// "7-ELEVEN" branch elsewhere in the city). Resets every time the modal
-// re-opens (a fresh component instance), so it only prevents re-adding the
-// exact same place within one search session, not across the whole trip.
-const addedPlaceIds = ref(new Set<string>())
 
-const fallbackIcon = computed(() => {
-  const category = activeCategory.value
-  return category ? categoryIcons[category] : 'pin'
-})
+// See addPlaceModalCache.ts for why this lives in its own module instead of
+// here — a `const` at this scope re-initializes every time the modal
+// reopens, which defeats the whole point of caching across reopens.
+const addedPlaceIds = addedPlaceIdsFor(props.columnId)
 
 function photoUrl(result: PlaceSearchResult): string {
   return `/api/place-photo?ref=${encodeURIComponent(result.photoRef ?? '')}&w=96`
@@ -157,35 +164,55 @@ function showPhoto(result: PlaceSearchResult): boolean {
   return Boolean(result.photoRef) && !failedPhotoIds.value.has(result.placeId)
 }
 
-function onPhotoError(placeId: string) {
-  failedPhotoIds.value.add(placeId)
+// Mirrors usePlacePhoto's ready/timeout behavior (see usePlacePhoto.ts) but
+// tracked per-row here instead, since search results are PlaceSearchResult —
+// not the Place type that composable works with — and each row needs its own
+// independent ready state rather than one shared card's.
+const LOAD_TIMEOUT_MS = 500
+const loadedPhotoIds = ref(new Set<string>())
+const timedOutPhotoIds = ref(new Set<string>())
+const loadTimeouts = new Map<string, number>()
+
+function isPhotoLoaded(result: PlaceSearchResult): boolean {
+  return loadedPhotoIds.value.has(result.placeId)
 }
 
-// Resolved once per modal session and reused on every later search — stays
-// `undefined` ("not resolved yet") until a search actually returns a real
-// GeoPoint. A `null` response (destination geocoding failed — often
-// transient: a rate limit, a timeout) is deliberately NOT cached here: it's
-// the same as leaving this `undefined`, so the NEXT search retries the
-// geocode server-side instead of the whole session being stuck with no
-// cityCenter (confirmed live: caching the null outright disabled the
-// distance-guard/nearby-browse safety nets for the rest of the session with
-// no way to recover short of closing and reopening the modal).
-let cachedCityCenter: GeoPoint | undefined
+function isReady(result: PlaceSearchResult): boolean {
+  return (
+    !showPhoto(result) || loadedPhotoIds.value.has(result.placeId) || timedOutPhotoIds.value.has(result.placeId)
+  )
+}
 
-// A category-only browse (no typed query) is deterministic for the same
-// category — Google returns the same POPULARITY-ranked list every time, so
-// re-selecting a chip the user already viewed this session reuses that
-// fetch instead of billing Google again. Keyed by category only, since this
-// only ever applies to the no-query browse path (see runSearch) — a typed
-// query is never cached, since every keystroke is a genuinely different
-// search. Cleared whenever dayAnchor shifts (the day gained/lost a pinned
-// place, changing what "nearby" even means), so a stale anchor's results
-// can't linger once a fresher one exists.
-const categoryResultsCache = new Map<PlaceCategory, PlaceSearchResult[]>()
-watch(
-  () => props.dayAnchor,
-  () => categoryResultsCache.clear(),
-)
+function onPhotoLoad(placeId: string) {
+  loadedPhotoIds.value.add(placeId)
+  window.clearTimeout(loadTimeouts.get(placeId))
+  loadTimeouts.delete(placeId)
+}
+
+function onPhotoError(placeId: string) {
+  failedPhotoIds.value.add(placeId)
+  window.clearTimeout(loadTimeouts.get(placeId))
+  loadTimeouts.delete(placeId)
+}
+
+// New results (a fresh search, or a browse cache hit) each get their own
+// load-timeout clock started here — the template can't do this itself since
+// there's no per-row mounted hook without splitting each row into its own
+// component, which isn't worth it just for this.
+watch(results, (newResults) => {
+  for (const result of newResults) {
+    if (!result.photoRef) continue
+    if (loadedPhotoIds.value.has(result.placeId) || timedOutPhotoIds.value.has(result.placeId)) continue
+    if (loadTimeouts.has(result.placeId)) continue
+    loadTimeouts.set(
+      result.placeId,
+      window.setTimeout(() => {
+        timedOutPhotoIds.value.add(result.placeId)
+        loadTimeouts.delete(result.placeId)
+      }, LOAD_TIMEOUT_MS),
+    )
+  }
+})
 
 // Debounced so every keystroke doesn't fire its own Google-backed request —
 // only the last one after the user pauses does. The in-flight request is
@@ -198,6 +225,13 @@ let activeController: AbortController | null = null
 async function runSearch() {
   const query = search.value.trim()
   const category = activeCategory.value
+  // Snapshotted once, like `query`/`category` above — props.dayAnchor is
+  // reactive and can change while this function is suspended at the `await`
+  // below (the day's centroid shifts as places are added/moved). Reading
+  // `props.dayAnchor` again after the await instead of reusing this would
+  // cache the response under whatever anchor happens to be current when the
+  // response lands, not the one it was actually fetched for.
+  const dayAnchor = props.dayAnchor
   activeController?.abort()
 
   // A chip alone (no query) still searches: the server browses nearby via
@@ -212,11 +246,12 @@ async function runSearch() {
 
   const isBrowse = !query && category !== null
   if (isBrowse) {
-    const cached = categoryResultsCache.get(category)
-    if (cached) {
+    const cached = categoryResultsCache.get(categoryCacheKey(props.columnId, category))
+    if (cached && sameAnchor(cached.dayAnchor, dayAnchor)) {
       isLoading.value = false
       hasSearched.value = true
-      results.value = cached.filter((result) => !addedPlaceIds.value.has(result.placeId))
+      searchFailed.value = false
+      results.value = cached.results.filter((result) => !addedPlaceIds.has(result.placeId))
       return
     }
   }
@@ -229,8 +264,8 @@ async function runSearch() {
     query,
     category ?? undefined,
     props.destination,
-    props.dayAnchor,
-    cachedCityCenter,
+    dayAnchor,
+    cityCenterByDestination.get(props.destination),
     controller.signal,
   )
   if (controller.signal.aborted) return
@@ -242,9 +277,16 @@ async function runSearch() {
     results.value = []
     return
   }
-  if (cachedCityCenter === undefined && response.cityCenter) cachedCityCenter = response.cityCenter
-  if (isBrowse) categoryResultsCache.set(category, response.results)
-  results.value = response.results.filter((result) => !addedPlaceIds.value.has(result.placeId))
+  if (!cityCenterByDestination.has(props.destination) && response.cityCenter) {
+    cityCenterByDestination.set(props.destination, response.cityCenter)
+  }
+  if (isBrowse) {
+    categoryResultsCache.set(categoryCacheKey(props.columnId, category), {
+      dayAnchor,
+      results: response.results,
+    })
+  }
+  results.value = response.results.filter((result) => !addedPlaceIds.has(result.placeId))
 }
 
 // Keystrokes debounce (avoid firing a request per character); a category
@@ -264,9 +306,9 @@ watch(search, () => {
 // No debounce here (unlike the search watcher below) — a chip click should
 // feel instant. The template's `:disabled="isLoading"` on the chips is what
 // actually keeps this cheap: it can't fire a second billed Nearby/Text
-// Search (or a second, redundant geocode before cachedCityCenter resolves)
-// until the current one finishes, since `isLoading` flips true synchronously
-// here, before runSearch's own await.
+// Search (or a second, redundant geocode before cityCenterByDestination
+// resolves) until the current one finishes, since `isLoading` flips true
+// synchronously here, before runSearch's own await.
 watch(activeCategory, () => {
   isLoading.value = true
   window.clearTimeout(debounceTimer)
@@ -276,6 +318,7 @@ watch(activeCategory, () => {
 onBeforeUnmount(() => {
   window.clearTimeout(debounceTimer)
   activeController?.abort()
+  loadTimeouts.forEach((id) => window.clearTimeout(id))
 })
 
 function pickResult(result: PlaceSearchResult) {
@@ -297,7 +340,7 @@ function pickResult(result: PlaceSearchResult) {
     photoRef: result.photoRef,
     placeId: result.placeId,
   })
-  addedPlaceIds.value.add(result.placeId)
+  addedPlaceIds.add(result.placeId)
   // Remove it from the visible list immediately — without this the button
   // stays rendered and clickable, and a second click (accidental double-click,
   // or a deliberate re-click since there's no other success feedback) adds

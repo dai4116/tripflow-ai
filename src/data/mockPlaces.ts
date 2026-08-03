@@ -13,7 +13,6 @@ export const places: Place[] = [
     description: '東京最古老的佛教寺廟，擁有標誌性的雷門與仲見世商店街。',
     travelTip: '建議早上8點前抵達以避開人潮',
     columnId: 'day-1',
-    imageGradient: 'linear-gradient(135deg, #18233c, #c23b5c 50%, #f1a15f)',
   },
   {
     id: 'shibuya',
@@ -26,7 +25,6 @@ export const places: Place[] = [
     lng: 139.7005,
     description: '全世界最繁忙的行人穿越道——搭配附近的屋頂景觀最對味。',
     columnId: 'day-2',
-    imageGradient: 'linear-gradient(135deg, #183c5d, #4a7de0 55%, #ff7a59)',
   },
   {
     id: 'tsukiji',
@@ -40,7 +38,6 @@ export const places: Place[] = [
     description: '一早穿梭在新鮮海鮮攤與小吃店之間的美食巡禮。',
     travelTip: '大部分攤位下午稍早就會收攤，建議10點前抵達',
     columnId: 'day-1',
-    imageGradient: 'linear-gradient(135deg, #22465c, #d96b4b 45%, #f3d0bb)',
   },
   {
     id: 'ueno',
@@ -53,7 +50,6 @@ export const places: Place[] = [
     lng: 139.7745,
     description: '寬敞的公園，池塘周圍聚集了博物館與神社，很好安排。',
     columnId: 'day-1',
-    imageGradient: 'linear-gradient(135deg, #9fbf8f, #d9ecc8 55%, #f2f7e6)',
   },
   {
     id: 'asakusa',
@@ -66,7 +62,6 @@ export const places: Place[] = [
     lng: 139.798,
     description: '沿著隅田川的傳統街道、工藝品店與在地小吃。',
     columnId: 'day-1',
-    imageGradient: 'linear-gradient(135deg, #2f7fb4, #c7d9ea 50%, #f8f3e8)',
   },
   {
     id: 'meiji',
@@ -79,7 +74,6 @@ export const places: Place[] = [
     lng: 139.6993,
     description: '市中心裡的森林神社境內，是前往原宿前的靜謐開場。',
     columnId: 'day-2',
-    imageGradient: 'linear-gradient(135deg, #22303c, #8161e6 60%, #cbbcf2)',
   },
   {
     id: 'harajuku',
@@ -92,7 +86,6 @@ export const places: Place[] = [
     lng: 139.7027,
     description: '竹下通的流行時尚、可麗餅攤，以及巷弄裡的古著店。',
     columnId: 'day-2',
-    imageGradient: 'linear-gradient(135deg, #17384d, #e8618c 60%, #ffc3d4)',
   },
   {
     id: 'gyoen',
@@ -105,7 +98,6 @@ export const places: Place[] = [
     lng: 139.7101,
     description: '融合日式、英式與法式風格的庭園景觀——晚餐前的放鬆時光。',
     columnId: 'day-2',
-    imageGradient: 'linear-gradient(135deg, #8fae87, #d5e8cd 55%, #f4f8ec)',
   },
   {
     id: 'akihabara',
@@ -118,7 +110,6 @@ export const places: Place[] = [
     lng: 139.773,
     description: '電器、動漫周邊與復古遊戲店，全都擠在這個小巧的街區裡。',
     columnId: 'day-3',
-    imageGradient: 'linear-gradient(135deg, #2a4562, #00c5ab 45%, #f26157)',
   },
   {
     id: 'odaiba',
@@ -131,7 +122,6 @@ export const places: Place[] = [
     lng: 139.7755,
     description: '傍晚可欣賞彩虹大橋與灣岸天際線。',
     columnId: 'day-3',
-    imageGradient: 'linear-gradient(135deg, #1e4b64, #0eb4cb 45%, #ee6554)',
   },
   {
     id: 'ana-flight',
@@ -144,7 +134,6 @@ export const places: Place[] = [
     lng: 139.7798,
     description: '航班資訊已確認——15:40 降落羽田機場，接著搭利木津巴士前往新宿。',
     columnId: 'day-1',
-    imageGradient: 'linear-gradient(135deg, #dbe7ef, #8fb6d0 50%, #f9efe4)',
   },
   {
     id: 'shinjuku-hotel',
@@ -158,6 +147,5 @@ export const places: Place[] = [
     description: '東京柏悅酒店，新宿——電影《愛情，不用翻譯》的取景地，擁有絕美天際線景觀。',
     travelTip: '可以要求面向新宿的房型——下午3點開始入住',
     columnId: 'day-1',
-    imageGradient: 'linear-gradient(135deg, #6d4f3d, #c7935b 48%, #f7ead7)',
   },
 ]
