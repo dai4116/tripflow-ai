@@ -1,8 +1,8 @@
 import { useStorage } from '@vueuse/core'
 import { nanoid } from 'nanoid'
 import { defineStore } from 'pinia'
-import { fetchAiPlaces } from '../data/aiTripClient'
-import { explorePlacesForTemplate, exploreTemplates } from '../data/exploreTrips'
+import { fetchAiPlaces } from '../data/aiTripClient.ts'
+import { explorePlacesForTemplate, exploreTemplates } from '../data/exploreTrips.ts'
 import {
   cityFromDestination,
   computeTripDays,
@@ -10,9 +10,9 @@ import {
   paceForTravelStyles,
   placesPerDayForPace,
   regionFromDestination,
-} from '../data/generateTrip'
-import { geocodePlace, geocodeRawQuery } from '../data/geocode'
-import { fetchTravelTime } from '../data/routing'
+} from '../data/generateTrip.ts'
+import { geocodePlace, geocodeRawQuery } from '../data/geocode.ts'
+import { fetchTravelTime } from '../data/routing.ts'
 import type { CreateTripInput, Place, PlaceCategory, Trip, TravelMode } from '../types'
 
 function hasCoords(place: Place): boolean {

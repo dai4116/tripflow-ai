@@ -132,6 +132,18 @@ test('generateTrip orders a day by time-of-day bucket first, then nearest-neighb
   assert.deepEqual(order, ['Morning1', 'Morning2-near', 'Morning3-far', 'Evening1'])
 })
 
+test('generateTrip carries the suggestion\'s Google placeId through to the resulting Place', () => {
+  const aiPlaces: PlaceSuggestion[] = [
+    { day: 1, name: 'A1', category: 'attraction', description: 'd', placeId: 'google-1' },
+    { day: 1, name: 'A2', category: 'attraction', description: 'd' }, // no-Google-key fallback path
+  ]
+  const input = baseInput({ startDate: '2024-03-01', endDate: '2024-03-01' })
+  const { places } = generateTrip(input, [], aiPlaces, 2)
+
+  assert.equal(places.find((p) => p.name === 'A1')!.placeId, 'google-1')
+  assert.equal(places.find((p) => p.name === 'A2')!.placeId, undefined)
+})
+
 test('generateTrip caps each day at placesPerDay and does not backfill a short day', () => {
   const aiPlaces: PlaceSuggestion[] = [
     { day: 1, name: 'A1', category: 'attraction', description: 'd' },

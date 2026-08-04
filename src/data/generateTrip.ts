@@ -294,6 +294,7 @@ export function generateTrip(
       geocodeQueryAlt: suggestion.geocodeQueryAlt,
       columnId,
       photoRef: suggestion.photoRef,
+      placeId: suggestion.placeId,
     }
     places.push(place)
     return place
