@@ -557,3 +557,157 @@ export async function nearbyPlaces(
   if (results.length > 0 || !dayAnchor || !cityCenter) return results
   return fetchNearby(apiKey, category, cityCenter, BIAS_RADIUS_M, cityCenter, signal)
 }
+
+// Google Places Autocomplete (New) — powers the destination-search dropdown
+// on trip creation (see DestinationAutocomplete.vue). Picking a suggestion
+// there gives the trip a real place_id + coordinates instead of only the
+// free-typed destination string, so a later feature (auto-fetching a cover
+// photo) can use the resolved place directly instead of re-guessing it from
+// text. Restricted to city/country-level results only (no districts/streets)
+// — a trip's destination is "which city", matching what
+// cityFromDestination/regionFromDestination already assume about the
+// destination string's shape.
+//
+// VERIFY LIVE (written from API-reference recall, not confirmed against a
+// live call): the exact valid values for includedPrimaryTypes below, and
+// whether Autocomplete (New) accepts/requires an X-Goog-FieldMask header at
+// all — Text/Nearby Search above both require one; Autocomplete's prediction
+// response is a small fixed shape and this implementation assumes no field
+// mask applies. If Google 400s, that assumption was wrong.
+const AUTOCOMPLETE_URL = 'https://places.googleapis.com/v1/places:autocomplete'
+
+// includedPrimaryTypes is Google's request-level filter, but this file has
+// already learned (see strictTypeFiltering above) that Google's own type
+// filtering can be loose — so this is a second, defensive filter applied to
+// every suggestion regardless of what the request-level filter achieves.
+// Confirmed live against "東京": must return "日本・東京" without surfacing
+// individual wards (足立區, 荒川區, ...) — re-check this list if that regresses.
+const SUBCITY_TYPES = new Set([
+  'sublocality',
+  'sublocality_level_1',
+  'sublocality_level_2',
+  'sublocality_level_3',
+  'sublocality_level_4',
+  'sublocality_level_5',
+  'neighborhood',
+  'administrative_area_level_2',
+  'administrative_area_level_3',
+  'administrative_area_level_4',
+  'administrative_area_level_5',
+  'postal_code',
+  'route',
+  'street_address',
+  'premise',
+])
+
+export type AutocompleteSuggestion = { placeId: string; mainText: string; secondaryText: string }
+
+type AutocompleteResponse = {
+  suggestions?: Array<{
+    placePrediction?: {
+      placeId?: string
+      structuredFormat?: {
+        mainText?: { text?: string }
+        secondaryText?: { text?: string }
+      }
+      types?: string[]
+    }
+  }>
+}
+
+// Throws on network/non-2xx (caller decides how to respond) — this is a live
+// keystroke search, not something worth caching against textSearchCached's
+// map (the query itself is the varying part, same reasoning as searchPlaces).
+export async function autocompletePlaces(
+  apiKey: string,
+  input: string,
+  sessionToken: string,
+  signal?: AbortSignal,
+): Promise<AutocompleteSuggestion[]> {
+  const body = {
+    input,
+    sessionToken,
+    languageCode: 'zh-TW',
+    includedPrimaryTypes: ['locality', 'administrative_area_level_1', 'country'],
+  }
+
+  const { signal: combinedSignal, clear } = withTimeout(signal)
+  try {
+    const response = await fetch(AUTOCOMPLETE_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey,
+      },
+      body: JSON.stringify(body),
+      signal: combinedSignal,
+    })
+    if (!response.ok) throw new Error(`Places autocomplete failed: ${response.status}`)
+
+    const data = (await response.json()) as AutocompleteResponse
+    const results: AutocompleteSuggestion[] = []
+    for (const suggestion of data.suggestions ?? []) {
+      const prediction = suggestion.placePrediction
+      const placeId = prediction?.placeId
+      const mainText = prediction?.structuredFormat?.mainText?.text?.trim()
+      if (!placeId || !mainText) continue
+      const types = prediction?.types ?? []
+      if (types.some((type) => SUBCITY_TYPES.has(type))) continue
+      results.push({
+        placeId,
+        mainText,
+        secondaryText: prediction?.structuredFormat?.secondaryText?.text?.trim() ?? '',
+      })
+    }
+    return results
+  } finally {
+    clear()
+  }
+}
+
+// Place Details (New) — resolves the lat/lng of a place the user picked from
+// autocompletePlaces' suggestions. Requests only the `location` field mask
+// (the cheapest mask that yields coordinates) since the display text is
+// already known from the chosen suggestion itself, not fetched again here.
+// Reuses the same sessionToken passed to autocompletePlaces so Google bills
+// the whole type-then-pick interaction as one session instead of separately.
+//
+// Throws on network/non-2xx (caller → 502, a transient failure worth
+// retrying). Returns null only for a clean response with no usable location
+// (caller → 404, a genuine "can't resolve this place" — mirrors
+// api/place-photo.ts's 502-vs-404 split, don't collapse the two).
+//
+// VERIFY LIVE: billing tier for the `location` field mask on Place Details
+// (New) — this file's Pro-tier comment above is specific to Text Search's own
+// SKU table, not confirmed to carry over here. Also VERIFY LIVE that
+// sessionToken belongs as a query param (assumed, since this is a GET with no
+// body) against Google's current Place Details (New) reference.
+export async function getPlaceLocation(
+  apiKey: string,
+  placeId: string,
+  sessionToken: string,
+  signal?: AbortSignal,
+): Promise<GeoPoint | null> {
+  const url = `https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}?sessionToken=${encodeURIComponent(sessionToken)}`
+
+  const { signal: combinedSignal, clear } = withTimeout(signal)
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': 'location',
+      },
+      signal: combinedSignal,
+    })
+    if (!response.ok) throw new Error(`Place details failed: ${response.status}`)
+
+    const data = (await response.json()) as { location?: { latitude?: number; longitude?: number } }
+    const lat = data.location?.latitude
+    const lng = data.location?.longitude
+    if (typeof lat !== 'number' || typeof lng !== 'number') return null
+    return { lat, lng }
+  } finally {
+    clear()
+  }
+}

@@ -1,3 +1,5 @@
+import { withTimeout } from './httpTimeout'
+
 // Talks to /api/places-search — AddPlaceModal.vue's live search-as-you-type,
 // backed by a real (multi-result) Google Places Text Search rather than the
 // old static suggestedPlacesForCity list. Same never-throws contract as
@@ -51,9 +53,7 @@ export async function searchPlaces(
   cityCenter: GeoPoint | null | undefined,
   signal?: AbortSignal,
 ): Promise<PlacesSearchResponse | undefined> {
-  const timeoutController = new AbortController()
-  const timer = window.setTimeout(() => timeoutController.abort(), REQUEST_TIMEOUT_MS)
-  const combinedSignal = signal ? AbortSignal.any([signal, timeoutController.signal]) : timeoutController.signal
+  const { signal: combinedSignal, clear } = withTimeout(REQUEST_TIMEOUT_MS, signal)
 
   try {
     const response = await fetch('/api/places-search', {
@@ -72,6 +72,6 @@ export async function searchPlaces(
   } catch {
     return undefined
   } finally {
-    window.clearTimeout(timer)
+    clear()
   }
 }

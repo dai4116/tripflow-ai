@@ -41,15 +41,23 @@ export type NewPlaceInput = {
 
 export const useTripsStore = defineStore('trips', () => {
   // Bumped to v2 when the Planning/Done columns were removed from the board
-  // structure, to v3 when trips gained a startDate field, then to v4 when
+  // structure, to v3 when trips gained a startDate field, to v4 when
   // PlaceCategory shrank from 10 values to 6 (cafe/culture/nature/museum/
-  // activity folded into food/attraction) — old localStorage data under
-  // earlier keys is stale/incompatible, so browsers with existing data fall
-  // back to blank instead of silently rendering a category that no longer
-  // exists. New visitors start blank too — no seed/demo data until there's a
-  // real account system to scope it to.
-  const trips = useStorage<Trip[]>('tripflow-trips-v4', [])
-  const places = useStorage<Place[]>('tripflow-places-v4', [])
+  // activity folded into food/attraction), then to v5 when trips gained
+  // destinationPlaceId/destinationLat/destinationLng fields (Google Places
+  // Autocomplete on the destination field — see DestinationAutocomplete.vue)
+  // — old localStorage data under earlier keys is stale/incompatible, so
+  // browsers with existing data fall back to blank instead of silently
+  // rendering a category that no longer exists. New visitors start blank too
+  // — no seed/demo data until there's a real account system to scope it to.
+  // trips and places are always bumped together, even when only one type's
+  // schema actually changed (the v5 change here is Trip-only) — a places
+  // record left behind under an abandoned trips generation would reference a
+  // tripId that exists nowhere, orphaned dead data with nothing to ever read
+  // or clean it up, since placesForTrip below has no cross-generation
+  // awareness.
+  const trips = useStorage<Trip[]>('tripflow-trips-v5', [])
+  const places = useStorage<Place[]>('tripflow-places-v5', [])
 
   function getTripById(tripId: string) {
     return trips.value.find((trip) => trip.id === tripId)

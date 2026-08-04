@@ -42,7 +42,7 @@ const routes: RouteRecordRaw[] = [
     // real trip (e.g. the hardcoded 'tokyo-explorer' demo id) — a graceful
     // fallback as long as SOME trip exists. With zero trips (fresh visitor,
     // or a stale tab open from before a localStorage version bump wiped
-    // incompatible data — see tripflow-trips-v4 in stores/trips.ts) that
+    // incompatible data — see the tripflow-trips-vN key in stores/trips.ts) that
     // fallback itself is undefined, and the page crashes trying to read
     // properties off it. Redirect before the component ever mounts instead of
     // guarding every property access in that file.

@@ -46,6 +46,17 @@ export type Trip = TripSummary & {
   // calendar date instead of just a "Day N" label. Optional because
   // AI-generated trips don't collect a start date yet.
   startDate?: string
+  // Google Place resource id + coordinates for the resolved destination —
+  // present only when the user picked a suggestion from Google Places
+  // Autocomplete on trip creation (see DestinationAutocomplete.vue) rather
+  // than just typing free text. Selecting a suggestion is optional, so these
+  // are always set together and absent together (no suggestion picked, the
+  // Places API key is unset, or the Details lookup failed). Lets a later
+  // feature (auto-fetched cover photo via Google Places) use this directly
+  // instead of re-parsing `destination`'s free-text string.
+  destinationPlaceId?: string
+  destinationLat?: number
+  destinationLng?: number
   preferences: string[]
   pace: TripPace
   columns: TripColumn[]
@@ -102,6 +113,12 @@ export type Place = {
 
 export type CreateTripInput = {
   destination: string
+  // See Trip's identical fields — threaded straight through from
+  // CreateTripPage.vue's DestinationAutocomplete selection, unset when the
+  // user just typed free text.
+  destinationPlaceId?: string
+  destinationLat?: number
+  destinationLng?: number
   // ISO dates (YYYY-MM-DD) — trip length is derived from the gap between them
   // rather than collected as its own field.
   startDate: string

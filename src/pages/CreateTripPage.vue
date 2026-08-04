@@ -9,13 +9,15 @@
 
     <form v-if="!isGenerating" class="trip-form" @submit.prevent="generateTrip">
       <BaseCard class="form-card">
-        <BaseInput
+        <DestinationAutocomplete
           ref="destinationInputRef"
           v-model="form.destination"
           label="你想去哪裡？"
           placeholder="例如：東京，日本"
           icon="search"
           :error="destinationError"
+          :resolved="Boolean(form.destinationPlaceId)"
+          @select="onDestinationSelect"
         />
       </BaseCard>
 
@@ -137,6 +139,7 @@ import BaseCard from '../components/ui/BaseCard.vue'
 import BaseDateRangeInput from '../components/ui/BaseDateRangeInput.vue'
 import BaseInput from '../components/ui/BaseInput.vue'
 import type { IconName } from '../components/ui/icons'
+import DestinationAutocomplete from '../components/trips/DestinationAutocomplete.vue'
 import { computeTripDays, toDateInputValue } from '../data/generateTrip'
 import { preferences, travelStyleHints, travelStyles } from '../data/mockPreferences'
 import { useTripsStore } from '../stores/trips'
@@ -175,7 +178,7 @@ const currentStageIndex = ref(0)
 const showLongWaitNotice = ref(false)
 const destinationError = ref('')
 const dateRangeError = ref('')
-const destinationInputRef = ref<InstanceType<typeof BaseInput> | null>(null)
+const destinationInputRef = ref<InstanceType<typeof DestinationAutocomplete> | null>(null)
 const selectedPreferences = ref(['必吃美食', '人文古蹟', '特色建築'])
 // Max 2 — see paceForTravelStyles in generateTrip.ts for how a 2-style
 // selection resolves to one pace (averages their places-per-day numbers).
@@ -190,11 +193,22 @@ defaultEnd.setDate(defaultEnd.getDate() + 6)
 
 const form = reactive({
   destination: '',
+  // Set when the user picks a suggestion from DestinationAutocomplete rather
+  // than just typing free text — see onDestinationSelect below.
+  destinationPlaceId: undefined as string | undefined,
+  destinationLat: undefined as number | undefined,
+  destinationLng: undefined as number | undefined,
   startDate: toDateInputValue(defaultStart),
   endDate: toDateInputValue(defaultEnd),
   travelers: '2',
   additionalNotes: '',
 })
+
+function onDestinationSelect(selection: { placeId: string; lat: number; lng: number } | null) {
+  form.destinationPlaceId = selection?.placeId
+  form.destinationLat = selection?.lat
+  form.destinationLng = selection?.lng
+}
 
 // Clear each error as soon as its own field is actually fixed, rather than
 // only on the next full submit — otherwise a red border can sit there
@@ -370,6 +384,9 @@ async function finishGeneration() {
   try {
     const trip = await tripsStore.createTrip({
       destination: form.destination.trim(),
+      destinationPlaceId: form.destinationPlaceId,
+      destinationLat: form.destinationLat,
+      destinationLng: form.destinationLng,
       startDate: form.startDate,
       endDate: form.endDate,
       travelers: Number(form.travelers) || 1,
