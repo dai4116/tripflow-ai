@@ -191,7 +191,7 @@ async function fetchDays(
 // "first occurrence" is the same as "earlier day wins" today. Places with
 // no placeId (the no-Google-key fallback path) can't be compared this way
 // and are kept as-is.
-function dedupeByPlaceId(places: PlaceSuggestion[]): PlaceSuggestion[] {
+export function dedupeByPlaceId(places: PlaceSuggestion[]): PlaceSuggestion[] {
   const seen = new Set<string>()
   return places.filter((place) => {
     if (!place.placeId) return true
@@ -205,7 +205,7 @@ function dedupeByPlaceId(places: PlaceSuggestion[]): PlaceSuggestion[] {
 // generation is split across independent requests — most notably losing a
 // candidate to the cross-day dedup above — on top of the usual verification
 // attrition. Returns every day under its target, not just empty ones.
-function daysNeedingBackfill(places: PlaceSuggestion[], totalDays: number, placesPerDay: number): number[] {
+export function daysNeedingBackfill(places: PlaceSuggestion[], totalDays: number, placesPerDay: number): number[] {
   const countByDay = new Map<number, number>()
   for (const place of places) {
     if (typeof place.day !== 'number') continue
@@ -225,7 +225,7 @@ function daysNeedingBackfill(places: PlaceSuggestion[], totalDays: number, place
 // first. Without this, a backfill request has no way to know where a day's
 // existing places are, and a day that only needed ONE more place could end
 // up with that place anywhere in the city.
-function findExistingAnchor(places: PlaceSuggestion[], day: number): GeoPoint | null {
+export function findExistingAnchor(places: PlaceSuggestion[], day: number): GeoPoint | null {
   const place = places.find((p) => p.day === day && typeof p.lat === 'number' && typeof p.lng === 'number')
   return place ? { lat: place.lat!, lng: place.lng! } : null
 }
