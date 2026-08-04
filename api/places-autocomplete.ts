@@ -1,4 +1,4 @@
-import { autocompletePlaces } from './_lib/placesVerify.js'
+import { autocompletePlaces } from './_lib/placesVerify.ts'
 
 // Chat-speed budget, matching places-search.ts — this fires per debounced
 // keystroke from DestinationAutocomplete.vue, not per trip generation.

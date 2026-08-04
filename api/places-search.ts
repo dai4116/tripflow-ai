@@ -5,7 +5,7 @@ import {
   SEARCHABLE_CATEGORIES,
   type GeoPoint,
   type SearchableCategory,
-} from './_lib/placesVerify.js'
+} from './_lib/placesVerify.ts'
 
 // Chat-speed budget, not trip-generation's 30s — this is a human typing into
 // a search box in AddPlaceModal.vue, not an AI call. Set with headroom above
