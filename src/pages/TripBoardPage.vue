@@ -422,17 +422,6 @@
         @save="onSaveTripSettings"
       />
 
-      <AddPlaceModal
-        v-if="showAddModal"
-        :column-id="addModalColumnId"
-        :column-title="addModalColumnTitle"
-        :city="cityName"
-        :destination="activeTrip.destination"
-        :day-anchor="addModalDayAnchor"
-        @close="showAddModal = false"
-        @add="onAddPlace"
-      />
-
       <TravelTimeModal
         v-if="travelTimeFromPlace && travelTimeToPlace"
         :from-place="travelTimeFromPlace"
@@ -462,7 +451,7 @@
       />
 
       <button
-        v-if="isMobile && mobileView === 'board'"
+        v-if="isMobile && mobileView === 'board' && !showAddModal"
         type="button"
         class="kanban-mobile-add-fab"
         :aria-label="`新增地點到 ${focusedColumnTitle}`"
@@ -471,8 +460,22 @@
         <AppIcon name="plus" :size="18" />
       </button>
 
-      <AskAiPanel :trip-id="activeTrip.id" @applied="focusColumn" />
+      <AskAiPanel :trip-id="activeTrip.id" :hide-launcher="showAddModal" @applied="focusColumn" />
       </div>
+    </Transition>
+
+    <Transition :name="isMobile ? 'add-place-sheet-slide' : 'add-place-panel-slide'">
+      <AddPlaceModal
+        v-if="showAddModal"
+        :class="{ 'add-place-modal--sheet': isMobile }"
+        :column-id="addModalColumnId"
+        :column-title="addModalColumnTitle"
+        :city="cityName"
+        :destination="activeTrip.destination"
+        :day-anchor="addModalDayAnchor"
+        @close="showAddModal = false"
+        @add="onAddPlace"
+      />
     </Transition>
   </section>
   <!-- Momentary render while the watch above redirects to the dashboard —
@@ -894,6 +897,7 @@ function onAddPlace(payload: {
   placeId?: string
 }) {
   tripsStore.addPlace({ tripId: activeTrip.value.id, ...payload })
+  showBoardToast('景點加入成功')
 }
 
 // addDay()/removeDay() change the trip's day count without going through

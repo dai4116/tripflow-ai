@@ -2133,6 +2133,7 @@ h3 {
 // ---------------------------------------------------------------------------
 
 .trip-board-page {
+  position: relative;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   height: calc(100vh - 56px);
@@ -3390,34 +3391,68 @@ h3 {
 // Add place modal
 // ---------------------------------------------------------------------------
 
-.add-place-modal-overlay {
-  position: fixed;
+// Full takeover of .trip-board-page — including the page-header row, not
+// just the board underneath it — sized to that fixed box so it's the same
+// shape whether the list below is empty, loading, or full of results. A
+// content-sized dialog used to visibly jump taller the moment search
+// results landed; pinning the outer shape and letting only
+// .add-place-modal__suggestions scroll internally removes that jump.
+.add-place-modal {
+  position: absolute;
   inset: 0;
-  // Above the mobile top bar / bottom nav (both z-index: 60) — otherwise
-  // those fixed bars sit on top of and clip the modal's edges on mobile.
-  z-index: 70;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: rgba($color-dusk, 0.42);
+  // Above everything else in .trip-board-page: its own .page-header (static,
+  // no z-index), .board-workspace's place-drawer (4), kanban-mobile-add-fab
+  // /ask-ai-launcher (5), and ask-ai-panel (6).
+  z-index: 7;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  overflow: hidden;
+  background: $color-surface;
 }
 
-.add-place-modal {
-  display: grid;
-  width: min(480px, 100%);
-  max-height: min(640px, 90vh);
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
-  overflow: hidden;
-  border-radius: $radius-lg;
-  background: $color-surface;
-  box-shadow: $shadow-lg;
+.add-place-panel-slide-enter-active,
+.add-place-panel-slide-leave-active {
+  transition:
+    opacity 220ms ease,
+    transform 220ms ease;
+}
+
+.add-place-panel-slide-enter-from,
+.add-place-panel-slide-leave-to {
+  opacity: 0;
+  transform: translateY(16px);
+}
+
+.add-place-panel-slide-enter-to,
+.add-place-panel-slide-leave-from {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+// Same full-board shape as desktop (see .add-place-modal above) — only the
+// entrance direction differs, sliding up from the bottom edge like a sheet
+// instead of fading in place.
+.add-place-sheet-slide-enter-active,
+.add-place-sheet-slide-leave-active {
+  transition: transform 240ms ease;
+}
+
+.add-place-sheet-slide-enter-from,
+.add-place-sheet-slide-leave-to {
+  transform: translate3d(0, 100%, 0);
+}
+
+.add-place-sheet-slide-enter-to,
+.add-place-sheet-slide-leave-from {
+  transform: translate3d(0, 0, 0);
 }
 
 .add-place-modal__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  width: min(560px, 100%);
+  margin-inline: auto;
   padding: 18px 20px;
   border-bottom: 1px solid $color-border;
 }
@@ -3452,6 +3487,8 @@ h3 {
 .add-place-modal__section {
   display: grid;
   gap: 8px;
+  width: min(560px, 100%);
+  margin-inline: auto;
   padding: 14px 20px 0;
 }
 
@@ -3473,6 +3510,8 @@ h3 {
 .add-place-modal__suggestions {
   display: grid;
   gap: 8px;
+  width: min(560px, 100%);
+  margin-inline: auto;
   overflow-y: auto;
   padding: 14px 20px;
 }
@@ -3570,10 +3609,9 @@ h3 {
 .trip-settings-modal-overlay {
   position: fixed;
   inset: 0;
-  // One below .add-place-modal-overlay/.confirm-modal-overlay (both 70) so a
-  // destructive confirm (e.g. shortening the date range over days that still
-  // have places) always paints on top of this modal rather than fighting it
-  // for stacking order.
+  // One below .confirm-modal-overlay (70) so a destructive confirm (e.g.
+  // shortening the date range over days that still have places) always
+  // paints on top of this modal rather than fighting it for stacking order.
   z-index: 68;
   display: flex;
   align-items: center;
@@ -3756,8 +3794,8 @@ h3 {
 .confirm-modal-overlay {
   position: fixed;
   inset: 0;
-  // Matches .add-place-modal-overlay — above the mobile top bar / bottom nav
-  // (both z-index: 60) so those fixed bars don't clip the dialog's edges.
+  // Above the mobile top bar / bottom nav (both z-index: 60) — otherwise
+  // those fixed bars sit on top of and clip the dialog's edges on mobile.
   z-index: 70;
   display: flex;
   align-items: center;

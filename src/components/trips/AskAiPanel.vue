@@ -1,6 +1,6 @@
 <template>
   <button
-    v-if="!isMobile || !isOpen"
+    v-if="!hideLauncher && (!isMobile || !isOpen)"
     type="button"
     class="ask-ai-launcher"
     :class="{ 'ask-ai-launcher--open': isOpen }"
@@ -137,6 +137,12 @@ const MIN_THINKING_MS = 500
 
 const props = defineProps<{
   tripId: string
+  // Set while another full-board takeover (AddPlaceModal) is open — the
+  // launcher pill is `position: fixed` on mobile, so it'd otherwise float
+  // above that panel instead of being covered by it. Only hides the pill;
+  // an already-open chat panel is left alone (its own z-index already sits
+  // below AddPlaceModal's on both breakpoints).
+  hideLauncher?: boolean
 }>()
 
 const emit = defineEmits<{
