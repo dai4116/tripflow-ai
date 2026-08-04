@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
     "test": "tsc -p tsconfig.api.json && tsc -p tsconfig.data-test.json && node --experimental-strip-types --test api/_lib/*.test.ts src/data/*.test.ts src/stores/*.test.ts",
+    "test:components": "vitest run",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -24,10 +25,13 @@
     "@types/leaflet": "^1.9.20",
     "@types/node": "^24.13.2",
     "@vitejs/plugin-vue": "^6.0.7",
+    "@vue/test-utils": "^2.4.11",
     "@vue/tsconfig": "^0.9.1",
+    "happy-dom": "^20.11.1",
     "sass": "^1.101.0",
     "typescript": "~6.0.2",
     "vite": "^8.1.1",
+    "vitest": "^4.1.10",
     "vue-tsc": "^3.3.5"
   }
 }
