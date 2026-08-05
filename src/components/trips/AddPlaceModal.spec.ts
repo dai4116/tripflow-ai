@@ -113,4 +113,54 @@ describe('AddPlaceModal', () => {
 
     expect(wrapper.text()).toContain('搜尋發生問題')
   })
+
+  describe('swipe-down-to-close (sheet variant)', () => {
+    // Component reads Date.now() (not PointerEvent.timeStamp — see
+    // AddPlaceModal.vue's onDragStart comment) precisely so drag duration can
+    // be controlled deterministically here via fake timers instead of real
+    // wall-clock delay between trigger() calls.
+    async function drag(wrapper: ReturnType<typeof mountModal>, distance: number, elapsedMs: number) {
+      vi.useFakeTimers()
+      try {
+        const header = wrapper.find('.add-place-modal__header')
+        await header.trigger('pointerdown', { pointerId: 1, clientY: 0 })
+        vi.advanceTimersByTime(elapsedMs)
+        await header.trigger('pointermove', { pointerId: 1, clientY: distance })
+        await header.trigger('pointerup', { pointerId: 1, clientY: distance })
+      } finally {
+        vi.useRealTimers()
+      }
+    }
+
+    it('does not render a drag handle or respond to drag when not a sheet', async () => {
+      const wrapper = mountModal({ sheet: false })
+      expect(wrapper.find('.add-place-modal__handle').exists()).toBe(false)
+
+      await drag(wrapper, 200, 300)
+      expect(wrapper.emitted('close')).toBeUndefined()
+    })
+
+    it('renders a drag handle for the sheet variant', () => {
+      const wrapper = mountModal({ sheet: true })
+      expect(wrapper.find('.add-place-modal__handle').exists()).toBe(true)
+    })
+
+    it('emits close once a downward drag passes the distance threshold', async () => {
+      const wrapper = mountModal({ sheet: true })
+      await drag(wrapper, 150, 400)
+      expect(wrapper.emitted('close')).toHaveLength(1)
+    })
+
+    it('emits close on a fast short flick that passes the velocity threshold', async () => {
+      const wrapper = mountModal({ sheet: true })
+      await drag(wrapper, 60, 50)
+      expect(wrapper.emitted('close')).toHaveLength(1)
+    })
+
+    it('snaps back without closing when the drag is short and slow', async () => {
+      const wrapper = mountModal({ sheet: true })
+      await drag(wrapper, 40, 400)
+      expect(wrapper.emitted('close')).toBeUndefined()
+    })
+  })
 })

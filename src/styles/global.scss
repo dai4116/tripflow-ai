@@ -3448,6 +3448,7 @@ h3 {
 }
 
 .add-place-modal__header {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -3455,6 +3456,27 @@ h3 {
   margin-inline: auto;
   padding: 18px 20px;
   border-bottom: 1px solid $color-border;
+  // Only matters when .add-place-modal__handle is present (the mobile sheet
+  // variant), but harmless otherwise: stops the browser's own touch-scroll
+  // gesture from competing with the swipe-down-to-close pointer handlers.
+  touch-action: none;
+}
+
+// Visual affordance for the swipe-down-to-close gesture (AddPlaceModal.vue's
+// onDragStart/onDragMove/onDragEnd) — only rendered for the mobile sheet
+// variant. Sits in the header's top padding rather than its own grid row so
+// it doesn't disturb .add-place-modal's grid-template-rows (the last row
+// relies on being the only minmax(0, 1fr) track for the suggestions list to
+// scroll internally).
+.add-place-modal__handle {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 36px;
+  height: 4px;
+  border-radius: $radius-pill;
+  background: $color-border;
 }
 
 .add-place-modal__header h3 {

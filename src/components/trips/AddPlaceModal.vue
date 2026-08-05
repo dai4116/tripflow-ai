@@ -1,6 +1,13 @@
 <template>
-  <section class="add-place-modal" role="dialog" aria-modal="true" aria-label="新增地點">
-    <header class="add-place-modal__header">
+  <section class="add-place-modal" role="dialog" aria-modal="true" aria-label="新增地點" :style="dragStyle">
+    <header
+      class="add-place-modal__header"
+      @pointerdown="sheet && onDragStart($event)"
+      @pointermove="onDragMove"
+      @pointerup="onDragEnd"
+      @pointercancel="onDragEnd"
+    >
+      <span v-if="sheet" class="add-place-modal__handle" aria-hidden="true" />
       <div>
         <h3>新增地點</h3>
         <p class="add-place-modal__subtitle">到{{ columnTitle }}</p>
@@ -100,6 +107,12 @@ const props = defineProps<{
   // computed by TripBoardPage.vue — null for an empty/unpinned day, in which
   // case the search falls back to biasing around the whole destination city.
   dayAnchor: GeoPoint | null
+  // Mirrors the `add-place-modal--sheet` class TripBoardPage.vue applies for
+  // isMobile — that class only changes layout, so the swipe-down-to-close
+  // gesture below needs its own copy of the same flag to know whether it's
+  // showing as a bottom sheet (where the gesture makes sense) or a desktop
+  // panel (where it doesn't).
+  sheet?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -346,5 +359,61 @@ function pickResult(result: PlaceSearchResult) {
 
 function close() {
   emit('close')
+}
+
+// Swipe-down-to-close for the mobile sheet variant (props.sheet) — dragging
+// the header follows the finger 1:1 via inline transform while active, then
+// either closes (past distance/velocity threshold) or snaps back. Only the
+// header is a drag surface, not the whole sheet: the suggestions list below
+// needs its own vertical touch gestures for scrolling, and mixing the two
+// would require reading scrollTop to disambiguate on every move.
+const dragY = ref(0)
+const isDragging = ref(false)
+let dragPointerId: number | null = null
+let dragStartY = 0
+let dragStartTime = 0
+
+const dragStyle = computed(() => {
+  if (!isDragging.value && dragY.value === 0) return undefined
+  return {
+    transform: `translate3d(0, ${dragY.value}px, 0)`,
+    transition: isDragging.value ? 'none' : 'transform 200ms ease',
+  }
+})
+
+function onDragStart(event: PointerEvent) {
+  isDragging.value = true
+  dragPointerId = event.pointerId
+  dragStartY = event.clientY
+  // Date.now() rather than event.timeStamp: timeStamp is relative to an
+  // unspecified time origin (typically navigation start, via
+  // performance.now()), which is fine for a single event but awkward to
+  // diff against fake timers in tests — Date.now() responds directly to
+  // vi.useFakeTimers()/vi.advanceTimersByTime().
+  dragStartTime = Date.now()
+  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+}
+
+function onDragMove(event: PointerEvent) {
+  if (!isDragging.value || event.pointerId !== dragPointerId) return
+  dragY.value = Math.max(0, event.clientY - dragStartY)
+}
+
+// Closes past either threshold so a fast short flick and a slow long drag
+// both dismiss — relying on distance alone would miss quick flicks that
+// haven't traveled far yet when the finger lifts.
+const CLOSE_DISTANCE_PX = 120
+const CLOSE_VELOCITY_PX_MS = 0.5
+
+function onDragEnd(event: PointerEvent) {
+  if (!isDragging.value || event.pointerId !== dragPointerId) return
+  isDragging.value = false
+  dragPointerId = null
+  const distance = dragY.value
+  const velocity = distance / Math.max(Date.now() - dragStartTime, 1)
+  dragY.value = 0
+  if (distance > CLOSE_DISTANCE_PX || velocity > CLOSE_VELOCITY_PX_MS) {
+    close()
+  }
 }
 </script>

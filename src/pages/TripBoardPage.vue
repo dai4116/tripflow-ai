@@ -468,6 +468,7 @@
       <AddPlaceModal
         v-if="showAddModal"
         :class="{ 'add-place-modal--sheet': isMobile }"
+        :sheet="isMobile"
         :column-id="addModalColumnId"
         :column-title="addModalColumnTitle"
         :city="cityName"
