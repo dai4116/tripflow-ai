@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
-    "test": "tsc -p tsconfig.api.json && tsc -p tsconfig.data-test.json && node --experimental-strip-types --experimental-test-module-mocks --test api/*.test.ts api/_lib/*.test.ts src/data/*.test.ts src/stores/*.test.ts",
+    "test": "tsc -p tsconfig.api.json && tsc -p tsconfig.data-test.json && node --experimental-strip-types --experimental-test-module-mocks --test api/*.test.ts api/_lib/*.test.ts src/data/*.test.ts src/stores/*.test.ts src/composables/*.test.ts",
     "test:components": "vitest run",
     "preview": "vite preview"
   },

@@ -1,4 +1,4 @@
-import { computeArrivalTimes } from '../data/placeSchedule'
+import { computeArrivalTimes } from '../data/placeSchedule.ts'
 import type { Place, TripColumn } from '../types'
 
 export type ColumnCard = {
