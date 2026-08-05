@@ -3345,23 +3345,55 @@ h3 {
 // Add place modal
 // ---------------------------------------------------------------------------
 
-// Full takeover of .trip-board-page — including the page-header row, not
-// just the board underneath it — sized to that fixed box so it's the same
-// shape whether the list below is empty, loading, or full of results. A
-// content-sized dialog used to visibly jump taller the moment search
-// results landed; pinning the outer shape and letting only
-// .add-place-modal__suggestions scroll internally removes that jump.
-.add-place-modal {
+// Covers .trip-board-page — including the page-header row, not just the
+// board underneath it. Desktop centers a compact floating dialog over a
+// dimmed backdrop; the mobile sheet variant (.add-place-modal-overlay--sheet
+// below) drops the dimming/padding so its dialog can take over the full box
+// edge-to-edge instead.
+.add-place-modal-overlay {
   position: absolute;
   inset: 0;
   // Above everything else in .trip-board-page: its own .page-header (static,
   // no z-index), .board-workspace's place-drawer (4), kanban-mobile-add-fab
   // /ask-ai-launcher (5), and ask-ai-panel (6).
   z-index: 7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba($color-dusk, 0.42);
+}
+
+.add-place-modal-overlay--sheet {
+  padding: 0;
+  background: transparent;
+}
+
+// A content-sized dialog used to visibly jump taller the moment search
+// results landed; pinning the outer shape and letting only
+// .add-place-modal__suggestions scroll internally removes that jump.
+.add-place-modal {
   display: grid;
+  width: min(480px, 100%);
+  max-height: min(640px, 90vh);
   grid-template-rows: auto auto minmax(0, 1fr);
   overflow: hidden;
+  border-radius: $radius-lg;
   background: $color-surface;
+  box-shadow: $shadow-lg;
+}
+
+// Full takeover of the overlay box instead of a floating card — same fixed
+// outer shape as the desktop dialog above, just edge-to-edge. align-self
+// overrides the overlay's `align-items: center` (which would otherwise size
+// this to its content's height, like the desktop dialog) so it stretches to
+// the overlay's full height instead.
+.add-place-modal--sheet {
+  align-self: stretch;
+  width: 100%;
+  max-height: 100%;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .add-place-panel-slide-enter-active,
@@ -3788,6 +3820,7 @@ h3 {
   border-radius: $radius-lg;
   background: $color-surface;
   box-shadow: $shadow-lg;
+  text-align: center;
 }
 
 .confirm-modal__title {
@@ -3799,6 +3832,7 @@ h3 {
   color: $color-muted;
   font-size: $fs-ui;
   line-height: $lh-body;
+  white-space: pre-line;
 }
 
 .confirm-modal__actions {

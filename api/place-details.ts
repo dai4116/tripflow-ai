@@ -1,4 +1,4 @@
-import { getPlaceLocation } from './_lib/placesVerify.ts'
+import { getPlaceLocation } from './_lib/placesVerify.js'
 
 export const config = { maxDuration: 10 }
 

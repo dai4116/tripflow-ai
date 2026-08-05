@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { stripBilingualName } from './_lib/placeName.ts'
-import { distanceKm, geocodeCityCenter, verifyPlace, type GeoPoint } from './_lib/placesVerify.ts'
+import { stripBilingualName } from './_lib/placeName.js'
+import { distanceKm, geocodeCityCenter, verifyPlace, type GeoPoint } from './_lib/placesVerify.js'
 import {
   buildDayPrompt,
   mapWithConcurrency,
@@ -12,7 +12,7 @@ import {
   type VercelLikeRequest,
   type VercelLikeResponse,
   type ZoneHint,
-} from './_lib/tripGen.ts'
+} from './_lib/tripGen.js'
 
 // Generates + verifies candidates for exactly ONE day, chosen by the caller
 // (see DAYS_PER_REQUEST in src/data/aiTripClient.ts). This replaced the old

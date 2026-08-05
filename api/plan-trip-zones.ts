@@ -8,8 +8,8 @@ import {
   type VercelLikeRequest,
   type VercelLikeResponse,
   type ZoneHint,
-} from './_lib/tripGen.ts'
-import { geocodeCityCenter, type GeoPoint } from './_lib/placesVerify.ts'
+} from './_lib/tripGen.js'
+import { geocodeCityCenter, type GeoPoint } from './_lib/placesVerify.js'
 
 // Stage 1 of trip generation, split out into its own lightweight request so
 // the client can call it once up front, then fan out many small per-day

@@ -187,9 +187,9 @@ const selectedTravelStyles = ref(['深度探索'])
 
 const defaultStart = new Date()
 const defaultEnd = new Date()
-// +6, not +7 — computeTripDays counts both ends inclusively, so a 7-day
-// default trip spans start..start+6 (7 calendar days), not start..start+7.
-defaultEnd.setDate(defaultEnd.getDate() + 6)
+// +3, not +4 — computeTripDays counts both ends inclusively, so a 4-day
+// default trip spans start..start+3 (4 calendar days), not start..start+4.
+defaultEnd.setDate(defaultEnd.getDate() + 3)
 
 const form = reactive({
   destination: '',

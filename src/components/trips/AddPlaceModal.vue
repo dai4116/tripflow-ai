@@ -1,82 +1,96 @@
 <template>
-  <section class="add-place-modal" role="dialog" aria-modal="true" aria-label="新增地點" :style="dragStyle">
-    <header
-      class="add-place-modal__header"
-      @pointerdown="sheet && onDragStart($event)"
-      @pointermove="onDragMove"
-      @pointerup="onDragEnd"
-      @pointercancel="onDragEnd"
+  <div
+    class="add-place-modal-overlay"
+    :class="{ 'add-place-modal-overlay--sheet': sheet }"
+    role="presentation"
+    @click.self="close"
+  >
+    <section
+      class="add-place-modal"
+      :class="{ 'add-place-modal--sheet': sheet }"
+      role="dialog"
+      aria-modal="true"
+      aria-label="新增地點"
+      :style="dragStyle"
     >
-      <span v-if="sheet" class="add-place-modal__handle" aria-hidden="true" />
-      <div>
-        <h3>新增地點</h3>
-        <p class="add-place-modal__subtitle">到{{ columnTitle }}</p>
-      </div>
-      <button type="button" class="add-place-modal__close" aria-label="關閉" @click="close">
-        <AppIcon name="close" :size="13" />
-      </button>
-    </header>
-
-    <div class="add-place-modal__section">
-      <BaseInput v-model="search" icon="search" :placeholder="`搜尋${city}的地點...`" />
-      <div class="add-place-modal__pills">
-        <button
-          v-for="category in SEARCH_CATEGORIES"
-          :key="category"
-          type="button"
-          class="preference-chip"
-          :class="{ 'preference-chip--selected': activeCategory === category }"
-          :disabled="isLoading"
-          @click="toggleCategory(category)"
-        >
-          {{ categoryLabels[category] }}
+      <header
+        class="add-place-modal__header"
+        @pointerdown="sheet && onDragStart($event)"
+        @pointermove="onDragMove"
+        @pointerup="onDragEnd"
+        @pointercancel="onDragEnd"
+      >
+        <span v-if="sheet" class="add-place-modal__handle" aria-hidden="true" />
+        <div>
+          <h3>新增地點</h3>
+          <p class="add-place-modal__subtitle">到{{ columnTitle }}</p>
+        </div>
+        <button type="button" class="add-place-modal__close" aria-label="關閉" @click="close">
+          <AppIcon name="close" :size="13" />
         </button>
+      </header>
+
+      <div class="add-place-modal__section">
+        <BaseInput v-model="search" icon="search" :placeholder="`搜尋${city}的地點...`" />
+        <div class="add-place-modal__pills">
+          <button
+            v-for="category in SEARCH_CATEGORIES"
+            :key="category"
+            type="button"
+            class="preference-chip"
+            :class="{ 'preference-chip--selected': activeCategory === category }"
+            :disabled="isLoading"
+            @click="toggleCategory(category)"
+          >
+            {{ categoryLabels[category] }}
+          </button>
+        </div>
       </div>
-    </div>
 
-    <div class="add-place-modal__suggestions">
-      <p v-if="isUnfiltered" class="add-place-modal__empty">
-        輸入地點名稱開始搜尋<br>或選一個分類看附近熱門地點
-      </p>
-      <p v-else-if="isLoading" class="add-place-modal__empty">搜尋中…</p>
-      <p v-else-if="searchFailed" class="add-place-modal__empty">搜尋發生問題，請稍後再試。</p>
-      <template v-else>
-        <button
-          v-for="result in results"
-          :key="result.placeId"
-          type="button"
-          class="add-place-suggestion"
-          :class="{ 'add-place-suggestion--pending': !isReady(result) }"
-          :disabled="!isReady(result)"
-          @click="pickResult(result)"
-        >
-          <span class="add-place-suggestion__media">
-            <!-- No loading="lazy": the row itself stays invisible via
-                 add-place-suggestion--pending until this loads (or times
-                 out), so deferring the fetch would just make the row
-                 wait on a fetch that hasn't even started yet. -->
-            <img
-              v-if="showPhoto(result)"
-              :class="{ 'add-place-suggestion__photo--loaded': isPhotoLoaded(result) }"
-              :src="photoUrl(result)"
-              alt=""
-              @load="onPhotoLoad(result.placeId)"
-              @error="onPhotoError(result.placeId)"
-            />
-            <AppIcon v-else name="image" :size="16" />
-          </span>
-          <span class="add-place-suggestion__body">
-            <strong>{{ result.name }}</strong>
-          </span>
-          <AppIcon name="plus" :size="14" />
-        </button>
-
-        <p v-if="hasSearched && results.length === 0" class="add-place-modal__empty">
-          沒有符合的地點，換個關鍵字或分類試試。
+      <div class="add-place-modal__suggestions">
+        <p v-if="isUnfiltered" class="add-place-modal__empty">
+          輸入地點名稱開始搜尋<br>或選一個分類看附近熱門地點
         </p>
-      </template>
-    </div>
-  </section>
+        <p v-else-if="isLoading" class="add-place-modal__empty">搜尋中…</p>
+        <p v-else-if="searchFailed" class="add-place-modal__empty">搜尋發生問題，請稍後再試。</p>
+        <template v-else>
+          <button
+            v-for="result in results"
+            :key="result.placeId"
+            type="button"
+            class="add-place-suggestion"
+            :class="{ 'add-place-suggestion--pending': !isReady(result) }"
+            :disabled="!isReady(result)"
+            @click="pickResult(result)"
+          >
+            <span class="add-place-suggestion__media">
+              <!-- No loading="lazy": the row itself stays invisible via
+                   add-place-suggestion--pending until this loads (or times
+                   out), so deferring the fetch would just make the row
+                   wait on a fetch that hasn't even started yet. -->
+              <img
+                v-if="showPhoto(result)"
+                :class="{ 'add-place-suggestion__photo--loaded': isPhotoLoaded(result) }"
+                :src="photoUrl(result)"
+                alt=""
+                @load="onPhotoLoad(result.placeId)"
+                @error="onPhotoError(result.placeId)"
+              />
+              <AppIcon v-else name="image" :size="16" />
+            </span>
+            <span class="add-place-suggestion__body">
+              <strong>{{ result.name }}</strong>
+            </span>
+            <AppIcon name="plus" :size="14" />
+          </button>
+
+          <p v-if="hasSearched && results.length === 0" class="add-place-modal__empty">
+            沒有符合的地點，換個關鍵字或分類試試。
+          </p>
+        </template>
+      </div>
+    </section>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -107,11 +121,10 @@ const props = defineProps<{
   // computed by TripBoardPage.vue — null for an empty/unpinned day, in which
   // case the search falls back to biasing around the whole destination city.
   dayAnchor: GeoPoint | null
-  // Mirrors the `add-place-modal--sheet` class TripBoardPage.vue applies for
-  // isMobile — that class only changes layout, so the swipe-down-to-close
-  // gesture below needs its own copy of the same flag to know whether it's
-  // showing as a bottom sheet (where the gesture makes sense) or a desktop
-  // panel (where it doesn't).
+  // Set by TripBoardPage.vue for isMobile. Drives both the `--sheet`
+  // modifier classes below (mobile full takeover vs. desktop centered
+  // dialog) and whether the swipe-down-to-close gesture is wired up (it only
+  // makes sense on the bottom sheet, not a desktop panel).
   sheet?: boolean
 }>()
 

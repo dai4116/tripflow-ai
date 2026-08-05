@@ -467,7 +467,6 @@
     <Transition :name="isMobile ? 'add-place-sheet-slide' : 'add-place-panel-slide'">
       <AddPlaceModal
         v-if="showAddModal"
-        :class="{ 'add-place-modal--sheet': isMobile }"
         :sheet="isMobile"
         :column-id="addModalColumnId"
         :column-title="addModalColumnTitle"
@@ -875,7 +874,7 @@ function saveTravelTime(payload: { mode: TravelMode; durationMin: number; distan
 function confirmDeleteDay(column: TripColumn) {
   openConfirm({
     title: `刪除第 ${column.dayNumber} 天？`,
-    message: '這天及這天所有行程都會一併刪除，刪除後無法復原喔。',
+    message: '這天所有行程也會一併刪除，\n刪除後無法復原喔',
     confirmLabel: '刪除',
     danger: true,
     onConfirm: () => removeDay(column.id),
