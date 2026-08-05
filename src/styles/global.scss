@@ -1511,26 +1511,11 @@ h3 {
   box-shadow: $shadow-sm;
 }
 
-.section-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 18px;
-}
-
-.section-grid .base-card {
-  display: grid;
-  gap: 11px;
-  min-height: 154px;
-  padding: 20px;
-  border-radius: $radius-md;
-}
-
 .landing-section {
   padding: 64px var(--landing-gutter);
 }
 
 .landing-section--white {
-  border-block: 1px solid $color-border;
   background: $color-surface;
 }
 
@@ -1554,7 +1539,7 @@ h3 {
 
 .workflow-list {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 32px;
 }
 
@@ -1578,42 +1563,11 @@ h3 {
   line-height: $lh-body;
 }
 
-.testimonial-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 18px;
-}
-
-.testimonial-card {
-  display: grid;
-  gap: 14px;
-  min-height: 148px;
-  padding: 20px;
-  border-radius: $radius-md;
-}
-
-.testimonial-card__stars {
-  color: $color-warning;
-  letter-spacing: 2px;
-}
-
-.testimonial-card p {
-  color: $color-text;
-  font-size: $font-size-sm;
-  line-height: $lh-body;
-}
-
-.testimonial-card small {
-  display: block;
-  margin-top: 2px;
-  color: $color-muted;
-}
-
 .landing-cta {
   display: grid;
   justify-items: center;
   gap: 16px;
-  margin: 0 var(--landing-gutter) 72px;
+  margin: 72px var(--landing-gutter) 72px;
   padding: 40px 24px;
   border-radius: 20px;
   background: $color-dusk;
@@ -4274,9 +4228,7 @@ h3 {
 
   .trip-grid,
   .trips-list,
-  .section-grid,
-  .workflow-list,
-  .testimonial-grid {
+  .workflow-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -4449,9 +4401,7 @@ h3 {
   }
 
   .trip-grid,
-  .section-grid,
   .workflow-list,
-  .testimonial-grid,
   .form-grid,
   .choice-grid {
     grid-template-columns: 1fr;
@@ -4757,18 +4707,12 @@ h3 {
     font-size: $fs-h2-mobile;
   }
 
-  .section-grid,
-  .workflow-list,
-  .testimonial-grid {
+  .workflow-list {
     grid-template-columns: 1fr;
   }
 
-  .testimonial-card:nth-child(n + 3) {
-    display: none;
-  }
-
   .landing-cta {
-    margin: 0 12px 44px;
+    margin: 44px 12px;
     padding: 30px 18px;
   }
 
