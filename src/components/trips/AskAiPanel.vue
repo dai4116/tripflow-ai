@@ -412,7 +412,10 @@ function buildAiResponse(text: string): Omit<AiMessage, 'id' | 'role'> {
     return suggestion ? rebalanceMessage(suggestion) : { text: '我看你的行程天數已經很平均了！' }
   }
 
-  return { text: '了解，我會把這個納入你的行程考量。' }
+  // Honest "didn't understand" instead of a confident-sounding acknowledgement —
+  // the old default text made every unmatched input (including off-topic
+  // questions like weather) look handled when it wasn't.
+  return { text: '我不太確定你的意思，可以換個說法試試看嗎？像是「幫我在第2天推薦新景點」' }
 }
 
 function buildColumnSummaries(): AskAiColumnSummary[] {
