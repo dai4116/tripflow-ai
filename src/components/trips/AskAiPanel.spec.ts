@@ -47,7 +47,6 @@ function seedTrip(overrides: Partial<Trip> = {}): Trip {
     travelers: 2,
     placeCount: 0,
     color: '#000',
-    imageGradient: '',
     dateRange: '',
     preferences: [],
     pace: 'balanced',

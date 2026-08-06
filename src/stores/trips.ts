@@ -56,6 +56,10 @@ export const useTripsStore = defineStore('trips', () => {
   // tripId that exists nowhere, orphaned dead data with nothing to ever read
   // or clean it up, since placesForTrip below has no cross-generation
   // awareness.
+  //
+  // coverPhotoRef (see TripSummary's own comment) did NOT bump this to v6 —
+  // it's optional and every reader already treats it as absent-safe, so old
+  // v5 data keeps loading correctly with coverPhotoRef simply undefined.
   const trips = useStorage<Trip[]>('tripflow-trips-v5', [])
   const places = useStorage<Place[]>('tripflow-places-v5', [])
 
@@ -388,7 +392,7 @@ export const useTripsStore = defineStore('trips', () => {
       travelers: template.travelers,
       placeCount: 0,
       color: template.color,
-      imageGradient: template.imageGradient,
+      coverImage: template.coverImage,
       dateRange: '尚未安排日期',
       preferences: [...template.preferences],
       pace: template.pace,

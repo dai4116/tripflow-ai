@@ -6,30 +6,45 @@
       :description="greetingDescription"
     />
 
-    <section v-if="upcomingTrip" class="dashboard-section">
+    <section v-if="spotlightTrip" class="dashboard-section">
       <div class="section-head">
-        <h2>即將到來的旅程</h2>
+        <h2>{{ upcomingTrip ? '即將到來的旅程' : '上次的旅程' }}</h2>
       </div>
 
-      <RouterLink class="upcoming-trip" :to="{ name: 'trip-board', params: { tripId: upcomingTrip.id } }">
-        <div class="upcoming-trip__media" :style="{ background: upcomingTrip.imageGradient }">
-          <span class="upcoming-trip__countdown">{{ countdownLabel }}</span>
+      <RouterLink class="upcoming-trip" :to="{ name: 'trip-board', params: { tripId: spotlightTrip.id } }">
+        <div class="upcoming-trip__media">
+          <img
+            v-if="spotlightCoverPhotoUrl"
+            class="upcoming-trip__media-photo"
+            :src="spotlightCoverPhotoUrl"
+            alt=""
+            @error="onSpotlightCoverPhotoError"
+          />
+          <img
+            v-else-if="spotlightCoverImageUrl"
+            class="upcoming-trip__media-photo"
+            :src="spotlightCoverImageUrl"
+            alt=""
+            @error="onSpotlightCoverImageError"
+          />
+          <TrailCoverArt v-else class="upcoming-trip__media-fallback" />
+          <span class="upcoming-trip__countdown">{{ spotlightStatusLabel }}</span>
         </div>
         <div class="upcoming-trip__body">
-          <h3>{{ upcomingTrip.title }}</h3>
+          <h3>{{ spotlightTrip.title }}</h3>
           <p class="upcoming-trip__meta">
-            <AppIcon name="pin" :size="13" />{{ upcomingTrip.destination }}
+            <AppIcon name="pin" :size="13" />{{ spotlightTrip.destination }}
             <span class="upcoming-trip__dot">·</span>
-            {{ upcomingTrip.dateRange }}
+            {{ spotlightTrip.dateRange }}
           </p>
           <div class="upcoming-trip__stats">
-            <span><AppIcon name="calendar" :size="13" />{{ upcomingTrip.days }} 天</span>
-            <span><AppIcon name="users" :size="13" />{{ upcomingTrip.travelers }} 位旅伴</span>
-            <span><AppIcon name="pin" :size="13" />{{ upcomingTrip.placeCount }} 個地點</span>
+            <span><AppIcon name="calendar" :size="13" />{{ spotlightTrip.days }} 天</span>
+            <span><AppIcon name="users" :size="13" />{{ spotlightTrip.travelers }} 位旅伴</span>
+            <span><AppIcon name="pin" :size="13" />{{ spotlightTrip.placeCount }} 個地點</span>
           </div>
         </div>
         <span class="upcoming-trip__cta">
-          繼續規劃
+          {{ upcomingTrip ? '查看行程' : '回顧行程' }}
           <AppIcon name="arrow-right" :size="14" />
         </span>
       </RouterLink>
@@ -59,6 +74,9 @@ import { computed } from 'vue'
 import PageHeader from '../components/layout/PageHeader.vue'
 import TripCard from '../components/trips/TripCard.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
+import TrailCoverArt from '../components/ui/TrailCoverArt.vue'
+import { useCoverPhotoUrl } from '../composables/useCoverPhotoUrl'
+import { useImageWithFallback } from '../composables/useImageWithFallback'
 import { exploreTemplates } from '../data/exploreTrips'
 import { useTripsStore } from '../stores/trips'
 import type { Trip } from '../types'
@@ -114,12 +132,44 @@ const upcomingTrip = computed(() => {
   return upcoming[0]?.trip ?? null
 })
 
-const countdownLabel = computed(() => {
-  if (!upcomingTrip.value?.startDate) return ''
+// Shown instead when every trip's start date has already passed — picks
+// whichever one started most recently rather than the oldest, so a
+// returning user with no upcoming trip still lands on something relevant
+// instead of the section just disappearing.
+const lastTrip = computed(() => {
+  if (upcomingTrip.value) return null
 
-  const days = daysUntil(upcomingTrip.value.startDate)
-  if (days === 0) return '今天出發'
-  if (days === 1) return '明天出發'
-  return `${days} 天後出發`
+  const past = trips.value
+    .filter((trip): trip is Trip & { startDate: string } => Boolean(trip.startDate))
+    .map((trip) => ({ trip, days: daysUntil(trip.startDate) }))
+    .filter(({ days }) => days < 0)
+    .sort((a, b) => b.days - a.days)
+
+  return past[0]?.trip ?? null
 })
+
+const spotlightTrip = computed(() => upcomingTrip.value ?? lastTrip.value)
+
+const spotlightStatusLabel = computed(() => {
+  if (!spotlightTrip.value?.startDate) return ''
+
+  const days = daysUntil(spotlightTrip.value.startDate)
+  if (days >= 0) {
+    if (days === 0) return '今天出發'
+    if (days === 1) return '明天出發'
+    return `${days} 天後出發`
+  }
+
+  const daysSince = -days
+  if (daysSince === 1) return '昨天出發'
+  return `${daysSince} 天前出發`
+})
+
+const { url: spotlightCoverPhotoUrl, onError: onSpotlightCoverPhotoError } = useCoverPhotoUrl(
+  computed(() => spotlightTrip.value?.coverPhotoRef),
+  440,
+)
+const { url: spotlightCoverImageUrl, onError: onSpotlightCoverImageError } = useImageWithFallback(
+  computed(() => spotlightTrip.value?.coverImage),
+)
 </script>

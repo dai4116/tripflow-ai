@@ -771,6 +771,13 @@ h3 {
   align-items: flex-end;
   height: 132px;
   padding: 12px 14px;
+  // Clips its own full-bleed absolutely-positioned children (the ::after
+  // scrim, and the photo/illustration below) locally with a matching
+  // top-corner radius — relying solely on the ancestor .trip-card's
+  // overflow:hidden + radius left a 1px seam at the rounded corners where
+  // those children's sharp rectangular edges didn't quite match the curve.
+  overflow: hidden;
+  border-radius: $radius-lg $radius-lg 0 0;
 }
 
 .trip-card__media::after {
@@ -778,6 +785,26 @@ h3 {
   inset: 0;
   background: linear-gradient(180deg, rgba($color-dusk, 0) 32%, rgba($color-dusk, 0.6));
   content: '';
+}
+
+// Painted between the gradient background (inline style) and the ::after
+// darkening overlay above (source order, no z-index needed) — a real cover
+// photo layers over the decorative gradient without needing to touch it.
+.trip-card__media-photo {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+// Same slot/stacking as .trip-card__media-photo above — TrailCoverArt crops
+// itself via preserveAspectRatio (no object-fit needed on an inline <svg>).
+.trip-card__media-fallback {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
 }
 
 .trip-card__delete {
@@ -1674,9 +1701,30 @@ h3 {
   justify-content: flex-end;
   width: 220px;
   padding: 14px;
+  // Matches .upcoming-trip's own left-side radius — same seam reasoning as
+  // .trip-card__media's identical comment.
+  overflow: hidden;
+  border-radius: $radius-lg 0 0 $radius-lg;
+}
+
+.upcoming-trip__media-photo {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.upcoming-trip__media-fallback {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
 }
 
 .upcoming-trip__countdown {
+  position: relative;
+  z-index: 1;
   padding: 5px 12px;
   border-radius: $radius-pill;
   background: rgba($color-surface, 0.92);
@@ -3670,8 +3718,140 @@ h3 {
 }
 
 .trip-settings-modal__cover {
+  position: relative;
+  display: flex;
   flex: none;
+  align-items: flex-end;
+  justify-content: flex-end;
   height: 140px;
+  padding: 10px;
+  // overflow: hidden alone (no border-radius) — unlike .trip-card__media and
+  // .upcoming-trip__media, this block isn't at a corner of its rounded
+  // ancestor: .trip-settings-modal__header sits above it and already owns
+  // the modal's actual top-left/top-right corners. Giving this block its own
+  // top radius (tried once, reverted) rounds corners that have nothing
+  // behind them but the header's flush bottom edge, cutting an unwanted
+  // notch instead of fixing a seam. The overflow:hidden itself has nothing
+  // to clip today (the photo/illustration exactly fill this box via
+  // inset:0) — kept as cheap insurance against a fractional-pixel bleed at
+  // this box's own straight edges, not against a rounded corner.
+  overflow: hidden;
+}
+
+.trip-settings-modal__cover-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.trip-settings-modal__cover-fallback {
+  position: absolute;
+  inset: 0;
+}
+
+.trip-settings-modal__cover-actions {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.trip-settings-modal__cover-change {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border: 0;
+  border-radius: $radius-pill;
+  background: rgba($color-surface, 0.92);
+  color: $color-ink;
+  font-size: $fs-caption;
+  font-weight: 700;
+}
+
+.trip-settings-modal__cover-change:disabled {
+  color: $color-subtle;
+  cursor: not-allowed;
+}
+
+.trip-settings-modal__cover-change:not(:disabled):hover {
+  background: $color-surface;
+}
+
+.trip-settings-modal__cover-change:focus-visible {
+  @include focus-ring;
+}
+
+.trip-settings-modal__cover-remove {
+  padding: 7px 12px;
+  border: 0;
+  border-radius: $radius-pill;
+  background: rgba($color-dusk, 0.35);
+  color: $color-surface;
+  font-size: $fs-caption;
+  font-weight: 700;
+}
+
+.trip-settings-modal__cover-remove:hover {
+  background: rgba($color-dusk, 0.5);
+}
+
+.trip-settings-modal__cover-remove:focus-visible {
+  @include focus-ring;
+}
+
+.trip-settings-modal__picker {
+  flex: none;
+  padding: 12px 20px;
+  border-bottom: 1px solid $color-border;
+  background: $color-surface;
+}
+
+.trip-settings-modal__picker-empty {
+  padding: 6px 0;
+  color: $color-subtle;
+  font-size: $fs-small;
+  text-align: center;
+}
+
+.trip-settings-modal__picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 8px;
+}
+
+.trip-settings-modal__picker-thumb {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: $radius-sm;
+  background: $color-surface-soft;
+  color: $color-subtle;
+  overflow: hidden;
+}
+
+.trip-settings-modal__picker-thumb:hover {
+  border-color: $color-primary;
+}
+
+.trip-settings-modal__picker-thumb--active {
+  border-color: $color-primary;
+}
+
+.trip-settings-modal__picker-thumb:focus-visible {
+  @include focus-ring;
+}
+
+.trip-settings-modal__picker-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .trip-settings-modal__form {
@@ -4795,6 +4975,12 @@ h3 {
   .upcoming-trip__media {
     width: 100%;
     height: 120px;
+    // .upcoming-trip switches to flex-direction: column at this breakpoint
+    // (above), so this block becomes the card's top slab, not its left
+    // side — the desktop rule's left-only radius (top-left/bottom-left)
+    // would leave the top-right corner unrounded and round the bottom-left
+    // corner where the body follows below it instead.
+    border-radius: $radius-lg $radius-lg 0 0;
   }
 
   .upcoming-trip__body {

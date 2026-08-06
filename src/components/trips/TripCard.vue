@@ -1,6 +1,23 @@
 <template>
   <BaseCard class="trip-card">
-    <div class="trip-card__media" :style="{ background: trip.imageGradient }">
+    <div class="trip-card__media" :style="{ background: showFallbackArt ? undefined : trip.imageGradient }">
+      <img
+        v-if="coverPhotoUrl"
+        class="trip-card__media-photo"
+        :src="coverPhotoUrl"
+        alt=""
+        loading="lazy"
+        @error="onCoverPhotoError"
+      />
+      <img
+        v-else-if="coverImageUrl"
+        class="trip-card__media-photo"
+        :src="coverImageUrl"
+        alt=""
+        loading="lazy"
+        @error="onCoverImageError"
+      />
+      <TrailCoverArt v-else-if="showFallbackArt" class="trip-card__media-fallback" />
       <button
         v-if="deletable"
         type="button"
@@ -28,18 +45,38 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useCoverPhotoUrl } from '../../composables/useCoverPhotoUrl'
+import { useImageWithFallback } from '../../composables/useImageWithFallback'
 import type { TripSummary } from '../../types'
 import AppIcon from '../ui/AppIcon.vue'
 import BaseCard from '../ui/BaseCard.vue'
+import TrailCoverArt from '../ui/TrailCoverArt.vue'
 
-defineProps<{
-  // dateRange is optional here (not part of TripSummary) because this card
-  // also renders Explore templates, which aren't scheduled yet.
-  trip: TripSummary & { dateRange?: string }
+const props = defineProps<{
+  // dateRange/imageGradient are optional here (not part of TripSummary)
+  // because this card also renders Explore templates — imageGradient only
+  // exists on ExploreTemplate, absent (and unused) on a real Trip.
+  // coverImage/coverPhotoRef are both on TripSummary itself (a copied
+  // template trip keeps its coverImage — see copyTemplateTrip).
+  trip: TripSummary & { dateRange?: string; imageGradient?: string }
   deletable?: boolean
+  // Explore templates keep their own curated per-template gradient (see
+  // exploreTrips.ts) rather than this generic illustration — real trips
+  // (TripsPage.vue) opt in, template cards (DashboardPage.vue's explore
+  // grid) don't pass this at all.
+  showFallbackArt?: boolean
 }>()
 
 const emit = defineEmits<{
   delete: []
 }>()
+
+const { url: coverPhotoUrl, onError: onCoverPhotoError } = useCoverPhotoUrl(
+  computed(() => props.trip.coverPhotoRef),
+  400,
+)
+const { url: coverImageUrl, onError: onCoverImageError } = useImageWithFallback(
+  computed(() => props.trip.coverImage),
+)
 </script>

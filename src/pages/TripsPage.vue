@@ -2,7 +2,7 @@
   <section class="trips-page">
     <PageHeader
       title="我的行程"
-      description="瀏覽你規劃中的所有行程。"
+      :description="trips.length > 0 ? `${trips.length} 個行程，準備好出發了嗎？` : undefined"
     >
     </PageHeader>
 
@@ -10,7 +10,7 @@
       <AppIcon name="compass" :size="28" />
       <h3>還沒有任何行程</h3>
       <p>建立你的第一趟旅程，開始規劃景點與行程安排</p>
-      <BaseButton :to="{ name: 'trip-create' }" variant="primary">建立行程</BaseButton>
+      <BaseButton :to="{ name: 'trip-create' }" variant="primary">AI 規劃行程</BaseButton>
     </div>
 
     <div v-else class="trips-list">
@@ -19,7 +19,7 @@
         :key="trip.id"
         :to="{ name: 'trip-board', params: { tripId: trip.id } }"
       >
-        <TripCard :trip="trip" deletable @delete="confirmDeleteTrip(trip)" />
+        <TripCard :trip="trip" deletable show-fallback-art @delete="confirmDeleteTrip(trip)" />
       </RouterLink>
     </div>
 

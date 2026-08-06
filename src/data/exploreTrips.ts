@@ -16,6 +16,7 @@ export const exploreTemplates: ExploreTemplate[] = [
     placeCount: 15,
     color: '#a8577a',
     imageGradient: 'linear-gradient(135deg, #2b2140, #a8577a 50%, #f0d9c6)',
+    coverImage: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=1600&h=700&fit=crop&auto=format&q=75',
     preferences: ['廟宇', '建築', '街頭小吃'],
     pace: 'relaxed',
     columns: [
@@ -28,14 +29,15 @@ export const exploreTemplates: ExploreTemplate[] = [
   },
   {
     id: 'bangkok-food',
-    title: '曼谷美食探索',
+    title: '曼谷經典之旅',
     destination: '曼谷，泰國',
-    tagline: '從路邊攤到河岸夜市，一次吃遍曼谷的道地滋味。',
+    tagline: '從金碧輝煌的大皇宮到熱鬧市集與道地小吃，一次體驗曼谷的多元魅力。',
     days: 4,
     travelers: 2,
     placeCount: 12,
     color: '#e0703a',
     imageGradient: 'linear-gradient(135deg, #3a1f1f, #e0703a 50%, #f7dfb0)',
+    coverImage: 'https://images.unsplash.com/photo-1613672803979-a6edfc5a179b?w=1600&h=700&fit=crop&auto=format&q=75',
     preferences: ['在地美食', '街頭小吃', '夜生活'],
     pace: 'packed',
     columns: [
@@ -55,6 +57,7 @@ export const exploreTemplates: ExploreTemplate[] = [
     placeCount: 15,
     color: '#4d9166',
     imageGradient: 'linear-gradient(135deg, #1e3a2e, #4d9166 50%, #eaf0c8)',
+    coverImage: 'https://images.unsplash.com/photo-1528181304800-259b08848526?w=1600&h=700&fit=crop&auto=format&q=75',
     preferences: ['自然', '咖啡廳', '廟宇'],
     pace: 'relaxed',
     columns: [
@@ -75,6 +78,7 @@ export const exploreTemplates: ExploreTemplate[] = [
     placeCount: 12,
     color: '#6f6fd6',
     imageGradient: 'linear-gradient(135deg, #241f3d, #6f6fd6 50%, #e9e3fb)',
+    coverImage: 'https://images.unsplash.com/photo-1517154421773-0529f29ea451?w=1600&h=700&fit=crop&auto=format&q=75',
     preferences: ['購物', '在地美食', '夜生活'],
     pace: 'balanced',
     columns: [
@@ -104,7 +108,7 @@ export const explorePlaces: Place[] = [
   { id: 'kyoto-kurama-dera', tripId: 'kyoto-slow', name: '鞍馬寺', category: 'attraction', estimatedTime: 2, address: '京都・鞍馬', lat: 35.1177, lng: 135.7714, description: '藏身山林間的古寺，纜車加健行步道能俯瞰整片山谷。', columnId: 'day-5', photoRef: 'places/ChIJnTF3sxKmAWAROIRwRX49KFA/photos/AWCwydhaUIzIY4jVlL_wLnk_McYvwB-sBs7SpwJy9JXFIukiyZYhpiMm7mJnLf2hl9OQ_y3kR4MjHUmw7lqXpOG9LzKQ1C5l5fOJoRZU4VGrRIY8Z60tfw2UKoUsZxGyb5-QedVoSJUn0xleCtqydyWYkEUQ1Ij4MvINEa2S8y5b_mEF6IRcfuGyntkKjxiwa8p3y3RVnN1th4LuxytpEhdkhIwLzkC9Ta2Yz-r_kNi0uJ1fSLg_Mjudwem_KhKWv65xwLw7vF40D6VyFj3KNgQDXIh_hO5zP38MBiulmWSRahiTPYp19uAFI9wv5PIfIrH-w8ZbhEcFSnMVgSTWqe-yxTcNRMyTu0I85Wzwr9HbLg-FZwzB7zSVaied0JwnYAnJuN7wQHX1fSfi_-VCG4FY4iCtAfi4MFKsu2BJOXGOceI' },
   { id: 'kyoto-station-shopping', tripId: 'kyoto-slow', name: '京都車站伊勢丹購物', category: 'shopping', estimatedTime: 1.5, address: '京都・京都車站', lat: 34.9858, lng: 135.7588, description: '離站搭車前的最後採買，伴手禮、甜點與百貨一次逛齊。', columnId: 'day-5', photoRef: 'places/ChIJu_u7564IAWAR59CKVpnyvOE/photos/AWCwydgHJ_oQ7Mxrk_JLLmeU1PRTTMz6jo_xyGfK-m0ykVwGRaV_67HmdmrrJUPGHtbTl3pYqF5ijh5DZNgwGSBD6orC7mORh8_OqOQxM4klqK_8rrTMDYnlJ7ZpWTIUK5YV2znHOTkTjBhZpH4OOTl4urIjxEoYbfR9EzRxIxohxcN_dbedrutki7eQf-0uXwuKlJjbXH0YkW_RPqKLbxn8g8fnXnER4_VxF2UTSnZYd_nIAueQ8mem9IRsLd-2jZjtpC0PgAcfXxwQcXWyJFUv637DCKGayjtOX4KLui5mBriz2GiI249V6N8uw4hlK-oYW8f_y-1YT37haQueo4ZbP25k4r7QbNlBcRe_gKmUFGJwnFm-m9KZ5t7EnExMu9lzCBEkVTf0dGqP8DR6xdRhMhUx91YHlGtpyTV6e8xuN90' },
 
-  // 曼谷美食探索
+  // 曼谷經典之旅
   { id: 'bkk-chatuchak', tripId: 'bangkok-food', name: '恰圖恰週末市集', category: 'shopping', estimatedTime: 3, address: '曼谷・扎都甲', lat: 13.7999, lng: 100.5502, description: '東南亞最大的週末市集之一，服飾、雜貨、小吃應有盡有。', travelTip: '面積很大，建議先鎖定幾區再逛以免迷路', columnId: 'day-1', photoRef: 'places/ChIJ3fiD6BSc4jARS324hNeR8ZE/photos/AWCwydhijaQusRQyohIShr-2_KOveJ1qXULExGIoO6ZVnxdLThmePW_zxIX6t2G_DOrKxQCRUUJyuePTDsomaTA7sg5dZe-nLUmQBGikXN10vZdLfB7DPdsnWpvDN0aCYOpFtUBBinoIr2P1GegC_iU_I7L7zX8QFIK-Bd2rDjX2Z8CYnk82oKKIvsXs-WbFuxIwVesIxttYhzrQOwEiHwEza56GMXnZh3256fSVSZXJ2DNH-1jP9M5yNyrkAzdHNB9hB6puiwN86m3tyl5CV1op_Apk8a-Ld2miLN2zZCDDkAzygkzwW9dYMF2DR3sDG3fe4O4Ky32WvYyXwMEY_VbMBKGvqv1Et-AuL5yfUsvTEsy3seYzVP9Whjl_FcWWepgEl80SuOzyabmGzOJrai334CHZsaS58svQ4AkoWspqtO3E6fmr' },
   { id: 'bkk-khaosan', tripId: 'bangkok-food', name: '考山路', category: 'attraction', estimatedTime: 2, address: '曼谷・考山', lat: 13.7590, lng: 100.4977, description: '背包客聖地，路邊攤、酒吧與街頭表演讓夜晚熱鬧不停。', columnId: 'day-1', photoRef: 'places/ChIJDR23yhKZ4jARdqd5AHsct0A/photos/AWCwydi4cxrcT7pZGZWJroPm1iUIVmms98CxiJs12S_Mw_7wPDbnnUYl53qQsGsKYZfxlepVvOeJEQ33XeEf540S7Kdk4s6xDp2gjlSpYg5tSN4dBszW1HGNF1A2jlAX93_px9UCQpSBIU69ZJ7Gml2S8CVkvlhW1Udn-ADDLBdr8-WIWTzKeWTcqWiMF9NS4BjCQLWV3HzRc30FsgK09XeyFguOvdoyxaAFoCm_YJIImkiuwAHDpoMM7W5GWziBQEcAUrbpS03wRp7M1NYNW9DlOTf00hGJhbWUlROb3eGtUNjWe6EVx22JgwqoXFg2zFJP1VT-V2nt4Chqwl2YRpWeMB6rCJQPXbyVIQLvpW-Utg42In-ElBbIqxWqMr2cUEOAILLAowTjvP9voTknx8gS6VsypHwb5MTCmxnbln0sMXHCyVyq' },
   { id: 'bkk-siam-paragon', tripId: 'bangkok-food', name: '暹羅百麗宮購物中心', category: 'shopping', estimatedTime: 2, address: '曼谷・暹羅', lat: 13.7460, lng: 100.5340, description: '曼谷最頂級的百貨商場之一，也有超人氣美食街。', columnId: 'day-1', photoRef: 'places/ChIJIeWu482e4jARYymvLJqTQ58/photos/AWCwydggOoB80KXHHUKtF8I1I-H79UeUQo3c8yZQ4d1isnlF4U9YZyjfdSSANoKmPJSCtqgN7Fl_wjPlyTMPP2S871DdP_ka5OuxN7nDELZCueds8-VoPztKsyYTCXptg4EHybchnEaS6tTis3RIrvFz28lhjY2urDnfe_wsw_WOodGiQPb1oDZ7z0aHllHVmACBwJ8I0MIXQJokUbqLf9YRrvQFutapiAuaLQ-KjFAbywixN-6QCvWLxDEWtaw-WKJad2ZC6dgl4Hzum-HXwCtSM_Sa7Mi-p52vuqCgLKWF_UlbtyX1HtW3sJSvRaxPx_YlqSotOlZ68CSiPllepg0CYGV05DDYJKMhaMhUFHkbgICweQ0UW6qBPg4kXfKdbI76X7B0nZcr6_Jo4yYYUyKAS-Ee42OBqSp1WaDm_klCN4Z1nJhM' },

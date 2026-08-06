@@ -522,7 +522,7 @@ import {
   minutesBetween,
 } from '../data/placeSchedule'
 import { useTripsStore } from '../stores/trips'
-import type { Place, PlaceCategory, PlaceScheduleMode, TravelMode, TripColumn } from '../types'
+import type { Place, PlaceCategory, PlaceScheduleMode, TravelMode, TripColumn, TripSettingsSavePayload } from '../types'
 
 const route = useRoute()
 const router = useRouter()
@@ -984,7 +984,7 @@ function removeDay(columnId: string) {
 // day-columns the trip needs. Growing just appends empty days (safe);
 // shrinking can orphan places sitting in the trailing days it drops, so that
 // path goes through the same confirm dialog as deleting a day by hand.
-function onSaveTripSettings(payload: { title: string; startDate: string; endDate: string }) {
+function onSaveTripSettings(payload: TripSettingsSavePayload) {
   const trip = activeTrip.value
   const newDays = computeTripDays({ startDate: payload.startDate, endDate: payload.endDate })
   const currentDays = displayedColumns.value.length
@@ -994,6 +994,7 @@ function onSaveTripSettings(payload: { title: string; startDate: string; endDate
     trip.startDate = payload.startDate
     trip.dateRange = formatDateRange(payload.startDate, payload.endDate)
     trip.days = newDays
+    trip.coverPhotoRef = payload.coverPhotoRef
     showTripSettingsModal.value = false
   }
 

@@ -665,6 +665,57 @@ export async function autocompletePlaces(
   }
 }
 
+// Up to this many candidate photos are returned for the cover-photo picker
+// (TripSettingsModal.vue) — enough to give a real choice without the picker
+// turning into its own scrollable search result list.
+const COVER_PHOTO_COUNT = 6
+
+// Place Details (New) — resolves candidate cover photos for a trip's
+// destination, keyed off the same destinationPlaceId set at trip creation
+// (see Trip's own comment in types/index.ts). Unlike getPlaceLocation below
+// this isn't part of an autocomplete session (it's invoked later, from the
+// trip settings modal, not the type-then-pick creation flow), so no
+// sessionToken is sent — standard Place Details billing applies rather than
+// session-based. Field mask is scoped to `photos.name` (not the bare
+// `photos`) since only each photo's resource name is ever read here —
+// requesting the full Photo object would also pull widthPx/heightPx/
+// authorAttributions for no reason.
+//
+// Throws on network/non-2xx (caller -> 502, transient/retryable). Returns []
+// for a clean response with no photos on record (caller -> 200 with an empty
+// list, not an error — a destination genuinely having no Google photos is a
+// normal outcome, not a failure).
+//
+// VERIFY LIVE: billing tier for the `photos` field mask on Place Details
+// (New) — textSearch's Pro/Enterprise split above is specific to Text
+// Search's own SKU table, not confirmed to carry over here.
+export async function getPlaceCoverPhotos(apiKey: string, placeId: string, signal?: AbortSignal): Promise<string[]> {
+  const url = `https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`
+
+  const { signal: combinedSignal, clear } = withTimeout(signal)
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': 'photos.name',
+      },
+      signal: combinedSignal,
+    })
+    if (!response.ok) throw new Error(`Place photos failed: ${response.status}`)
+
+    const data = (await response.json()) as { photos?: Array<{ name?: string }> }
+    const refs: string[] = []
+    for (const photo of data.photos ?? []) {
+      if (photo.name) refs.push(photo.name)
+      if (refs.length >= COVER_PHOTO_COUNT) break
+    }
+    return refs
+  } finally {
+    clear()
+  }
+}
+
 // Place Details (New) — resolves the lat/lng of a place the user picked from
 // autocompletePlaces' suggestions. Requests only the `location` field mask
 // (the cheapest mask that yields coordinates) since the display text is

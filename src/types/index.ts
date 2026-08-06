@@ -37,7 +37,22 @@ export type TripSummary = {
   travelers: number
   placeCount: number
   color: string
-  imageGradient: string
+  // Google Places photo resource name for the trip's chosen cover photo (see
+  // api/_lib/placesVerify.ts's getPlaceCoverPhotos), picked by the user in
+  // TripSettingsModal.vue from candidates fetched for destinationPlaceId.
+  // Resolved to an actual image via /api/place-photo, same as Place.photoRef.
+  // Takes priority over coverImage below when both are set (see TripCard.vue/
+  // DashboardPage.vue/TripSettingsModal.vue) — it reflects a deliberate user
+  // pick, coverImage is just a starting default. Absent falls back to
+  // coverImage, then TrailCoverArt.vue's illustration.
+  coverPhotoRef?: string
+  // A plain direct image URL — unlike coverPhotoRef, not a Google Places
+  // reference needing the /api/place-photo proxy to hide an API key. Set on
+  // Explore templates as their curated cover (see exploreTrips.ts) and
+  // copied onto the real Trip stores/trips.ts's copyTemplateTrip() creates,
+  // so a copied trip keeps looking like its template until the user picks
+  // their own photo via coverPhotoRef.
+  coverImage?: string
 }
 
 export type Trip = TripSummary & {
@@ -51,9 +66,10 @@ export type Trip = TripSummary & {
   // Autocomplete on trip creation (see DestinationAutocomplete.vue) rather
   // than just typing free text. Selecting a suggestion is optional, so these
   // are always set together and absent together (no suggestion picked, the
-  // Places API key is unset, or the Details lookup failed). Lets a later
-  // feature (auto-fetched cover photo via Google Places) use this directly
-  // instead of re-parsing `destination`'s free-text string.
+  // Places API key is unset, or the Details lookup failed). Lets the cover
+  // photo picker (TripSettingsModal.vue, backed by getPlaceCoverPhotos) fetch
+  // candidates directly instead of re-parsing `destination`'s free-text
+  // string.
   destinationPlaceId?: string
   destinationLat?: number
   destinationLng?: number
@@ -64,8 +80,23 @@ export type Trip = TripSummary & {
 
 // A curated sample itinerary shown on the Explore page — same shape as Trip
 // minus the date fields (templates aren't scheduled), plus a one-line pitch.
+// imageGradient lives only here, not on TripSummary/Trip — real trips show a
+// cover photo or TrailCoverArt.vue's illustration instead (see TripCard.vue's
+// showFallbackArt), but templates keep their own curated decorative gradient
+// (see exploreTrips.ts) since they're never assigned a coverPhotoRef.
 export type ExploreTemplate = Omit<Trip, 'dateRange' | 'startDate'> & {
   tagline: string
+  imageGradient: string
+}
+
+// TripSettingsModal.vue's save emit — shared with TripBoardPage.vue's
+// onSaveTripSettings handler so the two don't keep an inline copy of the same
+// shape in sync by hand.
+export type TripSettingsSavePayload = {
+  title: string
+  startDate: string
+  endDate: string
+  coverPhotoRef?: string
 }
 
 export type Place = {

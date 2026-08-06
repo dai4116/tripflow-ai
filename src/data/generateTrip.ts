@@ -1,12 +1,7 @@
 import { nanoid } from 'nanoid'
 import type { CreateTripInput, Place, PlaceCategory, Trip, TripColumn, TripPace } from '../types'
 
-const TRIP_PALETTE = [
-  { color: '#e8618c', imageGradient: 'linear-gradient(135deg, #4a1f3d, #e8618c 50%, #f8d7e3)' },
-  { color: '#00c5ab', imageGradient: 'linear-gradient(135deg, #1a3a3a, #00c5ab 50%, #d8f5ee)' },
-  { color: '#d98324', imageGradient: 'linear-gradient(135deg, #3d2a12, #d98324 50%, #fbe3c2)' },
-  { color: '#4a7de0', imageGradient: 'linear-gradient(135deg, #182a4d, #4a7de0 50%, #d5e2f8)' },
-]
+const TRIP_PALETTE = ['#e8618c', '#00c5ab', '#d98324', '#4a7de0']
 
 // Distinct per-day colors for the trip map (pins + route line) — reused
 // from colors already used elsewhere in the app (TRIP_PALETTE) rather than
@@ -245,7 +240,7 @@ function orderDayPlaces(suggestions: PlaceSuggestion[]): PlaceSuggestion[] {
 // aiTripClient.ts) supplies the
 // name/category/description/travelTip for each place, in visit order, and —
 // when verified server-side against Google Places — its coordinates too. All
-// other bookkeeping (ids, palette, gradients, estimatedTime/cost) stays local
+// other bookkeeping (ids, palette color, estimatedTime/cost) stays local
 // rather than trusting the model for facts it can't actually know. Days are
 // built purely from aiPlaces; a slot with no suggestion is left empty rather
 // than backfilled (see the columns loop).
@@ -269,7 +264,7 @@ export function generateTrip(
   const pace = paceForTravelStyles(input.travelStyle)
   const resolvedPlacesPerDay = placesPerDay ?? placesPerDayForPace(pace)
   const tripId = `${slugify(input.destination)}-${nanoid(6)}`
-  const palette = TRIP_PALETTE[existingTripIds.length % TRIP_PALETTE.length]
+  const color = TRIP_PALETTE[existingTripIds.length % TRIP_PALETTE.length]!
 
   const places: Place[] = []
 
@@ -342,8 +337,7 @@ export function generateTrip(
     days,
     travelers: input.travelers,
     placeCount: places.length,
-    color: palette.color,
-    imageGradient: palette.imageGradient,
+    color,
     dateRange: formatDateRange(input.startDate, input.endDate),
     startDate: input.startDate,
     destinationPlaceId: input.destinationPlaceId,
