@@ -14,10 +14,27 @@ import {
 import { geocodePlace, geocodeRawQuery } from '../data/geocode.ts'
 import { geocodeDestination } from '../data/geocodeDestinationClient.ts'
 import { fetchTravelTime } from '../data/routing.ts'
+import { fetchTripCoverPhotoRefs } from '../data/tripCoverPhotosClient.ts'
 import type { CreateTripInput, Place, PlaceCategory, Trip, TravelMode } from '../types'
 
 function hasCoords(place: Place): boolean {
   return place.lat !== 0 || place.lng !== 0
+}
+
+// Resolves a destination string against Google Places — shared by createTrip
+// (only for a free-typed destination that skipped Autocomplete) and every
+// copyTemplateTrip clone (Explore templates never carry a destinationPlaceId
+// at all, static curated data in exploreTrips.ts). Same never-throws,
+// best-effort contract as geocodeDestination itself: undefined on any
+// failure, never blocks or fails the caller.
+async function resolveDestinationPlace(destination: string) {
+  const resolved = await geocodeDestination(destination)
+  if (!resolved) return undefined
+  return {
+    destinationPlaceId: resolved.placeId,
+    destinationLat: resolved.lat,
+    destinationLng: resolved.lng,
+  }
 }
 
 export type NewPlaceInput = {
@@ -240,20 +257,28 @@ export const useTripsStore = defineStore('trips', () => {
     // Without this, a free-typed trip's destinationPlaceId stays unset
     // forever, permanently disabling the cover-photo picker
     // (TripSettingsModal.vue) for it.
-    const [aiPlaces, resolvedDestination] = await Promise.all([
+    const resolvedDestinationPromise = input.destinationPlaceId ? Promise.resolve(undefined) : resolveDestinationPlace(input.destination)
+
+    // Also starts alongside AI generation rather than after it, chained off
+    // whichever destinationPlaceId settles first — the user's own
+    // Autocomplete pick (available immediately) or the backfill above (as
+    // soon as it resolves) — instead of waiting for both AI generation AND
+    // the backfill to finish first. Failure (no destinationPlaceId at all,
+    // no photos on record, API error) just means the trip starts out
+    // showing TrailCoverArt.vue's illustration instead, same as today —
+    // never blocks trip creation.
+    const coverPhotoRefsPromise = (input.destinationPlaceId ? Promise.resolve(input.destinationPlaceId) : resolvedDestinationPromise.then((r) => r?.destinationPlaceId)).then((placeId) =>
+      placeId ? fetchTripCoverPhotoRefs(placeId) : undefined,
+    )
+
+    const [aiPlaces, resolvedDestination, coverPhotoRefs] = await Promise.all([
       fetchAiPlaces(input, days, placesPerDay),
-      input.destinationPlaceId ? undefined : geocodeDestination(input.destination),
+      resolvedDestinationPromise,
+      coverPhotoRefsPromise,
     ])
     if (!aiPlaces) throw new Error('AI trip generation failed')
 
-    const effectiveInput = resolvedDestination
-      ? {
-          ...input,
-          destinationPlaceId: resolvedDestination.placeId,
-          destinationLat: resolvedDestination.lat,
-          destinationLng: resolvedDestination.lng,
-        }
-      : input
+    const effectiveInput = resolvedDestination ? { ...input, ...resolvedDestination } : input
 
     const { trip, places: newPlaces } = generateTrip(
       effectiveInput,
@@ -261,6 +286,7 @@ export const useTripsStore = defineStore('trips', () => {
       aiPlaces,
       placesPerDay,
     )
+    if (coverPhotoRefs?.[0]) trip.coverPhotoRef = coverPhotoRefs[0]
     trips.value.push(trip)
     places.value.push(...newPlaces)
     geocodeNewPlaces(newPlaces, trip.destination)
@@ -428,6 +454,21 @@ export const useTripsStore = defineStore('trips', () => {
     // first, so this can run immediately instead of waiting on a geocode
     // callback that will never fire for this path.
     fillMissingTravelTimes(trip.id)
+
+    // Explore templates never carry a destinationPlaceId (static curated
+    // data in exploreTrips.ts, never resolved against Google Places) —
+    // backfilled here in the background, same fire-and-forget pattern as
+    // geocodeNewPlaces above, so copying a template stays instant instead of
+    // making the user wait on this network call. Otherwise "變更封面照"
+    // would stay permanently disabled on every copied trip. The copy keeps
+    // template.coverImage as its starting cover regardless of whether this
+    // resolves; it only unlocks picking a different photo later.
+    resolveDestinationPlace(template.destination).then((resolved) => {
+      if (!resolved) return
+      const target = trips.value.find((item) => item.id === tripId)
+      if (target) Object.assign(target, resolved)
+    })
+
     return trip
   }
 

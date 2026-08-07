@@ -680,8 +680,11 @@ export async function autocompletePlaces(
 
 // Up to this many candidate photos are returned for the cover-photo picker
 // (TripSettingsModal.vue) — enough to give a real choice without the picker
-// turning into its own scrollable search result list.
-const COVER_PHOTO_COUNT = 6
+// turning into its own scrollable search result list. Kept low deliberately:
+// each thumbnail shown costs its own billed Google Photo Media call (see
+// TripSettingsModal.vue's picker grid), on top of the one Place Details call
+// that fetches this list itself.
+const COVER_PHOTO_COUNT = 3
 
 // Place Details (New) — resolves candidate cover photos for a trip's
 // destination, keyed off the same destinationPlaceId set at trip creation

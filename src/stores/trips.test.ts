@@ -263,7 +263,7 @@ test('removeTrip deletes the trip and only its own places', (t) => {
 })
 
 test('copyTemplateTrip clones a template with fresh ids and does not mutate the original template', (t) => {
-  stubFetch(t)
+  stubFetch(t) // default 500 -> geocodeDestination resolves undefined, same as a failed backfill
   const store = freshStore()
 
   const copy = store.copyTemplateTrip('kyoto-slow')
@@ -287,6 +287,44 @@ test('copyTemplateTrip clones a template with fresh ids and does not mutate the 
   const secondCopy = store.copyTemplateTrip('kyoto-slow')
   assert.notEqual(secondCopy!.id, copy!.id)
   assert.equal(store.getTripById(copy!.id)!.columns[0]!.placeIds[0], originalFirstPlaceId)
+})
+
+test('copyTemplateTrip returns the trip synchronously, without waiting on the destinationPlaceId backfill', (t) => {
+  stubFetch(t, (url) => {
+    if (url.includes('geocode-destination')) {
+      return new Response(JSON.stringify({ placeId: 'kyoto-place-id', lat: 35.01, lng: 135.76 }), { status: 200 })
+    }
+    return new Response('', { status: 500 })
+  })
+  const store = freshStore()
+
+  const copy = store.copyTemplateTrip('kyoto-slow')
+
+  // The backfill fetch hasn't had a chance to resolve yet — it must not be
+  // awaited before the copy is created (see trips.ts's comment on why).
+  assert.equal(copy?.destinationPlaceId, undefined)
+})
+
+test('copyTemplateTrip backfills destinationPlaceId via geocode-destination in the background since templates never have one', async (t) => {
+  stubFetch(t, (url) => {
+    if (url.includes('geocode-destination')) {
+      return new Response(JSON.stringify({ placeId: 'kyoto-place-id', lat: 35.01, lng: 135.76 }), { status: 200 })
+    }
+    return new Response('', { status: 500 })
+  })
+  const store = freshStore()
+
+  const copy = store.copyTemplateTrip('kyoto-slow')
+  // Flush the backfill's pending fetch/microtasks before asserting it landed.
+  await new Promise((resolve) => setTimeout(resolve, 0))
+
+  assert.equal(copy?.destinationPlaceId, 'kyoto-place-id')
+  assert.equal(copy?.destinationLat, 35.01)
+  assert.equal(copy?.destinationLng, 135.76)
+  // coverImage is copied straight from the template regardless — this
+  // backfill only unlocks changing it later via TripSettingsModal.vue's
+  // cover-photo picker, it doesn't fetch a new photo itself.
+  assert.ok(copy?.coverImage)
 })
 
 test('copyTemplateTrip returns undefined for an unknown template id', (t) => {
@@ -377,4 +415,47 @@ test('createTrip does not call /api/geocode-destination when the input already h
   assert.equal(trip.destinationPlaceId, 'already-picked')
   assert.equal(trip.destinationLat, 1)
   assert.equal(trip.destinationLng, 2)
+})
+
+test('createTrip auto-sets coverPhotoRef from the first candidate once a destinationPlaceId is known', async (t) => {
+  stubAiGeneration(t, (url) => {
+    if (url.includes('geocode-destination')) {
+      return new Response(JSON.stringify({ placeId: 'resolved-place-id', lat: 35.01, lng: 135.76 }), { status: 200 })
+    }
+    if (url.includes('place-cover-photos')) {
+      return new Response(JSON.stringify({ photoRefs: ['places/x/photos/first', 'places/x/photos/second'] }), { status: 200 })
+    }
+    return undefined
+  })
+  const store = freshStore()
+
+  const trip = await store.createTrip(baseInput({ startDate: '2024-03-01', endDate: '2024-03-01' }))
+
+  assert.equal(trip.coverPhotoRef, 'places/x/photos/first')
+})
+
+test('createTrip leaves coverPhotoRef unset (not a crash) when there is no destinationPlaceId to fetch photos for', async (t) => {
+  stubAiGeneration(t) // no geocode-destination handler -> destinationPlaceId stays unresolved
+  const store = freshStore()
+
+  const trip = await store.createTrip(baseInput({ startDate: '2024-03-01', endDate: '2024-03-01' }))
+
+  assert.equal(trip.coverPhotoRef, undefined)
+})
+
+test('createTrip leaves coverPhotoRef unset when place-cover-photos returns no candidates', async (t) => {
+  stubAiGeneration(t, (url) => {
+    if (url.includes('geocode-destination')) {
+      return new Response(JSON.stringify({ placeId: 'resolved-place-id', lat: 35.01, lng: 135.76 }), { status: 200 })
+    }
+    if (url.includes('place-cover-photos')) {
+      return new Response(JSON.stringify({ photoRefs: [] }), { status: 200 })
+    }
+    return undefined
+  })
+  const store = freshStore()
+
+  const trip = await store.createTrip(baseInput({ startDate: '2024-03-01', endDate: '2024-03-01' }))
+
+  assert.equal(trip.coverPhotoRef, undefined)
 })
