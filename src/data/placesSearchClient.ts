@@ -1,4 +1,4 @@
-import { withTimeout } from './httpTimeout'
+import { withTimeout } from './httpTimeout.ts'
 
 // Talks to /api/places-search — AddPlaceModal.vue's live search-as-you-type,
 // backed by a real (multi-result) Google Places Text Search rather than the

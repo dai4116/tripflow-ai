@@ -12,6 +12,7 @@ import {
   regionFromDestination,
 } from '../data/generateTrip.ts'
 import { geocodePlace, geocodeRawQuery } from '../data/geocode.ts'
+import { geocodeDestination } from '../data/geocodeDestinationClient.ts'
 import { fetchTravelTime } from '../data/routing.ts'
 import type { CreateTripInput, Place, PlaceCategory, Trip, TravelMode } from '../types'
 
@@ -231,11 +232,31 @@ export const useTripsStore = defineStore('trips', () => {
   async function createTrip(input: CreateTripInput): Promise<Trip> {
     const days = computeTripDays(input)
     const placesPerDay = placesPerDayForPace(paceForTravelStyles(input.travelStyle))
-    const aiPlaces = await fetchAiPlaces(input, days, placesPerDay)
+    // Runs alongside the AI generation (not after it) so this best-effort
+    // lookup never adds latency to trip creation — only fired when the user
+    // free-typed the destination instead of picking a Google Places
+    // Autocomplete suggestion, which is the common path (see
+    // DestinationAutocomplete.vue: nothing requires picking a suggestion).
+    // Without this, a free-typed trip's destinationPlaceId stays unset
+    // forever, permanently disabling the cover-photo picker
+    // (TripSettingsModal.vue) for it.
+    const [aiPlaces, resolvedDestination] = await Promise.all([
+      fetchAiPlaces(input, days, placesPerDay),
+      input.destinationPlaceId ? undefined : geocodeDestination(input.destination),
+    ])
     if (!aiPlaces) throw new Error('AI trip generation failed')
 
+    const effectiveInput = resolvedDestination
+      ? {
+          ...input,
+          destinationPlaceId: resolvedDestination.placeId,
+          destinationLat: resolvedDestination.lat,
+          destinationLng: resolvedDestination.lng,
+        }
+      : input
+
     const { trip, places: newPlaces } = generateTrip(
-      input,
+      effectiveInput,
       trips.value.map((existing) => existing.id),
       aiPlaces,
       placesPerDay,

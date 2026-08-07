@@ -1,4 +1,4 @@
-import { withTimeout } from './httpTimeout'
+import { withTimeout } from './httpTimeout.ts'
 
 // Talks to /api/place-cover-photos — TripSettingsModal.vue's "變更封面照"
 // picker. Same never-throws contract as placesSearchClient.ts's searchPlaces:

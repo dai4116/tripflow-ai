@@ -305,29 +305,7 @@ test('createTrip throws instead of silently falling back when AI generation fail
 })
 
 test('createTrip builds and stores a trip from the generated AI places', async (t) => {
-  stubFetch(t, (url, init) => {
-    if (url.includes('plan-trip-zones')) return new Response(JSON.stringify({ zones: [], cityCenter: null }), { status: 200 })
-    if (url.includes('generate-trip-day')) {
-      const body = JSON.parse(init.body as string) as { day: number }
-      return new Response(
-        JSON.stringify({
-          places: [
-            {
-              day: body.day,
-              name: `Day${body.day}景點`,
-              category: 'attraction',
-              description: 'd',
-              placeId: `google-${body.day}`,
-              lat: 35,
-              lng: 135,
-            },
-          ],
-        }),
-        { status: 200 },
-      )
-    }
-    return new Response('', { status: 500 })
-  })
+  stubAiGeneration(t)
   const store = freshStore()
 
   const trip = await store.createTrip(baseInput({ startDate: '2024-03-01', endDate: '2024-03-01' }))
@@ -337,4 +315,66 @@ test('createTrip builds and stores a trip from the generated AI places', async (
   assert.equal(store.places.length, 1)
   assert.equal(store.places[0]!.placeId, 'google-1')
   assert.equal(trip.placeCount, 1)
+})
+
+function stubAiGeneration(t: TestContext, extra?: (url: string, init: RequestInit) => Response | undefined) {
+  stubFetch(t, (url, init) => {
+    const fromExtra = extra?.(url, init)
+    if (fromExtra) return fromExtra
+    if (url.includes('plan-trip-zones')) return new Response(JSON.stringify({ zones: [], cityCenter: null }), { status: 200 })
+    if (url.includes('generate-trip-day')) {
+      const body = JSON.parse(init.body as string) as { day: number }
+      return new Response(
+        JSON.stringify({ places: [{ day: body.day, name: `Day${body.day}景點`, category: 'attraction', description: 'd', placeId: `google-${body.day}`, lat: 35, lng: 135 }] }),
+        { status: 200 },
+      )
+    }
+    return new Response('', { status: 500 })
+  })
+}
+
+test('createTrip backfills destinationPlaceId from /api/geocode-destination when the input has none', async (t) => {
+  stubAiGeneration(t, (url) => {
+    if (url.includes('geocode-destination')) {
+      return new Response(JSON.stringify({ placeId: 'resolved-place-id', lat: 35.01, lng: 135.76 }), { status: 200 })
+    }
+    return undefined
+  })
+  const store = freshStore()
+
+  const trip = await store.createTrip(baseInput({ startDate: '2024-03-01', endDate: '2024-03-01' }))
+
+  assert.equal(trip.destinationPlaceId, 'resolved-place-id')
+  assert.equal(trip.destinationLat, 35.01)
+  assert.equal(trip.destinationLng, 135.76)
+})
+
+test('createTrip leaves destinationPlaceId unset (not a crash) when geocode-destination fails', async (t) => {
+  stubAiGeneration(t) // no geocode-destination handler -> falls through to the default 500
+  const store = freshStore()
+
+  const trip = await store.createTrip(baseInput({ startDate: '2024-03-01', endDate: '2024-03-01' }))
+
+  assert.equal(trip.destinationPlaceId, undefined)
+})
+
+test('createTrip does not call /api/geocode-destination when the input already has a destinationPlaceId', async (t) => {
+  let geocodeDestinationCalled = false
+  stubAiGeneration(t, (url) => {
+    if (url.includes('geocode-destination')) {
+      geocodeDestinationCalled = true
+      return new Response(JSON.stringify({ placeId: 'should-not-be-used', lat: 0, lng: 0 }), { status: 200 })
+    }
+    return undefined
+  })
+  const store = freshStore()
+
+  const trip = await store.createTrip(
+    baseInput({ startDate: '2024-03-01', endDate: '2024-03-01', destinationPlaceId: 'already-picked', destinationLat: 1, destinationLng: 2 }),
+  )
+
+  assert.equal(geocodeDestinationCalled, false)
+  assert.equal(trip.destinationPlaceId, 'already-picked')
+  assert.equal(trip.destinationLat, 1)
+  assert.equal(trip.destinationLng, 2)
 })

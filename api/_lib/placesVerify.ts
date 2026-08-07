@@ -247,17 +247,30 @@ export function distanceKm(a: GeoPoint, b: GeoPoint): number {
   return 2 * R * Math.asin(Math.sqrt(h))
 }
 
+// Same underlying lookup geocodeCityCenter uses, but keeps the resolved
+// place's id instead of narrowing it away — used to backfill
+// Trip.destinationPlaceId for trips whose destination was free-typed (no
+// Google Places Autocomplete pick at creation time), so the cover-photo
+// picker (TripSettingsModal.vue) still has a placeId to fetch candidates
+// for. Never throws; resolves null for a genuine no-match OR a transient
+// failure alike (same collapsed contract geocodeCityCenter already
+// documents) — this is a best-effort enhancement, not on trip creation's
+// critical path.
+export async function resolveDestinationPlace(apiKey: string, destination: string, signal?: AbortSignal): Promise<VerifiedPlace | null> {
+  try {
+    return await textSearchCached(apiKey, destination, null, false, signal)
+  } catch {
+    return null
+  }
+}
+
 // Geocode the trip's destination to a center point, used to bias (and
 // sanity-check) every place lookup. One call per trip. Returns null if the
 // destination itself can't be resolved — the caller then verifies without a
 // bias, relying on the query's own city/country tokens.
 export async function geocodeCityCenter(apiKey: string, destination: string, signal?: AbortSignal): Promise<GeoPoint | null> {
-  try {
-    const result = await textSearchCached(apiKey, destination, null, false, signal)
-    return result ? { lat: result.lat, lng: result.lng } : null
-  } catch {
-    return null
-  }
+  const result = await resolveDestinationPlace(apiKey, destination, signal)
+  return result ? { lat: result.lat, lng: result.lng } : null
 }
 
 // Verify one place against Google, trying each query in turn (the AI's

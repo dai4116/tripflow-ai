@@ -1,5 +1,5 @@
 import type { Trip } from '../types'
-import { formatDateRange, toDateInputValue } from './generateTrip'
+import { formatDateRange, toDateInputValue } from './generateTrip.ts'
 
 // Seed trips need a startDate that's still in the future for the dashboard's
 // "upcoming trip" spotlight (see DashboardPage.vue's daysUntil filter) to

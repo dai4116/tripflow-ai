@@ -1,4 +1,4 @@
-import { withTimeout } from './httpTimeout'
+import { withTimeout } from './httpTimeout.ts'
 
 // Talks to /api/places-autocomplete and /api/place-details — the destination
 // search dropdown on trip creation (see DestinationAutocomplete.vue). Same
