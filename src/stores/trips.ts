@@ -152,6 +152,7 @@ export const useTripsStore = defineStore('trips', () => {
 
     for (const newPlace of newPlaces) {
       if (hasCoords(newPlace)) continue // already positioned by Google — skip Nominatim
+      if (newPlace.skipGeocode) continue // e.g. generateTrip.ts's flight cards — see the field's own comment
       resolveNewPlaceCoords(newPlace, city, region).then((point) => {
         if (!point) return
         const target = places.value.find((item) => item.id === newPlace.id)
@@ -403,7 +404,24 @@ export const useTripsStore = defineStore('trips', () => {
     >,
   ) {
     const place = places.value.find((item) => item.id === placeId)
-    if (place) Object.assign(place, patch)
+    if (!place) return
+
+    // A flight card (see generateTrip.ts's addFlightPlace) starts with
+    // skipGeocode set and no coordinates on purpose — a guessed airport name
+    // risks a wrong-but-confident pin. Once the user renames it to something
+    // specific (e.g. "桃園國際機場第二航廈"), that's no longer a guess:
+    // clear the flag and try to actually place it, same best-effort
+    // Nominatim path any other manually-named place already goes through.
+    // Guarded on an actual name change, not just any edit (stay duration,
+    // description, ...), so saving the form without touching the name
+    // doesn't re-fire a geocode attempt on an unrelated edit.
+    const shouldGeocode = place.skipGeocode && patch.name && patch.name !== place.name
+    Object.assign(place, patch)
+    if (shouldGeocode) {
+      place.skipGeocode = false
+      const trip = trips.value.find((item) => item.id === place.tripId)
+      if (trip) geocodeNewPlaces([place], trip.destination)
+    }
   }
 
   function removeTrip(tripId: string) {

@@ -44,6 +44,11 @@ type GenerateTripDayBody = TripContext & {
   // as a real gap in this design's first version). Absent on a first-pass
   // request, where there's nothing yet to anchor to.
   existingAnchor?: GeoPoint | null
+  // 'HH:mm' local time — sent only for the day it actually affects (day 1's
+  // arrival, the trip's last day's departure; see aiTripClient.ts's
+  // requestDay), feeds buildDayPrompt's flight-aware candidate steering.
+  arrivalTime?: string
+  departureTime?: string
 }
 
 export default async function handler(req: VercelLikeRequest, res: VercelLikeResponse) {
@@ -70,6 +75,8 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
     zones,
     cityCenter: bodyCityCenter,
     existingAnchor,
+    arrivalTime,
+    departureTime,
   } = (req.body ?? {}) as GenerateTripDayBody
 
   if (!validateDestination(destination)) {
@@ -108,7 +115,7 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
         max_tokens: 8000,
         thinking: { type: 'disabled' },
         output_config: { format: { type: 'json_schema', schema: PLACE_SCHEMA } },
-        messages: [{ role: 'user', content: buildDayPrompt(ctx, day!, totalDays!, placesPerDay!, zoneHints) }],
+        messages: [{ role: 'user', content: buildDayPrompt(ctx, day!, totalDays!, placesPerDay!, zoneHints, arrivalTime, departureTime) }],
       },
       { signal: controller.signal },
     )

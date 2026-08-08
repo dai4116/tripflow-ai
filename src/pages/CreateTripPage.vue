@@ -2,7 +2,7 @@
   <section class="new-trip-page">
     <PageHeader
       title="規劃新行程 ✈️"
-      description="填寫細節，AI 會幫你打造專屬行程。"
+      description="告訴 AI 你想去哪裡 它會幫你打造專屬行程"
       :back-to="isGenerating ? undefined : { name: 'dashboard' }"
       back-label="返回首頁"
     />
@@ -25,6 +25,45 @@
         <h3>行程細節</h3>
         <BaseDateRangeInput label="旅遊日期" v-model:start="form.startDate" v-model:end="form.endDate" :error="dateRangeError" />
         <BaseInput v-model="form.travelers" label="旅伴人數" type="number" icon="users" :min="1" :max="12" />
+
+        <label class="flight-toggle">
+          <span class="flight-toggle__copy">
+            <span class="flight-toggle__title"><AppIcon name="plane" :size="14" />我知道航班時間</span>
+            <span class="flight-toggle__hint">讓 AI 排得更準</span>
+          </span>
+          <span class="flight-toggle__switch" :class="{ 'flight-toggle__switch--on': knowsFlightTimes }">
+            <input v-model="knowsFlightTimes" type="checkbox" class="flight-toggle__input" />
+            <span class="flight-toggle__thumb" />
+          </span>
+        </label>
+
+        <div v-if="knowsFlightTimes" class="flight-time-fields">
+          <div class="flight-time-field">
+            <span class="flight-time-field__label">抵達時間（選填）</span>
+            <button
+              ref="arrivalTimeButtonRef"
+              type="button"
+              class="flight-time-field__button"
+              @click="openFlightTimePicker('arrival', $event)"
+            >
+              <AppIcon name="clock" :size="13" />
+              {{ form.arrivalTime ?? '點選設定' }}
+            </button>
+          </div>
+          <div class="flight-time-field">
+            <span class="flight-time-field__label">離境時間（選填）</span>
+            <button
+              ref="departureTimeButtonRef"
+              type="button"
+              class="flight-time-field__button"
+              @click="openFlightTimePicker('departure', $event)"
+            >
+              <AppIcon name="clock" :size="13" />
+              {{ form.departureTime ?? '點選設定' }}
+            </button>
+          </div>
+          <p class="flight-time-fields__note">請填當地時間</p>
+        </div>
       </BaseCard>
 
       <BaseCard class="form-card">
@@ -81,6 +120,16 @@
       <p class="trip-form__note">
         AI 會產生 {{ tripDays }} 天行程看板・精選地點・優化路線
       </p>
+
+      <TimePickerSheet
+        v-if="flightTimePickerTarget"
+        :key="flightTimePickerTarget"
+        :model-value="flightTimePickerInitialValue"
+        :title="flightTimePickerTitle"
+        :anchor-el="flightTimePickerAnchorEl"
+        @update:model-value="confirmFlightTimePicker"
+        @close="closeFlightTimePicker"
+      />
     </form>
 
     <BaseCard v-else class="form-card generating-card">
@@ -138,6 +187,7 @@ import BaseButton from '../components/ui/BaseButton.vue'
 import BaseCard from '../components/ui/BaseCard.vue'
 import BaseDateRangeInput from '../components/ui/BaseDateRangeInput.vue'
 import BaseInput from '../components/ui/BaseInput.vue'
+import TimePickerSheet from '../components/ui/TimePickerSheet.vue'
 import type { IconName } from '../components/ui/icons'
 import DestinationAutocomplete from '../components/trips/DestinationAutocomplete.vue'
 import { computeTripDays, toDateInputValue } from '../data/generateTrip'
@@ -202,7 +252,61 @@ const form = reactive({
   endDate: toDateInputValue(defaultEnd),
   travelers: '2',
   additionalNotes: '',
+  arrivalTime: undefined as string | undefined,
+  departureTime: undefined as string | undefined,
 })
+
+// Toggling off clears both times instead of just hiding the fields — a user
+// who unchecks "我知道航班時間" clearly no longer wants them applied, and
+// leaving stale values in `form` would silently re-send them to createTrip
+// if the toggle were switched back on without the fields being touched again.
+const knowsFlightTimes = ref(false)
+watch(knowsFlightTimes, (value) => {
+  if (!value) {
+    form.arrivalTime = undefined
+    form.departureTime = undefined
+  }
+})
+
+const arrivalTimeButtonRef = ref<HTMLButtonElement | null>(null)
+const departureTimeButtonRef = ref<HTMLButtonElement | null>(null)
+const flightTimePickerTarget = ref<'arrival' | 'departure' | null>(null)
+const flightTimePickerAnchorEl = ref<HTMLElement | null>(null)
+const flightTimePickerTitle = computed(() => (flightTimePickerTarget.value === 'arrival' ? '選擇抵達時間' : '選擇離境時間'))
+// TimePickerSheet always needs a starting 'HH:mm' to position its wheels —
+// unset defaults to a plausible flight time for each direction (afternoon
+// arrival, evening departure) rather than midnight.
+const flightTimePickerInitialValue = computed(() => {
+  if (flightTimePickerTarget.value === 'arrival') return form.arrivalTime ?? '15:00'
+  return form.departureTime ?? '21:00'
+})
+
+function openFlightTimePicker(target: 'arrival' | 'departure', event: MouseEvent) {
+  if (flightTimePickerTarget.value === target) {
+    flightTimePickerTarget.value = null
+    flightTimePickerAnchorEl.value = null
+    return
+  }
+  flightTimePickerAnchorEl.value = event.currentTarget instanceof HTMLElement ? event.currentTarget : null
+  flightTimePickerTarget.value = target
+}
+
+function closeFlightTimePicker() {
+  flightTimePickerTarget.value = null
+  flightTimePickerAnchorEl.value = null
+}
+
+function confirmFlightTimePicker(value: string) {
+  if (flightTimePickerTarget.value === 'arrival') {
+    form.arrivalTime = value
+    arrivalTimeButtonRef.value?.focus()
+  } else if (flightTimePickerTarget.value === 'departure') {
+    form.departureTime = value
+    departureTimeButtonRef.value?.focus()
+  }
+  flightTimePickerTarget.value = null
+  flightTimePickerAnchorEl.value = null
+}
 
 function onDestinationSelect(selection: { placeId: string; lat: number; lng: number } | null) {
   form.destinationPlaceId = selection?.placeId
@@ -393,6 +497,8 @@ async function finishGeneration() {
       travelStyle: selectedTravelStyles.value,
       additionalNotes: form.additionalNotes,
       preferences: selectedPreferences.value,
+      arrivalTime: form.arrivalTime,
+      departureTime: form.departureTime,
     })
     requestInFlight = false
     if (cancelled) return

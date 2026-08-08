@@ -248,6 +248,15 @@ export function buildDayPrompt(
   totalDays: number,
   placesPerDay: number,
   zoneHints: ZoneHint[],
+  // Only meaningful (and only ever passed) for the day a flight actually
+  // affects — day 1's arrivalTime, the trip's last day's departureTime,
+  // both for a one-day trip with both set. aiTripClient.ts's requestDay
+  // already thins placesPerDay for that day (see
+  // placesPerDayForFlightDay in src/data/generateTrip.ts); these just steer
+  // WHICH candidates make sense in the shortened window, e.g. not a
+  // sunrise-market pick when arrival is mid-afternoon.
+  arrivalTime?: string,
+  departureTime?: string,
 ): string {
   const perDayCandidates = placesPerDay + PER_DAY_BUFFER
   const hint = zoneHints.find((entry) => entry.day === day)
@@ -260,6 +269,14 @@ export function buildDayPrompt(
   const assignedPreferencesLine = hint?.assignedPreferences?.length
     ? `今天請至少包含 1 個符合以下偏好的地點：${hint.assignedPreferences.join('、')}。`
     : ''
+  const flightConstraintLine =
+    arrivalTime && departureTime
+      ? `注意：這天旅客要到當地時間 ${arrivalTime} 才抵達，而且同一天 ${departureTime} 就要離開（入境+離境都在這天），實際可用時段非常短，請只推薦真正配合得上這個時間窗、方便銜接的候選，timeOfDay 請據實填寫，不要硬湊候選數。`
+      : arrivalTime
+        ? `注意：這是行程第一天，旅客要到當地時間 ${arrivalTime} 才會抵達目的地（扣除入境與往返市區的時間，實際能開始遊覽會再晚一點），請不要推薦上午/清晨才適合的候選（例如早市、日出景點），timeOfDay 請據實填寫成這個候選實際適合的時段。`
+        : departureTime
+          ? `注意：這是行程最後一天，旅客當地時間 ${departureTime} 就要出發前往機場，實際可遊覽時間會提早結束，請避免推薦太晚、太遠、或只適合傍晚以後才去的候選（例如夜市、酒吧、夜景、限定晚餐的餐廳），timeOfDay 請據實填寫。`
+          : ''
   const wantsMealSlots = ctx.preferences?.includes(FOOD_PREFERENCE) ?? false
   return [
     `目的地：${ctx.destination}`,
@@ -278,6 +295,7 @@ export function buildDayPrompt(
       ? `以下是已經先規劃好的當日主題，請在指定的區域/主題範圍內挑選具體、確實存在的地點，不要跳出這個主題去選其他區域的景點：\n${zoneLine}`
       : '',
     assignedPreferencesLine,
+    flightConstraintLine,
     `每一天請提供最多 ${perDayCandidates} 個候選景點——比當天實際需要的 ${placesPerDay} 個多 ${PER_DAY_BUFFER} 個，多出來的是備援（見下方說明）。同一天的候選請依你的信心排序，越有把握、越具體明確的排越前面。`,
     wantsMealSlots
       ? `每一天的候選景點裡，請至少包含一個美食類地點（分類 food，適合當午餐或晚餐皆可），其餘搭配景點、購物、住宿等不同類型——不用強求午餐、晚餐都各自安排一個，一天有一個吃的就好，把名額留給這天的其他主題/偏好。`

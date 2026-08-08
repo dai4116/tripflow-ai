@@ -120,6 +120,9 @@ export const icons = {
   bike: {
     body: `<circle cx="6" cy="17" r="3.1" ${STROKE}/><circle cx="18" cy="17" r="3.1" ${STROKE}/><path d="M6 17l3.8-8h4.7l2.9 8M9.4 9H7.5M12.5 9l3 4.5M12.5 9L10 17" ${STROKE}/>`,
   },
+  plane: {
+    body: `<path d="M10.5 13.5L3 15l1-2 6-2.2M10.5 13.5L14 21l1.7-.8-.7-7M10.5 13.5l7.2-7.2c1.4-1.4 3-2 3.6-1.4.6.6 0 2.2-1.4 3.6l-7.2 7.2" ${STROKE}/>`,
+  },
 } satisfies Record<string, { body: string; tall?: boolean }>
 
 export type IconName = keyof typeof icons

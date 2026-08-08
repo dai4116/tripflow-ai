@@ -140,6 +140,15 @@ export type Place = {
   // of the same real-world place. Absent for places added without Google
   // verification (e.g. AskAiPanel.vue's chat-suggested places).
   placeId?: string
+  // Set on the "抵達機場"/"前往機場" cards generateTrip.ts's addFlightPlace
+  // creates for a known flight time — they start at lat/lng 0,0 on purpose
+  // (a guessed airport name risks a wrong-but-confident pin), and this tells
+  // stores/trips.ts's geocodeNewPlaces to leave them alone instead of
+  // falling back to its generic Nominatim-by-name path, which would try to
+  // geocode a literal phrase like "抵達機場". Cleared by updatePlace once the
+  // user renames the card to something specific (e.g. "桃園國際機場第二航廈")
+  // — that's no longer a guess, so it's worth an actual geocode attempt.
+  skipGeocode?: boolean
 }
 
 export type CreateTripInput = {
@@ -165,4 +174,16 @@ export type CreateTripInput = {
   // for why it's framed neutrally rather than as an exclusion list.
   additionalNotes: string
   preferences: string[]
+  // Optional flight-aware scheduling, both 'HH:mm' local time (no timezone
+  // conversion — see CreateTripPage.vue's helper text). When set,
+  // generateTrip.ts thins day 1's / the last day's placesPerDay to fit the
+  // shortened window (see placesPerDayForFlightDay) AND prepends/appends a
+  // real "抵達機場"/"前往機場" Place card carrying the time as its manual
+  // arrivalTime — that card is what actually drives the schedule cascade
+  // (via computeArrivalTimes' existing manual-arrival handling) and gets the
+  // existing overlap warning "for free" if the day runs too late for the
+  // flight. Not stored anywhere else on the trip — editing it afterward
+  // means editing that place card directly, same as any other place.
+  arrivalTime?: string
+  departureTime?: string
 }

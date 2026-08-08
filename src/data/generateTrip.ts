@@ -1,4 +1,5 @@
 import { nanoid } from 'nanoid'
+import { addMinutes } from './placeSchedule.ts'
 import type { CreateTripInput, Place, PlaceCategory, Trip, TripColumn, TripPace } from '../types'
 
 const TRIP_PALETTE = ['#e8618c', '#00c5ab', '#d98324', '#4a7de0']
@@ -41,6 +42,65 @@ const PLACES_PER_DAY: Record<TripPace, number> = {
 
 export function placesPerDayForPace(pace: TripPace): number {
   return PLACES_PER_DAY[pace]
+}
+
+// Baseline day used as the 100% reference when thinning a flight-shortened
+// day's placesPerDay below — not the same constant as placeSchedule.ts's own
+// DAY_START_TIME (08:00 there is the cascade's default, unrelated to this
+// ratio calculation), so duplicated locally rather than imported.
+const FLIGHT_DAY_START = '08:00'
+const FLIGHT_DAY_END = '21:00'
+// Customs/immigration + getting from the airport into the city (arrival), or
+// getting back to the airport in time (departure) — an itinerary's places
+// don't realistically start/end right at the gate.
+const AIRPORT_BUFFER_MIN = 90
+
+function hhmmToMinutes(value: string): number {
+  const [hours, minutes] = value.split(':').map(Number)
+  return (Number.isFinite(hours) ? hours : 0) * 60 + (Number.isFinite(minutes) ? minutes : 0)
+}
+
+// Deliberately NOT placeSchedule.ts's addMinutes/minutesBetween, which wrap
+// past midnight (meant for a stay crossing into the next day). The values
+// here are one-off window boundaries for a single same-day ratio
+// calculation — a buffered arrival of 23:00+90min must stay "1470", further
+// past the window's end, not wrap around to "00:30" and read as EARLY in
+// the day. (A real bug: that wrap used to make scalePlacesPerDayToWindow
+// treat a 23:00 arrival as leaving MORE room than a 21:00 one.) Deliberately
+// left un-clamped to [0, 1439] — minutesAvailable below clamps the final
+// availability to >= 0, which is all that actually matters here.
+function minutesAvailable(startMinutes: number, endMinutes: number): number {
+  return Math.max(0, endMinutes - startMinutes)
+}
+
+function scalePlacesPerDayToWindow(basePlacesPerDay: number, windowStartMinutes: number, windowEndMinutes: number): number {
+  const fullMinutes = hhmmToMinutes(FLIGHT_DAY_END) - hhmmToMinutes(FLIGHT_DAY_START)
+  const availableMinutes = minutesAvailable(windowStartMinutes, windowEndMinutes)
+  return Math.max(0, Math.min(basePlacesPerDay, Math.floor((basePlacesPerDay * availableMinutes) / fullMinutes)))
+}
+
+// Thins a day's placesPerDay when that day is shortened by a flight — day 1
+// by a late arrival, the trip's last day by an early departure (both, for a
+// one-day trip with both set). Every other day is untouched. Floors rather
+// than rounds so a badly truncated window (e.g. a 23:00 arrival) can land on
+// 0 instead of forcing in a stop that doesn't actually fit — callers must
+// treat 0 as "skip this day", not "at least one place".
+export function placesPerDayForFlightDay(
+  basePlacesPerDay: number,
+  dayNumber: number,
+  totalDays: number,
+  input: Pick<CreateTripInput, 'arrivalTime' | 'departureTime'>,
+): number {
+  const isFlightDay = (dayNumber === 1 && input.arrivalTime) || (dayNumber === totalDays && input.departureTime)
+  if (!isFlightDay) return basePlacesPerDay
+
+  const windowStartMinutes =
+    dayNumber === 1 && input.arrivalTime ? hhmmToMinutes(input.arrivalTime) + AIRPORT_BUFFER_MIN : hhmmToMinutes(FLIGHT_DAY_START)
+  const windowEndMinutes =
+    dayNumber === totalDays && input.departureTime
+      ? hhmmToMinutes(input.departureTime) - AIRPORT_BUFFER_MIN
+      : hhmmToMinutes(FLIGHT_DAY_END)
+  return scalePlacesPerDayToWindow(basePlacesPerDay, windowStartMinutes, windowEndMinutes)
 }
 
 // Resolves the (up to 2) selected travel styles into one pace. A single
@@ -295,6 +355,39 @@ export function generateTrip(
     return place
   }
 
+  // "抵達機場"/"前往機場" — a real, editable Place card for a known flight
+  // time (see the columns loop below), not AI-suggested and not geocoded:
+  // a wrong-but-confident pin for a guessed airport name would be worse
+  // than the no-pin fallback every other ungeocoded place already degrades
+  // to (see hasCoords in stores/trips.ts). skipGeocode tells
+  // geocodeNewPlaces to actually honor that and not fall back to guessing
+  // coordinates from the literal name — cleared by updatePlace once the
+  // user renames the card to something specific. `arrivalTime` is set
+  // manually, which is all computeArrivalTimes needs to treat this like any
+  // other manually-timed card — the arrival card's estimatedTime supplies
+  // the customs/transit buffer that pushes every place after it later, and
+  // the departure card's buffered arrivalTime is what the cascade's existing
+  // overlap check compares later cards against, surfacing a "won't make the
+  // flight" warning for free.
+  function addFlightPlace(name: string, description: string, arrivalTime: string, estimatedTime: number, columnId: string): Place {
+    const place: Place = {
+      id: nanoid(8),
+      tripId,
+      name,
+      category: 'transport',
+      estimatedTime,
+      address: input.destination,
+      lat: 0,
+      lng: 0,
+      description,
+      arrivalTime,
+      columnId,
+      skipGeocode: true,
+    }
+    places.push(place)
+    return place
+  }
+
   // Group by the suggestion's own `day` tag rather than flat array position.
   // Position-based slicing broke once server-side verification could drop an
   // arbitrary subset of candidates: a shortfall on an early day shifted every
@@ -314,8 +407,12 @@ export function generateTrip(
     const dayNumber = index + 1
     const columnId = `day-${dayNumber}`
     const dayPlaces = orderDayPlaces(suggestionsByDay.get(dayNumber) ?? [])
+    // Day 1 / the last day get fewer slots than resolvedPlacesPerDay when a
+    // flight arrival/departure narrows their usable hours — see
+    // placesPerDayForFlightDay. Every other day is untouched.
+    const dayCap = placesPerDayForFlightDay(resolvedPlacesPerDay, dayNumber, days, input)
     const placeIds: string[] = []
-    for (let i = 0; i < resolvedPlacesPerDay; i++) {
+    for (let i = 0; i < dayCap; i++) {
       const suggestion = dayPlaces[i]
       // Days are built ONLY from real (AI + server-verified) suggestions now.
       // A slot with no suggestion is left empty rather than backfilled —
@@ -325,6 +422,32 @@ export function generateTrip(
       // prevent. A short day just has fewer, all-real places.
       if (!suggestion) continue
       placeIds.push(addPlace(suggestion, columnId).id)
+    }
+
+    // Prepend/append a real flight card rather than writing an invisible
+    // per-day schedule override — unshift/push happen outside orderDayPlaces
+    // (called above, only over the AI suggestions) so a flight card is never
+    // reshuffled into the middle of the day by its time-of-day/nearest-
+    // neighbor ordering.
+    if (dayNumber === 1 && input.arrivalTime) {
+      const arrivalPlace = addFlightPlace(
+        '抵達機場',
+        '入境、領行李、前往市區的預留時間',
+        input.arrivalTime,
+        AIRPORT_BUFFER_MIN / 60,
+        columnId,
+      )
+      placeIds.unshift(arrivalPlace.id)
+    }
+    if (dayNumber === days && input.departureTime) {
+      const departurePlace = addFlightPlace(
+        '前往機場',
+        `航班表定 ${input.departureTime} 起飛，建議提前抵達機場辦理登機`,
+        addMinutes(input.departureTime, -AIRPORT_BUFFER_MIN),
+        1,
+        columnId,
+      )
+      placeIds.push(departurePlace.id)
     }
 
     return { id: columnId, title: `第${dayNumber}天`, dayNumber, placeIds }

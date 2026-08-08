@@ -261,6 +261,11 @@ function handleSave() {
     return
   }
 
-  emit('save', { title: trimmedTitle, startDate: startDate.value, endDate: endDate.value, coverPhotoRef: coverPhotoRef.value })
+  emit('save', {
+    title: trimmedTitle,
+    startDate: startDate.value,
+    endDate: endDate.value,
+    coverPhotoRef: coverPhotoRef.value,
+  })
 }
 </script>

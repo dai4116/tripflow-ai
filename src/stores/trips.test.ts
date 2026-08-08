@@ -246,6 +246,44 @@ test('updatePlace patches only the allowed fields', (t) => {
   assert.equal(place.estimatedTime, 2)
 })
 
+test('updatePlace clears skipGeocode when a skipGeocode place is renamed, handing it back to the normal geocode pipeline', (t) => {
+  // geocode.ts's Nominatim queue is a module-level singleton, rate-limited
+  // to ~1 req/sec and shared with every other test in this run — not
+  // something a unit test can reliably await. skipGeocode flipping to false
+  // synchronously (proven here) is what actually re-enables
+  // geocodeNewPlaces's existing, separately-tested fallback path for this
+  // place; whether the queued fetch itself eventually fires isn't new
+  // behavior introduced by updatePlace.
+  stubFetch(t, () => new Response('[]', { status: 200 }))
+  const store = freshStore()
+  store.trips.push(seedTrip())
+  store.places.push(seedPlace({ id: 'p1', tripId: 'trip-1', columnId: 'day-1', name: '抵達機場', skipGeocode: true }))
+
+  store.updatePlace('p1', { name: '桃園國際機場第二航廈' })
+
+  const place = store.places.find((p) => p.id === 'p1')!
+  assert.equal(place.skipGeocode, false)
+  assert.equal(place.name, '桃園國際機場第二航廈')
+})
+
+test('updatePlace leaves skipGeocode alone and never geocodes when the name is unchanged', (t) => {
+  const geocodeUrls: string[] = []
+  stubFetch(t, (url) => {
+    geocodeUrls.push(url)
+    return new Response('', { status: 500 })
+  })
+  const store = freshStore()
+  store.trips.push(seedTrip())
+  store.places.push(seedPlace({ id: 'p1', tripId: 'trip-1', columnId: 'day-1', name: '抵達機場', skipGeocode: true }))
+
+  store.updatePlace('p1', { name: '抵達機場', estimatedTime: 2 })
+
+  const place = store.places.find((p) => p.id === 'p1')!
+  assert.equal(place.skipGeocode, true)
+  assert.equal(place.estimatedTime, 2)
+  assert.equal(geocodeUrls.length, 0)
+})
+
 test('removeTrip deletes the trip and only its own places', (t) => {
   stubFetch(t)
   const store = freshStore()
@@ -370,6 +408,31 @@ function stubAiGeneration(t: TestContext, extra?: (url: string, init: RequestIni
     return new Response('', { status: 500 })
   })
 }
+
+test('createTrip never fires a Nominatim geocode for the flight cards it adds when arrivalTime/departureTime are set', async (t) => {
+  const geocodeUrls: string[] = []
+  stubAiGeneration(t, (url) => {
+    if (url.includes('nominatim')) {
+      geocodeUrls.push(url)
+      return new Response('[]', { status: 200 })
+    }
+    return undefined
+  })
+  const store = freshStore()
+
+  // 2 days, not 1 — a 1-day trip with both a 15:00 arrival and a 20:00
+  // departure leaves only a 2-hour window after both buffers, which thins
+  // that single day's AI placesPerDay to 0 and makes fetchAiPlaces (and so
+  // createTrip) fail outright; unrelated to what this test is checking.
+  const trip = await store.createTrip(
+    baseInput({ startDate: '2024-03-01', endDate: '2024-03-02', arrivalTime: '15:00', departureTime: '20:00' }),
+  )
+
+  const flightCards = store.placesForTrip(trip.id).filter((p) => p.category === 'transport')
+  assert.equal(flightCards.length, 2)
+  assert.ok(flightCards.every((p) => p.skipGeocode === true))
+  assert.equal(geocodeUrls.length, 0, 'expected no Nominatim call for either flight card')
+})
 
 test('createTrip backfills destinationPlaceId from /api/geocode-destination when the input has none', async (t) => {
   stubAiGeneration(t, (url) => {

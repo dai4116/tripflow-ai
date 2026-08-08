@@ -1,4 +1,5 @@
 import type { CreateTripInput } from '../types'
+import { placesPerDayForFlightDay } from './generateTrip.ts'
 import type { PlaceSuggestion } from './generateTrip'
 
 // Orchestrates trip generation as many small, parallel per-day requests
@@ -153,6 +154,13 @@ async function requestDay(
         zones,
         cityCenter,
         existingAnchor,
+        // Only relevant (and only sent) for the day the flight actually
+        // affects — buildDayPrompt uses these to steer candidate choice
+        // (e.g. not a sunrise-market pick when arrival is mid-afternoon),
+        // on top of placesPerDay already being thinned for this day (see
+        // placesPerDayForFlightDay).
+        arrivalTime: day === 1 ? input.arrivalTime : undefined,
+        departureTime: day === totalDays ? input.departureTime : undefined,
       }),
       signal: controller.signal,
     })
@@ -170,17 +178,24 @@ async function requestDay(
   }
 }
 
+// placesPerDayForDay resolves each day's own target rather than one flat
+// number for the whole batch — day 1 / the trip's last day can be thinned by
+// a known flight (see placesPerDayForFlightDay). A day resolving to 0 (a
+// flight leaves no usable window at all) is skipped entirely rather than
+// sent as a request the server would reject (generate-trip-day.ts requires
+// placesPerDay >= 1).
 async function fetchDays(
   input: CreateTripInput,
   days: number[],
   totalDays: number,
-  placesPerDay: number,
+  placesPerDayForDay: (day: number) => number,
   zones: ZoneHint[],
   cityCenter: GeoPoint | null,
   anchorForDay?: (day: number) => GeoPoint | null,
 ): Promise<PlaceSuggestion[]> {
-  const results = await mapWithConcurrency(days, MAX_PARALLEL_REQUESTS, (day) =>
-    requestDay(input, day, totalDays, placesPerDay, zones, cityCenter, anchorForDay?.(day) ?? null),
+  const requestableDays = days.filter((day) => placesPerDayForDay(day) > 0)
+  const results = await mapWithConcurrency(requestableDays, MAX_PARALLEL_REQUESTS, (day) =>
+    requestDay(input, day, totalDays, placesPerDayForDay(day), zones, cityCenter, anchorForDay?.(day) ?? null),
   )
   return results.flat()
 }
@@ -201,11 +216,13 @@ export function dedupeByPlaceId(places: PlaceSuggestion[]): PlaceSuggestion[] {
   })
 }
 
-// A day can end up short of placesPerDay for reasons that only exist once
+// A day can end up short of its own target for reasons that only exist once
 // generation is split across independent requests — most notably losing a
 // candidate to the cross-day dedup above — on top of the usual verification
-// attrition. Returns every day under its target, not just empty ones.
-export function daysNeedingBackfill(places: PlaceSuggestion[], totalDays: number, placesPerDay: number): number[] {
+// attrition. Returns every day under its target, not just empty ones. A day
+// whose target is 0 (see placesPerDayForDay) is never "short" — it wasn't
+// requested at all.
+export function daysNeedingBackfill(places: PlaceSuggestion[], totalDays: number, placesPerDayForDay: (day: number) => number): number[] {
   const countByDay = new Map<number, number>()
   for (const place of places) {
     if (typeof place.day !== 'number') continue
@@ -213,7 +230,8 @@ export function daysNeedingBackfill(places: PlaceSuggestion[], totalDays: number
   }
   const short: number[] = []
   for (let day = 1; day <= totalDays; day++) {
-    if ((countByDay.get(day) ?? 0) < placesPerDay) short.push(day)
+    const target = placesPerDayForDay(day)
+    if (target > 0 && (countByDay.get(day) ?? 0) < target) short.push(day)
   }
   return short
 }
@@ -244,8 +262,15 @@ export async function fetchAiPlaces(
 ): Promise<PlaceSuggestion[] | undefined> {
   const { zones, cityCenter } = await planZones(input, days)
 
+  // Day 1 / the last day request fewer candidates when a known flight
+  // arrival/departure narrows their usable hours — see
+  // placesPerDayForFlightDay. Resolved once and reused by both the first
+  // pass and the backfill round below so they stay consistent with each
+  // other and with generateTrip.ts's own per-day cap.
+  const placesPerDayForDay = (day: number) => placesPerDayForFlightDay(placesPerDay, day, days, input)
+
   const dayNumbers = Array.from({ length: Math.ceil(days / DAYS_PER_REQUEST) }, (_, i) => i + 1)
-  const firstPass = await fetchDays(input, dayNumbers, days, placesPerDay, zones, cityCenter)
+  const firstPass = await fetchDays(input, dayNumbers, days, placesPerDayForDay, zones, cityCenter)
   let merged = dedupeByPlaceId(firstPass)
 
   // One bounded backfill round for whatever's still short — a fresh,
@@ -257,9 +282,9 @@ export async function fetchAiPlaces(
   // Doesn't loop: a day still short after this stays short, same as the old
   // single-request design's "a short day is legitimate" philosophy for
   // ordinary verification attrition.
-  const shortDays = daysNeedingBackfill(merged, days, placesPerDay)
+  const shortDays = daysNeedingBackfill(merged, days, placesPerDayForDay)
   if (shortDays.length > 0) {
-    const backfillPlaces = await fetchDays(input, shortDays, days, placesPerDay, zones, cityCenter, (day) =>
+    const backfillPlaces = await fetchDays(input, shortDays, days, placesPerDayForDay, zones, cityCenter, (day) =>
       findExistingAnchor(merged, day),
     )
     merged = dedupeByPlaceId([...merged, ...backfillPlaces])

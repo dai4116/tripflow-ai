@@ -42,7 +42,15 @@ test('daysNeedingBackfill flags every day under quota and ignores places with no
     { day: 2, name: 'B1', category: 'attraction', description: 'd' },
     { name: 'Untagged', category: 'attraction', description: 'd' },
   ]
-  assert.deepEqual(daysNeedingBackfill(places, 3, 2), [2, 3])
+  assert.deepEqual(daysNeedingBackfill(places, 3, () => 2), [2, 3])
+})
+
+test('daysNeedingBackfill never flags a day whose target is 0', () => {
+  const places: PlaceSuggestion[] = [{ day: 1, name: 'A1', category: 'attraction', description: 'd' }]
+  assert.deepEqual(
+    daysNeedingBackfill(places, 2, (day) => (day === 2 ? 0 : 2)),
+    [1],
+  )
 })
 
 test('findExistingAnchor returns the first coordinate-bearing place for a day, or null if there is none', () => {
@@ -60,7 +68,8 @@ test('findExistingAnchor returns the first coordinate-bearing place for a day, o
 // test supplies for that endpoint.
 function mockFetch(t: TestContext, handlers: {
   zones?: (body: unknown) => Response
-  day?: (body: { day: number; existingAnchor: unknown }) => Response
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  day?: (body: any) => Response
 }) {
   t.mock.method(globalThis, 'fetch', async (url: string, init: RequestInit) => {
     const body = init.body ? JSON.parse(init.body as string) : {}
@@ -129,6 +138,42 @@ test('fetchAiPlaces dedupes the same real place suggested for two different days
 test('fetchAiPlaces returns undefined when every day comes back empty even after backfill', async (t) => {
   mockFetch(t, { day: () => new Response('', { status: 500 }) })
   const result = await fetchAiPlaces(baseInput(), 1, 1)
+  assert.equal(result, undefined)
+})
+
+test('fetchAiPlaces requests fewer places for day 1 when arrivalTime narrows its window, and passes arrivalTime through only for that day', async (t) => {
+  const dayBodies: Array<{ day: number; placesPerDay: number; arrivalTime?: string; departureTime?: string }> = []
+  mockFetch(t, {
+    day: (body) => {
+      dayBodies.push(body)
+      return new Response(JSON.stringify({ places: [dayPlace(body.day, `p${body.day}`)] }), { status: 200 })
+    },
+  })
+  await fetchAiPlaces(
+    baseInput({ startDate: '2024-03-01', endDate: '2024-03-02', arrivalTime: '14:00' }),
+    2,
+    4,
+  )
+  const day1 = dayBodies.find((body) => body.day === 1)!
+  const day2 = dayBodies.find((body) => body.day === 2)!
+  assert.ok(day1.placesPerDay > 0 && day1.placesPerDay < 4, `expected day 1's placesPerDay to be thinned below 4, got ${day1.placesPerDay}`)
+  assert.equal(day1.arrivalTime, '14:00')
+  assert.equal(day2.placesPerDay, 4)
+  assert.equal(day2.arrivalTime, undefined)
+})
+
+test('fetchAiPlaces skips a day entirely (no request at all) when a flight leaves it no usable window', async (t) => {
+  const requestedDays: number[] = []
+  mockFetch(t, {
+    day: (body) => {
+      requestedDays.push(body.day)
+      return new Response(JSON.stringify({ places: [dayPlace(body.day, `p${body.day}`)] }), { status: 200 })
+    },
+  })
+  // A one-day trip arriving at 20:00: buffered start (21:30) falls after the
+  // 08:00–21:00 baseline window entirely, so day 1's target is 0.
+  const result = await fetchAiPlaces(baseInput({ arrivalTime: '20:00' }), 1, 4)
+  assert.deepEqual(requestedDays, [])
   assert.equal(result, undefined)
 })
 
