@@ -409,16 +409,25 @@ export const useTripsStore = defineStore('trips', () => {
     // A flight card (see generateTrip.ts's addFlightPlace) starts with
     // skipGeocode set and no coordinates on purpose — a guessed airport name
     // risks a wrong-but-confident pin. Once the user renames it to something
-    // specific (e.g. "桃園國際機場第二航廈"), that's no longer a guess:
-    // clear the flag and try to actually place it, same best-effort
-    // Nominatim path any other manually-named place already goes through.
-    // Guarded on an actual name change, not just any edit (stay duration,
-    // description, ...), so saving the form without touching the name
-    // doesn't re-fire a geocode attempt on an unrelated edit.
+    // specific (e.g. "桃園國際機場第二航廈"), that's no longer a guess: clear
+    // the flag and try to actually place it. Guarded on an actual name
+    // change, not just any edit (stay duration, description, ...), so
+    // saving the form without touching the name doesn't re-fire a geocode
+    // attempt on an unrelated edit.
     const shouldGeocode = place.skipGeocode && patch.name && patch.name !== place.name
     Object.assign(place, patch)
     if (shouldGeocode) {
       place.skipGeocode = false
+      // Set as geocodeQuery, NOT left for resolveNewPlaceCoords's plain-name
+      // fallback — that fallback appends the TRIP's own destination
+      // city/region (geocodePlace(name, city, region)), which is right for
+      // an ordinary place actually IN the destination but wrong for an
+      // airport: confirmed live against Nominatim, "桃園機場第二航廈, 京都,
+      // 日本" (name + an unrelated trip destination) returns zero results,
+      // while the bare name alone resolves correctly. An airport name is
+      // already a distinctive, self-contained proper noun — geocodeRawQuery
+      // (the geocodeQuery branch) queries it as typed, with nothing appended.
+      place.geocodeQuery = patch.name
       const trip = trips.value.find((item) => item.id === place.tripId)
       if (trip) geocodeNewPlaces([place], trip.destination)
     }

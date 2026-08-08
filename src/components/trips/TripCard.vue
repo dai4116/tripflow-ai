@@ -71,9 +71,15 @@ const emit = defineEmits<{
   delete: []
 }>()
 
+// .trip-grid/.trips-list columns are minmax(220px, 1fr) with no upper cap
+// (see global.scss), so this card can render far wider than its 220px
+// minimum on a large screen — 400 left the photo visibly soft once
+// upscaled to fill a wider card, let alone at 2x retina. 900 stays under
+// api/place-photo.ts's own 1000 cap while comfortably covering realistic
+// card widths at 2x.
 const { url: coverPhotoUrl, onError: onCoverPhotoError } = useCoverPhotoUrl(
   computed(() => props.trip.coverPhotoRef),
-  400,
+  900,
 )
 const { url: coverImageUrl, onError: onCoverImageError } = useImageWithFallback(
   computed(() => props.trip.coverImage),

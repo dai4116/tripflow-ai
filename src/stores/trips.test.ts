@@ -248,10 +248,9 @@ test('updatePlace clears skipGeocode when a skipGeocode place is renamed, handin
   // geocode.ts's Nominatim queue is a module-level singleton, rate-limited
   // to ~1 req/sec and shared with every other test in this run — not
   // something a unit test can reliably await. skipGeocode flipping to false
-  // synchronously (proven here) is what actually re-enables
-  // geocodeNewPlaces's existing, separately-tested fallback path for this
-  // place; whether the queued fetch itself eventually fires isn't new
-  // behavior introduced by updatePlace.
+  // and geocodeQuery being set synchronously (proven here) is what actually
+  // re-enables geocoding for this place; whether the queued fetch itself
+  // eventually fires isn't new behavior introduced by updatePlace.
   stubFetch(t, () => new Response('[]', { status: 200 }))
   const store = freshStore()
   store.trips.push(seedTrip())
@@ -262,6 +261,11 @@ test('updatePlace clears skipGeocode when a skipGeocode place is renamed, handin
   const place = store.places.find((p) => p.id === 'p1')!
   assert.equal(place.skipGeocode, false)
   assert.equal(place.name, '桃園國際機場第二航廈')
+  // geocodeQuery, not left for the plain-name fallback — that composes
+  // "name, [trip destination city/region]", which breaks for an airport
+  // that isn't actually located in the trip's destination (confirmed live
+  // against Nominatim — see updatePlace's own comment).
+  assert.equal(place.geocodeQuery, '桃園國際機場第二航廈')
 })
 
 test('updatePlace leaves skipGeocode alone and never geocodes when the name is unchanged', (t) => {
