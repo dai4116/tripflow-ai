@@ -8,9 +8,12 @@ const DAY_START_TIME = '08:00'
 
 export type ScheduledTime = { time: string; hasOverlap: boolean; hasInvalidDeparture: boolean }
 
-function clockTimeToMinutes(time: string): number {
+// Exported so src/data/generateTrip.ts's day-window math (dayWindowForPace,
+// windowForFlightDay, targetCountForWindow) can share this instead of
+// keeping its own separate "HH:mm" -> minutes parser.
+export function clockTimeToMinutes(time: string): number {
   const [hours, minutes] = time.split(':').map(Number)
-  return hours * 60 + minutes
+  return (Number.isFinite(hours) ? hours : 0) * 60 + (Number.isFinite(minutes) ? minutes : 0)
 }
 
 function isBeforePreviousEnd(time: string, previousEnd: string): boolean {

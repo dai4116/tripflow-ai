@@ -3,9 +3,12 @@ import { stripBilingualName } from './_lib/placeName.js'
 import { distanceKm, geocodeCityCenter, verifyPlace, type GeoPoint } from './_lib/placesVerify.js'
 import {
   buildDayPrompt,
+  CLIENT_HARD_MAX_PLACES_PER_DAY,
   mapWithConcurrency,
+  overAskCountFor,
   PLACE_SCHEMA,
   validateDestination,
+  validateTimeWindow,
   validateTotalDays,
   type AiPlace,
   type TripContext,
@@ -29,10 +32,27 @@ import {
 // for that case — dropped, since nothing ever sent more than one).
 export const config = { maxDuration: 30 }
 
+// Full-day fallback window — used only if a request arrives without
+// windowStart/windowEnd (an old/malformed client body), so this endpoint
+// degrades gracefully instead of 400ing on a field that used to be optional
+// before day-length windows existed.
+const DEFAULT_WINDOW_START = '08:00'
+const DEFAULT_WINDOW_END = '21:00'
+
 type GenerateTripDayBody = TripContext & {
   totalDays?: number
   day?: number
-  placesPerDay?: number
+  // A soft, derived target — see targetCountForWindow in
+  // src/data/generateTrip.ts. No longer an exact cap enforced here (see the
+  // accepted-loop below); the real trim now happens client-side once each
+  // candidate's real estimatedTimeHours is known.
+  targetPlaceCount?: number
+  // 'HH:mm' local time — the day's active-hours window, sized by pace and
+  // narrowed for a flight-affected day (see dayWindowForPace/
+  // windowForFlightDay in src/data/generateTrip.ts). Feeds buildDayPrompt's
+  // window-first framing.
+  windowStart?: string
+  windowEnd?: string
   zones?: ZoneHint[]
   cityCenter?: GeoPoint | null
   // The first-pass day-anchor coordinates, sent only by a backfill request
@@ -71,7 +91,9 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
     additionalNotes,
     totalDays,
     day,
-    placesPerDay,
+    targetPlaceCount,
+    windowStart,
+    windowEnd,
     zones,
     cityCenter: bodyCityCenter,
     existingAnchor,
@@ -87,14 +109,25 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
     res.status(400).json({ error: 'Invalid totalDays' })
     return
   }
-  if (!Number.isInteger(placesPerDay) || placesPerDay! < 1 || placesPerDay! > 10) {
-    res.status(400).json({ error: 'Invalid placesPerDay' })
+  if (!Number.isInteger(targetPlaceCount) || targetPlaceCount! < 1 || targetPlaceCount! > 10) {
+    res.status(400).json({ error: 'Invalid targetPlaceCount' })
     return
   }
   if (!Number.isInteger(day) || day! < 1 || day! > totalDays) {
     res.status(400).json({ error: 'Invalid day' })
     return
   }
+  // Both absent (an old/malformed client body predating day-length windows)
+  // falls back to the full-day default below; either one present without
+  // being a well-formed, correctly-ordered 'HH:mm' pair is rejected outright
+  // rather than silently degrading the AI prompt with garbage/reversed times.
+  const windowProvided = typeof windowStart !== 'undefined' || typeof windowEnd !== 'undefined'
+  if (windowProvided && !validateTimeWindow(windowStart, windowEnd)) {
+    res.status(400).json({ error: 'Invalid windowStart/windowEnd' })
+    return
+  }
+  const effectiveWindowStart = typeof windowStart === 'string' ? windowStart : DEFAULT_WINDOW_START
+  const effectiveWindowEnd = typeof windowEnd === 'string' ? windowEnd : DEFAULT_WINDOW_END
 
   const ctx: TripContext = { destination, travelStyle, preferences, additionalNotes }
   const zoneHints = Array.isArray(zones) ? zones : []
@@ -115,7 +148,12 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
         max_tokens: 8000,
         thinking: { type: 'disabled' },
         output_config: { format: { type: 'json_schema', schema: PLACE_SCHEMA } },
-        messages: [{ role: 'user', content: buildDayPrompt(ctx, day!, totalDays!, placesPerDay!, zoneHints, arrivalTime, departureTime) }],
+        messages: [
+          {
+            role: 'user',
+            content: buildDayPrompt(ctx, day!, totalDays!, targetPlaceCount!, effectiveWindowStart, effectiveWindowEnd, zoneHints, arrivalTime, departureTime),
+          },
+        ],
       },
       { signal: controller.signal },
     )
@@ -153,8 +191,9 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
     if (!googleKey) {
       // No Places key configured — hand back the AI's picks (still
       // day-tagged) without coordinates; the client geocodes via Nominatim
-      // as before. src/data/generateTrip.ts caps each day at placesPerDay
-      // itself, so returning the full over-asked list here is fine.
+      // as before. src/data/generateTrip.ts trims each day to its own
+      // duration-budget window itself, so returning the full over-asked list
+      // here is fine.
       res.status(200).json({ places: aiPlaces })
       return
     }
@@ -195,10 +234,9 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
       return true
     })
 
-    // Cap at placesPerDay, in the AI's own confidence order, and guard
-    // against this day's candidates spanning an impractically wide area — a
-    // candidate can be real and in-bounds for the whole city while still
-    // being far from the other places already accepted for this day.
+    // Guard against this day's candidates spanning an impractically wide
+    // area — a candidate can be real and in-bounds for the whole city while
+    // still being far from the other places already accepted for this day.
     // existingAnchor (backfill requests only) seeds this from the first
     // pass's already-accepted places for the SAME day, so a backfill
     // candidate has to be geographically consistent with what's already
@@ -209,10 +247,18 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
     // trip, where the flower fields and viewpoints genuinely spread over
     // 20-30km) doesn't get gutted the same way MAX_KM_FROM_CITY above did.
     const MAX_KM_FROM_DAY_ANCHOR = 40
+    // A loose sanity ceiling, not an exact cap — the precise trim against
+    // this day's real duration budget happens client-side in
+    // generateTrip.ts once every candidate's estimatedTimeHours is known.
+    // Also capped at CLIENT_HARD_MAX_PLACES_PER_DAY: the client's walk never
+    // keeps more than that many places for one day regardless of
+    // targetPlaceCount, so shipping more than that back (each carrying full
+    // Google Places verification data) would just be discarded, wasted payload.
+    const MAX_ACCEPTED_PER_DAY = Math.min(overAskCountFor(targetPlaceCount!), CLIENT_HARD_MAX_PLACES_PER_DAY)
     let anchor: GeoPoint | null = existingAnchor ?? null
     const accepted: typeof deduped = []
     for (const hit of deduped) {
-      if (accepted.length >= placesPerDay!) break
+      if (accepted.length >= MAX_ACCEPTED_PER_DAY) break
       const hitPoint: GeoPoint = { lat: hit.lat, lng: hit.lng }
       if (anchor) {
         const km = distanceKm(anchor, hitPoint)

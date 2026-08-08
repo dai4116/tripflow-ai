@@ -84,32 +84,32 @@ describe('CreateTripPage', () => {
     expect(globalThis.fetch).not.toHaveBeenCalled()
   })
 
-  it('caps travel style selection at 2 and lets a selected one toggle back off', async () => {
+  it('behaves as single-select: picking a new style swaps it, clicking the selected one is a no-op', async () => {
     stubFetch()
     const { wrapper } = await mountPage()
     const pills = () => wrapper.findAll('.choice-pill')
     const byLabel = (label: string) => pills().find((p) => p.text().includes(label))!
+    const selectedLabels = () => pills().filter((p) => p.classes().includes('choice-pill--selected')).map((p) => p.text())
 
     // '深度探索' is selected by default.
     expect(byLabel('深度探索').classes()).toContain('choice-pill--selected')
+    expect(selectedLabels()).toHaveLength(1)
 
-    await byLabel('精準規劃').trigger('click') // 2nd selection, now at the cap
+    await byLabel('精準規劃').trigger('click') // picking a different style swaps the selection
     expect(byLabel('精準規劃').classes()).toContain('choice-pill--selected')
-
-    await byLabel('自在慢旅').trigger('click') // 3rd — over the cap, ignored
-    expect(byLabel('自在慢旅').classes()).not.toContain('choice-pill--selected')
-
-    await byLabel('深度探索').trigger('click') // deselect one of the two
     expect(byLabel('深度探索').classes()).not.toContain('choice-pill--selected')
+    expect(selectedLabels()).toHaveLength(1)
 
-    await byLabel('自在慢旅').trigger('click') // room again now
-    expect(byLabel('自在慢旅').classes()).toContain('choice-pill--selected')
+    await byLabel('精準規劃').trigger('click') // clicking the already-selected pill is a no-op, never deselects to zero
+    expect(byLabel('精準規劃').classes()).toContain('choice-pill--selected')
+    expect(selectedLabels()).toHaveLength(1)
   })
 
   it('toggles a preference chip on and off with no selection cap', async () => {
     stubFetch()
     const { wrapper } = await mountPage()
-    const chip = wrapper.findAll('.preference-chip').find((c) => c.text() === '熱門打卡')!
+    // Not one of the pre-selected defaults, so the first click actually selects it.
+    const chip = wrapper.findAll('.preference-chip').find((c) => c.text() === '人文古蹟')!
 
     await chip.trigger('click')
     expect(chip.classes()).toContain('preference-chip--selected')

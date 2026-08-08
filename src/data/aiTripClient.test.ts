@@ -12,6 +12,16 @@ import type { CreateTripInput } from '../types/index.ts'
 import { dedupeByPlaceId, daysNeedingBackfill, fetchAiPlaces, findExistingAnchor } from './aiTripClient.ts'
 import type { PlaceSuggestion } from './generateTrip.ts'
 
+// A generic non-zero-length placeholder window, for tests that don't care
+// what the actual target place count comes out to.
+const PLACEHOLDER_WINDOW = { start: '08:00', end: '09:00' }
+const ZERO_WINDOW = { start: '08:00', end: '08:00' }
+// targetCountForWindow(180 minutes) rounds to 2 — used by the
+// daysNeedingBackfill tests below, which test its count-comparison logic
+// directly rather than the window -> count derivation (covered in
+// generateTrip.test.ts).
+const TARGET_2_WINDOW = { start: '08:00', end: '11:00' }
+
 function baseInput(overrides: Partial<CreateTripInput> = {}): CreateTripInput {
   return {
     destination: '京都，日本',
@@ -41,13 +51,13 @@ test('daysNeedingBackfill flags every day under quota and ignores places with no
     { day: 2, name: 'B1', category: 'attraction', description: 'd' },
     { name: 'Untagged', category: 'attraction', description: 'd' },
   ]
-  assert.deepEqual(daysNeedingBackfill(places, 3, () => 2), [2, 3])
+  assert.deepEqual(daysNeedingBackfill(places, 3, () => TARGET_2_WINDOW), [2, 3])
 })
 
-test('daysNeedingBackfill never flags a day whose target is 0', () => {
+test('daysNeedingBackfill never flags a day whose window (and therefore target) is zero-length', () => {
   const places: PlaceSuggestion[] = [{ day: 1, name: 'A1', category: 'attraction', description: 'd' }]
   assert.deepEqual(
-    daysNeedingBackfill(places, 2, (day) => (day === 2 ? 0 : 2)),
+    daysNeedingBackfill(places, 2, (day) => (day === 2 ? ZERO_WINDOW : TARGET_2_WINDOW)),
     [1],
   )
 })
@@ -91,7 +101,7 @@ test('fetchAiPlaces still fetches every day when plan-trip-zones fails', async (
     zones: () => new Response('', { status: 500 }),
     day: (body) => new Response(JSON.stringify({ places: [dayPlace(body.day, `p${body.day}`)] }), { status: 200 }),
   })
-  const result = await fetchAiPlaces(baseInput({ startDate: '2024-03-01', endDate: '2024-03-02' }), 2, 1)
+  const result = await fetchAiPlaces(baseInput({ startDate: '2024-03-01', endDate: '2024-03-02' }), 2, PLACEHOLDER_WINDOW)
   assert.deepEqual(
     result?.map((p) => p.placeId).sort(),
     ['p1', 'p2'],
@@ -108,7 +118,7 @@ test('fetchAiPlaces treats a non-2xx day response as empty and backfills it in a
       return new Response(JSON.stringify({ places: [dayPlace(2, 'p2')] }), { status: 200 })
     },
   })
-  const result = await fetchAiPlaces(baseInput({ startDate: '2024-03-01', endDate: '2024-03-02' }), 2, 1)
+  const result = await fetchAiPlaces(baseInput({ startDate: '2024-03-01', endDate: '2024-03-02' }), 2, PLACEHOLDER_WINDOW)
   assert.equal(day2Attempts, 2)
   assert.deepEqual(
     result?.map((p) => p.placeId).sort(),
@@ -129,35 +139,39 @@ test('fetchAiPlaces dedupes the same real place suggested for two different days
       return new Response(JSON.stringify({ places: [dayPlace(2, 'day2-real')] }), { status: 200 })
     },
   })
-  const result = await fetchAiPlaces(baseInput({ startDate: '2024-03-01', endDate: '2024-03-02' }), 2, 1)
+  const result = await fetchAiPlaces(baseInput({ startDate: '2024-03-01', endDate: '2024-03-02' }), 2, PLACEHOLDER_WINDOW)
   const placeIds = result?.map((p) => p.placeId).sort()
   assert.deepEqual(placeIds, ['day2-real', 'dup1'])
 })
 
 test('fetchAiPlaces returns undefined when every day comes back empty even after backfill', async (t) => {
   mockFetch(t, { day: () => new Response('', { status: 500 }) })
-  const result = await fetchAiPlaces(baseInput(), 1, 1)
+  const result = await fetchAiPlaces(baseInput(), 1, PLACEHOLDER_WINDOW)
   assert.equal(result, undefined)
 })
 
-test('fetchAiPlaces requests fewer places for day 1 when arrivalTime narrows its window, and passes arrivalTime through only for that day', async (t) => {
-  const dayBodies: Array<{ day: number; placesPerDay: number; arrivalTime?: string; departureTime?: string }> = []
+test('fetchAiPlaces narrows day 1\'s window when arrivalTime shortens it, and passes arrivalTime through only for that day', async (t) => {
+  const dayBodies: Array<{ day: number; targetPlaceCount: number; windowStart: string; windowEnd: string; arrivalTime?: string; departureTime?: string }> = []
   mockFetch(t, {
     day: (body) => {
       dayBodies.push(body)
       return new Response(JSON.stringify({ places: [dayPlace(body.day, `p${body.day}`)] }), { status: 200 })
     },
   })
-  await fetchAiPlaces(
-    baseInput({ startDate: '2024-03-01', endDate: '2024-03-02', arrivalTime: '14:00' }),
-    2,
-    4,
-  )
+  await fetchAiPlaces(baseInput({ startDate: '2024-03-01', endDate: '2024-03-02', arrivalTime: '14:00' }), 2, { start: '08:00', end: '21:00' })
   const day1 = dayBodies.find((body) => body.day === 1)!
   const day2 = dayBodies.find((body) => body.day === 2)!
-  assert.ok(day1.placesPerDay > 0 && day1.placesPerDay < 4, `expected day 1's placesPerDay to be thinned below 4, got ${day1.placesPerDay}`)
+  // Arriving 14:00 -> buffered start 15:30, narrowing day 1's window and
+  // therefore its derived targetPlaceCount below day 2's untouched one.
+  assert.equal(day1.windowStart, '15:30')
+  assert.equal(day1.windowEnd, '21:00')
+  assert.ok(
+    day1.targetPlaceCount > 0 && day1.targetPlaceCount < day2.targetPlaceCount,
+    `expected day 1's targetPlaceCount to be thinned below day 2's, got ${day1.targetPlaceCount} vs ${day2.targetPlaceCount}`,
+  )
   assert.equal(day1.arrivalTime, '14:00')
-  assert.equal(day2.placesPerDay, 4)
+  assert.equal(day2.windowStart, '08:00')
+  assert.equal(day2.windowEnd, '21:00')
   assert.equal(day2.arrivalTime, undefined)
 })
 
@@ -170,8 +184,9 @@ test('fetchAiPlaces skips a day entirely (no request at all) when a flight leave
     },
   })
   // A one-day trip arriving at 20:00: buffered start (21:30) falls after the
-  // 08:00–21:00 baseline window entirely, so day 1's target is 0.
-  const result = await fetchAiPlaces(baseInput({ arrivalTime: '20:00' }), 1, 4)
+  // 08:00-21:00 base window entirely, so day 1's window collapses to zero
+  // length and gets skipped.
+  const result = await fetchAiPlaces(baseInput({ arrivalTime: '20:00' }), 1, { start: '08:00', end: '21:00' })
   assert.deepEqual(requestedDays, [])
   assert.equal(result, undefined)
 })
@@ -191,7 +206,7 @@ test('fetchAiPlaces sends a short day\'s existing accepted place as existingAnch
       return new Response(JSON.stringify({ places: [dayPlace(1, 'second')] }), { status: 200 })
     },
   })
-  await fetchAiPlaces(baseInput(), 1, 2)
+  await fetchAiPlaces(baseInput(), 1, TARGET_2_WINDOW)
   assert.equal(backfillBodies.length, 1)
   assert.deepEqual(backfillBodies[0]!.existingAnchor, { lat: 25.03, lng: 121.56 })
 })

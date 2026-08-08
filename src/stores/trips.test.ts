@@ -422,10 +422,10 @@ test('createTrip never fires a Nominatim geocode for the flight cards it adds wh
   })
   const store = freshStore()
 
-  // 2 days, not 1 — a 1-day trip with both a 15:00 arrival and a 20:00
-  // departure leaves only a 2-hour window after both buffers, which thins
-  // that single day's AI placesPerDay to 0 and makes fetchAiPlaces (and so
-  // createTrip) fail outright; unrelated to what this test is checking.
+  // 2 days, not 1 — deliberately sidesteps flight-timing edge cases (e.g. a
+  // 1-day trip with both an arrival and departure squeezing that single
+  // day's window very short, or to nothing at all) that are unrelated to
+  // what this test is actually checking.
   const trip = await store.createTrip(
     baseInput({ startDate: '2024-03-01', endDate: '2024-03-02', arrivalTime: '15:00', departureTime: '20:00' }),
   )

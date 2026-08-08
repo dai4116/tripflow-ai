@@ -1,6 +1,10 @@
 import { nanoid } from 'nanoid'
-import { addMinutes } from './placeSchedule.ts'
+import { addMinutes, clockTimeToMinutes } from './placeSchedule.ts'
 import type { CreateTripInput, Place, PlaceCategory, Trip, TripColumn, TripPace } from '../types'
+
+// A day's active-hours window, 'HH:mm' local time. Exported so
+// aiTripClient.ts can share this instead of redeclaring the same shape.
+export type DayWindow = { start: string; end: string }
 
 const TRIP_PALETTE = ['#e8618c', '#00c5ab', '#d98324', '#4a7de0']
 
@@ -15,111 +19,156 @@ export function dayColorForIndex(index: number): string {
   return DAY_COLORS[index % DAY_COLORS.length]!
 }
 
-// Each style's own pace, expressed directly as a places-per-day number —
-// not just a TripPace bucket — because multi-select (up to 2 styles) needs
-// to average two styles' numbers together (see paceForTravelStyles).
-// PLACES_PER_DAY's three values below are evenly spaced (3/4/5), so
-// averaging the raw numbers first and mapping back to a bucket afterward
-// always lands exactly on one of the three; there's no fractional pace with
-// no bucket to hold it.
-const TRAVEL_STYLE_PLACES_PER_DAY: Record<string, number> = {
-  精準規劃: 5,
-  自在慢旅: 3,
-  深度探索: 4,
-  熱血冒險: 5,
+// Each style's own pace bucket — single-select now (see CreateTripPage.vue),
+// so this is a direct style -> pace lookup, no averaging needed. Preserves
+// the same effective mapping the old evenly-spaced place-count numbers
+// implied (精準規劃/熱血冒險 -> packed, 深度探索 -> balanced, 自在慢旅 ->
+// relaxed).
+const TRAVEL_STYLE_PACE: Record<string, TripPace> = {
+  精準規劃: 'packed',
+  自在慢旅: 'relaxed',
+  深度探索: 'balanced',
+  熱血冒險: 'packed',
 }
 
-// How many places make up one day's column, by pace — a relaxed trip leaves
-// more breathing room, a packed one fits more in. Days are built purely from
-// AI suggestions (see the columns loop below), so whether a day actually
-// includes a food-category place depends on the model following the meal-slot
-// instruction in api/_lib/tripGen.ts's prompt, not on anything enforced here.
-const PLACES_PER_DAY: Record<TripPace, number> = {
-  relaxed: 3,
-  balanced: 4,
-  packed: 5,
+// Resolves the selected travel style into a pace. Single-select means at
+// most one style is ever passed in; falls back to 'balanced' when nothing
+// resolves (no selection, or an unrecognized style name) rather than
+// propagating undefined.
+export function paceForTravelStyles(travelStyles: string[]): TripPace {
+  return TRAVEL_STYLE_PACE[travelStyles[0] ?? ''] ?? 'balanced'
 }
 
-export function placesPerDayForPace(pace: TripPace): number {
-  return PLACES_PER_DAY[pace]
+// How long a day's active hours run, by pace — a relaxed trip leaves more
+// breathing room (ends earlier), a packed one fits more in (ends later). The
+// actual number of places that land in a day falls out of this window
+// budget (see the columns loop's duration-budget walk below) rather than
+// being a flat count target, so a day of mostly quick photo-stop attractions
+// naturally fits more than a day with a couple of half-day museums.
+const DAY_WINDOW_BY_PACE: Record<TripPace, DayWindow> = {
+  relaxed: { start: '08:00', end: '17:00' },
+  balanced: { start: '08:00', end: '19:00' },
+  packed: { start: '08:00', end: '21:00' },
 }
 
-// Baseline day used as the 100% reference when thinning a flight-shortened
-// day's placesPerDay below — not the same constant as placeSchedule.ts's own
-// DAY_START_TIME (08:00 there is the cascade's default, unrelated to this
-// ratio calculation), so duplicated locally rather than imported.
-const FLIGHT_DAY_START = '08:00'
-const FLIGHT_DAY_END = '21:00'
+export function dayWindowForPace(pace: TripPace): DayWindow {
+  return DAY_WINDOW_BY_PACE[pace]
+}
+
 // Customs/immigration + getting from the airport into the city (arrival), or
 // getting back to the airport in time (departure) — an itinerary's places
 // don't realistically start/end right at the gate.
 const AIRPORT_BUFFER_MIN = 90
 
-function hhmmToMinutes(value: string): number {
-  const [hours, minutes] = value.split(':').map(Number)
-  return (Number.isFinite(hours) ? hours : 0) * 60 + (Number.isFinite(minutes) ? minutes : 0)
+function minutesToHHMM(minutes: number): string {
+  const clamped = Math.max(0, Math.round(minutes))
+  return `${String(Math.floor(clamped / 60)).padStart(2, '0')}:${String(clamped % 60).padStart(2, '0')}`
 }
 
 // Deliberately NOT placeSchedule.ts's addMinutes/minutesBetween, which wrap
 // past midnight (meant for a stay crossing into the next day). The values
-// here are one-off window boundaries for a single same-day ratio
-// calculation — a buffered arrival of 23:00+90min must stay "1470", further
-// past the window's end, not wrap around to "00:30" and read as EARLY in
-// the day. (A real bug: that wrap used to make scalePlacesPerDayToWindow
-// treat a 23:00 arrival as leaving MORE room than a 21:00 one.) Deliberately
-// left un-clamped to [0, 1439] — minutesAvailable below clamps the final
-// availability to >= 0, which is all that actually matters here.
+// here are one-off window boundaries for a single same-day calculation — a
+// buffered arrival of 23:00+90min must stay "1470", further past the
+// window's end, not wrap around to "00:30" and read as EARLY in the day (a
+// real bug in an earlier version of this file's ratio-based scaling).
+// Deliberately left un-clamped to [0, 1439] — minutesAvailable below clamps
+// the final availability to >= 0, which is all that actually matters here.
 function minutesAvailable(startMinutes: number, endMinutes: number): number {
   return Math.max(0, endMinutes - startMinutes)
 }
 
-function scalePlacesPerDayToWindow(basePlacesPerDay: number, windowStartMinutes: number, windowEndMinutes: number): number {
-  const fullMinutes = hhmmToMinutes(FLIGHT_DAY_END) - hhmmToMinutes(FLIGHT_DAY_START)
-  const availableMinutes = minutesAvailable(windowStartMinutes, windowEndMinutes)
-  return Math.max(0, Math.min(basePlacesPerDay, Math.floor((basePlacesPerDay * availableMinutes) / fullMinutes)))
-}
-
-// Thins a day's placesPerDay when that day is shortened by a flight — day 1
-// by a late arrival, the trip's last day by an early departure (both, for a
-// one-day trip with both set). Every other day is untouched. Floors rather
-// than rounds so a badly truncated window (e.g. a 23:00 arrival) can land on
-// 0 instead of forcing in a stop that doesn't actually fit — callers must
-// treat 0 as "skip this day", not "at least one place".
-export function placesPerDayForFlightDay(
-  basePlacesPerDay: number,
+// Narrows a day's window when that day is shortened by a flight — day 1 by a
+// late arrival, the trip's last day by an early departure (both, for a
+// one-day trip with both set). Every other day is untouched. Simpler than
+// the count-scaling this replaced: there's no "full baseline" to scale a
+// count against anymore, since the window itself now IS the baseline — this
+// just clips it directly against the flight buffer.
+export function windowForFlightDay(
+  baseWindow: DayWindow,
   dayNumber: number,
   totalDays: number,
   input: Pick<CreateTripInput, 'arrivalTime' | 'departureTime'>,
-): number {
+): DayWindow {
   const isFlightDay = (dayNumber === 1 && input.arrivalTime) || (dayNumber === totalDays && input.departureTime)
-  if (!isFlightDay) return basePlacesPerDay
+  if (!isFlightDay) return baseWindow
 
-  const windowStartMinutes =
-    dayNumber === 1 && input.arrivalTime ? hhmmToMinutes(input.arrivalTime) + AIRPORT_BUFFER_MIN : hhmmToMinutes(FLIGHT_DAY_START)
-  const windowEndMinutes =
+  const startMinutes =
+    dayNumber === 1 && input.arrivalTime
+      ? Math.max(clockTimeToMinutes(baseWindow.start), clockTimeToMinutes(input.arrivalTime) + AIRPORT_BUFFER_MIN)
+      : clockTimeToMinutes(baseWindow.start)
+  const endMinutes =
     dayNumber === totalDays && input.departureTime
-      ? hhmmToMinutes(input.departureTime) - AIRPORT_BUFFER_MIN
-      : hhmmToMinutes(FLIGHT_DAY_END)
-  return scalePlacesPerDayToWindow(basePlacesPerDay, windowStartMinutes, windowEndMinutes)
+      ? Math.min(clockTimeToMinutes(baseWindow.end), clockTimeToMinutes(input.departureTime) - AIRPORT_BUFFER_MIN)
+      : clockTimeToMinutes(baseWindow.end)
+
+  // A zero/negative-length window means the flight leaves no usable time at
+  // all — callers (targetCountForWindow, aiTripClient.ts) must treat that as
+  // "skip this day", not "at least one place", same as the old design's
+  // count-of-0 convention.
+  if (endMinutes <= startMinutes) return { start: baseWindow.start, end: baseWindow.start }
+  return { start: minutesToHHMM(startMinutes), end: minutesToHHMM(endMinutes) }
 }
 
-// Resolves the (up to 2) selected travel styles into one pace. A single
-// style just uses its own number; two styles average their places-per-day
-// numbers and round — e.g. 精準規劃(5) + 自在慢旅(3) averages to exactly 4
-// (balanced); 精準規劃(5) + 深度探索(4) averages to 4.5, which Math.round
-// takes up to 5 (packed). Falls back to 'balanced' when nothing resolves (no
-// selection, or an unrecognized style name) rather than propagating NaN.
-export function paceForTravelStyles(travelStyles: string[]): TripPace {
-  const values = travelStyles
-    .map((style) => TRAVEL_STYLE_PLACES_PER_DAY[style])
-    .filter((value): value is number => value !== undefined)
-  if (values.length === 0) return 'balanced'
+// Assumed minutes per stop (typical duration + a travel allowance), used
+// only to size a SOFT candidate-count guide sent to the AI prompt — the real
+// per-day place count falls out of the duration-budget walk in the columns
+// loop below, once actual estimatedTimeHours values are known. 105 min/stop
+// keeps the resulting targets (relaxed~5, balanced~6, packed~7) close to the
+// old flat 3/4/5 counts, so over-ask sizing and server verification
+// throughput don't need retuning.
+const ASSUMED_MINUTES_PER_STOP = 105
+const HARD_MAX_PLACES_PER_DAY = 7
 
-  const averaged = Math.round(values.reduce((sum, value) => sum + value, 0) / values.length)
-  const matchingPace = (Object.entries(PLACES_PER_DAY) as Array<[TripPace, number]>).find(
-    ([, count]) => count === averaged,
-  )
-  return matchingPace?.[0] ?? 'balanced'
+// The shortest a single place's clamped duration can ever be (see
+// MIN_ESTIMATED_HOURS below, shared here so both agree on what "too short
+// for even one stop" means) — declared before resolveEstimatedTime since
+// targetCountForWindow needs it too.
+const MIN_ESTIMATED_HOURS = 0.5
+const MAX_ESTIMATED_HOURS = 6
+
+// A window shorter than the shortest possible single stop isn't just
+// "round(minutes/105) happens to hit 0" — it's genuinely too short for even
+// one place, and must be treated the same as a fully zero-length window
+// (skip this day), not floored back up to 1. Without this, windowForFlightDay
+// only collapses a window to zero-length once the flight buffer fully
+// overtakes it — a tiny surviving sliver (e.g. 5 minutes left after a late
+// arrival's 90-minute buffer) would otherwise still report a target of 1,
+// and the columns loop's "always keep at least one place" rule would then
+// force a full-length place into a window that can't actually fit it.
+export function targetCountForWindow(window: DayWindow): number {
+  const minutes = minutesAvailable(clockTimeToMinutes(window.start), clockTimeToMinutes(window.end))
+  if (minutes < MIN_ESTIMATED_HOURS * 60) return 0
+  return Math.max(1, Math.min(HARD_MAX_PLACES_PER_DAY, Math.round(minutes / ASSUMED_MINUTES_PER_STOP)))
+}
+
+// Places that are "fixed obligations, not a budgeted experience" (see
+// isRouteAnchor in AskAiPanel.vue, which excludes the same two categories
+// from AI route-reordering for the same reason) always use a small fixed
+// duration rather than the AI's estimate — a hotel check-in or a transit
+// leg isn't something to budget real sightseeing time against.
+const FIXED_OBLIGATION_CATEGORIES: PlaceCategory[] = ['stay', 'transport']
+
+const DEFAULT_DURATION_BY_CATEGORY: Record<PlaceCategory, number> = {
+  food: 1,
+  attraction: 1.5,
+  shopping: 1,
+  stay: 0.5,
+  transport: 0.25,
+  other: 1,
+}
+
+// Resolves a place's stay duration: the AI's own estimate (see
+// estimatedTimeHours in api/_lib/tripGen.ts's PLACE_SCHEMA), clamped to a
+// sane range, or a per-category default when there's no AI estimate at all
+// (manually-added places) or the value is missing/invalid. stay/transport
+// always use their fixed default regardless of any AI value — see
+// FIXED_OBLIGATION_CATEGORIES above.
+export function resolveEstimatedTime(category: PlaceCategory, aiHours?: number): number {
+  if (FIXED_OBLIGATION_CATEGORIES.includes(category)) return DEFAULT_DURATION_BY_CATEGORY[category]
+  if (typeof aiHours === 'number' && Number.isFinite(aiHours)) {
+    return Math.min(MAX_ESTIMATED_HOURS, Math.max(MIN_ESTIMATED_HOURS, aiHours))
+  }
+  return DEFAULT_DURATION_BY_CATEGORY[category]
 }
 
 export type PlaceSuggestion = {
@@ -164,6 +213,12 @@ export type PlaceSuggestion = {
   // below. Absent for locally-templated suggestions, which orderDayPlaces
   // treats the same as 'anytime' (no ordering opinion).
   timeOfDay?: 'morning' | 'afternoon' | 'evening' | 'anytime'
+  // AI-supplied guess at typical visitor stay length in hours — see
+  // resolveEstimatedTime, which clamps/falls back on this. Optional (rather
+  // than trusting the schema's `required` at face value) since this crosses
+  // a network boundary — a truncated stream or a future model revision could
+  // still omit it in practice. Absent for locally-templated suggestions.
+  estimatedTimeHours?: number
 }
 
 // Trip/template destinations are free text like "京都，日本" — the part
@@ -197,7 +252,7 @@ function daysBetween(startDate: string, endDate: string): number {
   return Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
 }
 
-// Exported so callers can size an AI place request (days * placesPerDayForPace(pace))
+// Exported so callers can size an AI place request (days * dayWindowForPace(pace))
 // before the deterministic trip scaffolding runs, without duplicating the clamp logic.
 // Takes just the date fields (not the full CreateTripInput) so the create-trip
 // form can also use it to preview the day count before submitting.
@@ -296,6 +351,48 @@ function orderDayPlaces(suggestions: PlaceSuggestion[]): PlaceSuggestion[] {
   return ordered
 }
 
+// A flat assumed gap between consecutive stops (typical short transit/buffer
+// time), used only to decide which suggestions fit a day's window — not the
+// real routed travel time placeSchedule.ts's computeArrivalTimes uses for
+// the actual displayed schedule (via travelToNext, defaulting to 0 when not
+// yet known). The two are intentionally separate: this one sizes generation
+// before any place is geocoded or routed, that one renders the real result
+// once it is.
+const INTER_STOP_BUFFER_MIN = 25
+
+// Pure selection: which of a day's ordered suggestions (see orderDayPlaces)
+// actually get used, given its active-hours window and each one's real
+// estimated duration. Kept separate from addPlace's side effect (mutating
+// the outer `places` array) so "which places fit this window" is a decision
+// that can be reasoned about — and tested — on its own.
+export function selectPlacesForWindow(dayPlaces: PlaceSuggestion[], dayWindow: DayWindow): PlaceSuggestion[] {
+  // A window too short to fit even one place at all (see
+  // targetCountForWindow's own floor) skips selection entirely rather than
+  // reaching the "keep at least one" rule below — windowForFlightDay's own
+  // contract is that callers treat that case as "skip this day," and this
+  // function is exported/usable standalone, so it can't rely on the caller
+  // (aiTripClient.ts) having already honored that contract by never sending
+  // suggestions for such a day.
+  if (targetCountForWindow(dayWindow) === 0) return []
+
+  const windowEndMinutes = clockTimeToMinutes(dayWindow.end)
+  let cursorMinutes = clockTimeToMinutes(dayWindow.start)
+  const selected: PlaceSuggestion[] = []
+  for (const suggestion of dayPlaces) {
+    if (selected.length >= HARD_MAX_PLACES_PER_DAY) break
+    const hours = resolveEstimatedTime(suggestion.category, suggestion.estimatedTimeHours)
+    const projectedEndMinutes = cursorMinutes + hours * 60
+    // Never produce an empty day just because the very first candidate alone
+    // overshoots the window — always keep at least one place if any exist,
+    // same "a short day is legitimate" logic this file has always used for
+    // verification shortfalls.
+    if (selected.length > 0 && projectedEndMinutes > windowEndMinutes) break
+    selected.push(suggestion)
+    cursorMinutes = projectedEndMinutes + INTER_STOP_BUFFER_MIN
+  }
+  return selected
+}
+
 // aiPlaces (merged from many /api/generate-trip-day requests — see
 // aiTripClient.ts) supplies the
 // name/category/description/travelTip for each place, in visit order, and —
@@ -305,10 +402,10 @@ function orderDayPlaces(suggestions: PlaceSuggestion[]): PlaceSuggestion[] {
 // built purely from aiPlaces; a slot with no suggestion is left empty rather
 // than backfilled (see the columns loop).
 //
-// placesPerDay accepts an override so the one real caller (trips.ts's
+// baseWindow accepts an override so the one real caller (trips.ts's
 // createTrip, which already computes it to size the AI request) can pass
-// the exact value it used instead of this function re-deriving an identical
-// number a moment later from the same input — two calls to the same pure
+// the exact window it used instead of this function re-deriving an identical
+// one a moment later from the same input — two calls to the same pure
 // function currently agree, but only by coincidence of both reading
 // input.travelStyle the same way; passing it through removes that
 // coincidence as a requirement. Left optional (falling back to the same
@@ -317,12 +414,12 @@ export function generateTrip(
   input: CreateTripInput,
   existingTripIds: string[],
   aiPlaces?: PlaceSuggestion[],
-  placesPerDay?: number,
+  baseWindow?: DayWindow,
 ): { trip: Trip; places: Place[] } {
   const city = cityFromDestination(input.destination)
   const days = computeTripDays(input)
   const pace = paceForTravelStyles(input.travelStyle)
-  const resolvedPlacesPerDay = placesPerDay ?? placesPerDayForPace(pace)
+  const resolvedWindow = baseWindow ?? dayWindowForPace(pace)
   const tripId = `${slugify(input.destination)}-${nanoid(6)}`
   const color = TRIP_PALETTE[existingTripIds.length % TRIP_PALETTE.length]!
 
@@ -334,7 +431,7 @@ export function generateTrip(
       tripId,
       name: suggestion.name,
       category: suggestion.category,
-      estimatedTime: 1,
+      estimatedTime: resolveEstimatedTime(suggestion.category, suggestion.estimatedTimeHours),
       address: input.destination,
       // Coordinates come from the suggestion when it was verified server-side
       // against Google Places (the normal path — the place is pinned on the
@@ -407,22 +504,16 @@ export function generateTrip(
     const dayNumber = index + 1
     const columnId = `day-${dayNumber}`
     const dayPlaces = orderDayPlaces(suggestionsByDay.get(dayNumber) ?? [])
-    // Day 1 / the last day get fewer slots than resolvedPlacesPerDay when a
-    // flight arrival/departure narrows their usable hours — see
-    // placesPerDayForFlightDay. Every other day is untouched.
-    const dayCap = placesPerDayForFlightDay(resolvedPlacesPerDay, dayNumber, days, input)
-    const placeIds: string[] = []
-    for (let i = 0; i < dayCap; i++) {
-      const suggestion = dayPlaces[i]
-      // Days are built ONLY from real (AI + server-verified) suggestions now.
-      // A slot with no suggestion is left empty rather than backfilled —
-      // since createTrip verifies every place against Google Places and
-      // drops any it can't find, backfilling would silently reintroduce a
-      // generic/un-pinnable place, exactly what verification exists to
-      // prevent. A short day just has fewer, all-real places.
-      if (!suggestion) continue
-      placeIds.push(addPlace(suggestion, columnId).id)
-    }
+    // Day 1 / the last day get a narrower window than resolvedWindow when a
+    // flight arrival/departure shortens their usable hours — see
+    // windowForFlightDay. Every other day is untouched.
+    const dayWindow = windowForFlightDay(resolvedWindow, dayNumber, days, input)
+    // Which of this day's places actually get used — driven by the window's
+    // real duration budget, not a flat per-day count — see
+    // selectPlacesForWindow. Days are still built ONLY from real (AI +
+    // server-verified) suggestions; a day just ends whenever its own
+    // suggestions or its time budget runs out, whichever comes first.
+    const placeIds = selectPlacesForWindow(dayPlaces, dayWindow).map((suggestion) => addPlace(suggestion, columnId).id)
 
     // Prepend/append a real flight card rather than writing an invisible
     // per-day schedule override — unshift/push happen outside orderDayPlaces
@@ -444,7 +535,7 @@ export function generateTrip(
         '前往機場',
         `航班表定 ${input.departureTime} 起飛，建議提前抵達機場辦理登機`,
         addMinutes(input.departureTime, -AIRPORT_BUFFER_MIN),
-        1,
+        AIRPORT_BUFFER_MIN / 60,
         columnId,
       )
       placeIds.push(departurePlace.id)

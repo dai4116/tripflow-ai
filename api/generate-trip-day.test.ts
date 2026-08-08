@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { afterEach, beforeEach, mock, test } from 'node:test'
+import { CLIENT_HARD_MAX_PLACES_PER_DAY } from './_lib/tripGen.ts'
 
 type StreamResult = { content: { type: string; text?: string }[] }
 let currentStream: () => { finalMessage: () => Promise<StreamResult> } = () => {
@@ -37,9 +38,9 @@ function textStream(payload: unknown) {
   return () => ({ finalMessage: async () => ({ content: [{ type: 'text', text: JSON.stringify(payload) }] }) })
 }
 
-type Candidate = { day: number; category: string; name: string; geocodeQuery: string; description: string }
+type Candidate = { day: number; category: string; name: string; geocodeQuery: string; description: string; estimatedTimeHours: number }
 function candidate(name: string, day: number, geocodeQuery = name): Candidate {
-  return { day, category: 'attraction', name, geocodeQuery, description: 'd' }
+  return { day, category: 'attraction', name, geocodeQuery, description: 'd', estimatedTimeHours: 1.5 }
 }
 
 let originalAnthropicKey: string | undefined
@@ -59,7 +60,7 @@ afterEach(() => {
   else process.env.GOOGLE_PLACES_API_KEY = originalGoogleKey
 })
 
-const BASE_BODY = { destination: '京都，日本', totalDays: 3, placesPerDay: 2, day: 2 }
+const BASE_BODY = { destination: '京都，日本', totalDays: 3, targetPlaceCount: 2, day: 2 }
 
 test('rejects a non-POST method', async () => {
   const res = fakeRes()
@@ -74,12 +75,12 @@ test('returns 500 when ANTHROPIC_API_KEY is not configured', async () => {
   assert.equal(res.statusCode, 500)
 })
 
-test('validates destination, totalDays, placesPerDay, and day', async () => {
+test('validates destination, totalDays, targetPlaceCount, and day', async () => {
   const cases = [
     { ...BASE_BODY, destination: '' },
     { ...BASE_BODY, totalDays: 0 },
-    { ...BASE_BODY, placesPerDay: 0 },
-    { ...BASE_BODY, placesPerDay: 11 },
+    { ...BASE_BODY, targetPlaceCount: 0 },
+    { ...BASE_BODY, targetPlaceCount: 11 },
     { ...BASE_BODY, day: 0 },
     { ...BASE_BODY, day: 4 }, // > totalDays
   ]
@@ -88,6 +89,28 @@ test('validates destination, totalDays, placesPerDay, and day', async () => {
     await handler(fakeReq({ body }), res)
     assert.equal(res.statusCode, 400, `expected 400 for ${JSON.stringify(body)}`)
   }
+})
+
+test('rejects a malformed, non-HH:mm, or reversed windowStart/windowEnd, but accepts a body with neither field at all', async () => {
+  const rejected = [
+    { ...BASE_BODY, windowStart: 'not-a-time', windowEnd: '19:00' },
+    { ...BASE_BODY, windowStart: '08:00', windowEnd: '25:00' },
+    { ...BASE_BODY, windowStart: '19:00', windowEnd: '08:00' }, // reversed
+    { ...BASE_BODY, windowStart: '08:00' }, // windowEnd missing
+  ]
+  for (const body of rejected) {
+    const res = fakeRes()
+    await handler(fakeReq({ body }), res)
+    assert.equal(res.statusCode, 400, `expected 400 for ${JSON.stringify(body)}`)
+  }
+
+  // Neither field present at all — an old/malformed client body predating
+  // day-length windows — degrades gracefully to the full-day default instead
+  // of 400ing.
+  currentStream = textStream({ places: [candidate('A', 2)] })
+  const res = fakeRes()
+  await handler(fakeReq({ body: BASE_BODY }), res)
+  assert.equal(res.statusCode, 200)
 })
 
 test('force-corrects every candidate\'s day to the requested day, regardless of what the model returned', async () => {
@@ -105,13 +128,13 @@ test('force-corrects every candidate\'s day to the requested day, regardless of 
 test('with no GOOGLE_PLACES_API_KEY, returns the full over-asked AI list uncapped and without coordinates', async () => {
   currentStream = textStream({ places: [candidate('A', 2), candidate('B', 2), candidate('C', 2), candidate('D', 2)] })
   const res = fakeRes()
-  await handler(fakeReq({ body: BASE_BODY }), res) // placesPerDay: 2, but 4 candidates
+  await handler(fakeReq({ body: BASE_BODY }), res) // targetPlaceCount: 2, but 4 candidates
   assert.equal(res.statusCode, 200)
   const body = res.body as { places: unknown[] }
   assert.equal(body.places.length, 4)
 })
 
-test('with a Google key: verifies, dedups same-place candidates, and caps at placesPerDay in confidence order', async (t) => {
+test('with a Google key: verifies, dedups same-place candidates, and keeps every other verified survivor (no exact-count cap anymore)', async (t) => {
   process.env.GOOGLE_PLACES_API_KEY = 'test-key'
   currentStream = textStream({
     places: [candidate('A', 2, 'query-a'), candidate('B-dup-of-A', 2, 'query-b'), candidate('C', 2, 'query-c'), candidate('D', 2, 'query-d')],
@@ -129,11 +152,36 @@ test('with a Google key: verifies, dedups same-place candidates, and caps at pla
     return new Response(JSON.stringify({ places: [{ id: hit.id, displayName: { text: textQuery }, location: { latitude: hit.lat, longitude: hit.lng } }] }), { status: 200 })
   })
   const res = fakeRes()
-  await handler(fakeReq({ body: { ...BASE_BODY, placesPerDay: 2 } }), res)
+  await handler(fakeReq({ body: { ...BASE_BODY, targetPlaceCount: 2 } }), res)
   assert.equal(res.statusCode, 200)
   const body = res.body as { places: { placeId: string }[] }
-  // A wins (first), B is deduped (same placeId as A), C fills the 2nd slot, D never needed.
-  assert.deepEqual(body.places.map((p) => p.placeId), ['google-1', 'google-2'])
+  // B is deduped (same placeId as A). The precise trim to the day's real
+  // duration budget now happens client-side in generateTrip.ts, so with
+  // targetPlaceCount=2 the server's loose ceiling (targetPlaceCount +
+  // PER_DAY_BUFFER = 4) doesn't drop C or D — all 3 surviving places come back.
+  assert.deepEqual(body.places.map((p) => p.placeId), ['google-1', 'google-2', 'google-3'])
+})
+
+test('the accept ceiling never exceeds CLIENT_HARD_MAX_PLACES_PER_DAY, even for a packed-pace targetPlaceCount whose own +buffer would exceed it', async (t) => {
+  process.env.GOOGLE_PLACES_API_KEY = 'test-key'
+  // targetPlaceCount(10) + PER_DAY_BUFFER(2) = 12, well past
+  // CLIENT_HARD_MAX_PLACES_PER_DAY(7) — the client's own duration-budget
+  // walk never keeps more than 7 for one day, so the server shouldn't ship
+  // more than that many fully-verified candidates only to have them discarded.
+  const names = Array.from({ length: 12 }, (_, i) => `P${i}`)
+  currentStream = textStream({ places: names.map((name) => candidate(name, 2, name)) })
+  t.mock.method(globalThis, 'fetch', async (_url: string, init: RequestInit) => {
+    const { textQuery } = JSON.parse(init.body as string) as { textQuery: string }
+    return new Response(
+      JSON.stringify({ places: [{ id: `g-${textQuery}`, displayName: { text: textQuery }, location: { latitude: 35, longitude: 135 } }] }),
+      { status: 200 },
+    )
+  })
+  const res = fakeRes()
+  await handler(fakeReq({ body: { ...BASE_BODY, targetPlaceCount: 10 } }), res)
+  assert.equal(res.statusCode, 200)
+  const body = res.body as { places: unknown[] }
+  assert.equal(body.places.length, CLIENT_HARD_MAX_PLACES_PER_DAY)
 })
 
 test('the first accepted candidate becomes the day anchor when no existingAnchor is given, dropping far-away later candidates', async (t) => {
@@ -153,7 +201,7 @@ test('the first accepted candidate becomes the day anchor when no existingAnchor
     return new Response(JSON.stringify({ places: [{ id: hit.id, displayName: { text: textQuery }, location: { latitude: hit.lat, longitude: hit.lng } }] }), { status: 200 })
   })
   const res = fakeRes()
-  await handler(fakeReq({ body: { ...BASE_BODY, placesPerDay: 3 } }), res)
+  await handler(fakeReq({ body: { ...BASE_BODY, targetPlaceCount: 3 } }), res)
   assert.equal(res.statusCode, 200)
   const body = res.body as { places: { placeId: string }[] }
   // Outlier became the anchor (first accepted); both real near-cluster places got dropped as "too far" from it.
@@ -176,7 +224,7 @@ test('existingAnchor (a backfill request) overrides confidence-order anchoring, 
     return new Response(JSON.stringify({ places: [{ id: hit.id, displayName: { text: textQuery }, location: { latitude: hit.lat, longitude: hit.lng } }] }), { status: 200 })
   })
   const res = fakeRes()
-  await handler(fakeReq({ body: { ...BASE_BODY, placesPerDay: 3, existingAnchor: { lat: 35, lng: 135 } } }), res)
+  await handler(fakeReq({ body: { ...BASE_BODY, targetPlaceCount: 3, existingAnchor: { lat: 35, lng: 135 } } }), res)
   assert.equal(res.statusCode, 200)
   const body = res.body as { places: { placeId: string }[] }
   // With the anchor fixed near the "near" cluster from the start, the

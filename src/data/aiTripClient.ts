@@ -1,6 +1,6 @@
 import type { CreateTripInput } from '../types'
-import { placesPerDayForFlightDay } from './generateTrip.ts'
-import type { PlaceSuggestion } from './generateTrip'
+import { targetCountForWindow, windowForFlightDay } from './generateTrip.ts'
+import type { DayWindow, PlaceSuggestion } from './generateTrip'
 
 // Orchestrates trip generation as many small, parallel per-day requests
 // instead of one request for the whole trip. The old design (a single call
@@ -132,7 +132,7 @@ async function requestDay(
   input: CreateTripInput,
   day: number,
   totalDays: number,
-  placesPerDay: number,
+  dayWindow: DayWindow,
   zones: ZoneHint[],
   cityCenter: GeoPoint | null,
   existingAnchor: GeoPoint | null = null,
@@ -150,15 +150,17 @@ async function requestDay(
         additionalNotes: input.additionalNotes,
         totalDays,
         day,
-        placesPerDay,
+        targetPlaceCount: targetCountForWindow(dayWindow),
+        windowStart: dayWindow.start,
+        windowEnd: dayWindow.end,
         zones,
         cityCenter,
         existingAnchor,
         // Only relevant (and only sent) for the day the flight actually
         // affects — buildDayPrompt uses these to steer candidate choice
         // (e.g. not a sunrise-market pick when arrival is mid-afternoon),
-        // on top of placesPerDay already being thinned for this day (see
-        // placesPerDayForFlightDay).
+        // on top of dayWindow already being narrowed for this day (see
+        // windowForFlightDay).
         arrivalTime: day === 1 ? input.arrivalTime : undefined,
         departureTime: day === totalDays ? input.departureTime : undefined,
       }),
@@ -178,24 +180,27 @@ async function requestDay(
   }
 }
 
-// placesPerDayForDay resolves each day's own target rather than one flat
-// number for the whole batch — day 1 / the trip's last day can be thinned by
-// a known flight (see placesPerDayForFlightDay). A day resolving to 0 (a
-// flight leaves no usable window at all) is skipped entirely rather than
-// sent as a request the server would reject (generate-trip-day.ts requires
-// placesPerDay >= 1).
+// windowForDay resolves each day's own active-hours window rather than one
+// flat window for the whole batch — day 1 / the trip's last day can be
+// narrowed by a known flight (see windowForFlightDay). A day whose window is
+// too short to fit even one place (targetCountForWindow's own "too short"
+// floor — not just a fully zero-length window) is skipped entirely rather
+// than sent as a request the server would reject (generate-trip-day.ts
+// requires targetPlaceCount >= 1). Uses targetCountForWindow itself (not a
+// separate start!==end check) so this and daysNeedingBackfill's skip
+// condition can never disagree.
 async function fetchDays(
   input: CreateTripInput,
   days: number[],
   totalDays: number,
-  placesPerDayForDay: (day: number) => number,
+  windowForDay: (day: number) => DayWindow,
   zones: ZoneHint[],
   cityCenter: GeoPoint | null,
   anchorForDay?: (day: number) => GeoPoint | null,
 ): Promise<PlaceSuggestion[]> {
-  const requestableDays = days.filter((day) => placesPerDayForDay(day) > 0)
+  const requestableDays = days.filter((day) => targetCountForWindow(windowForDay(day)) > 0)
   const results = await mapWithConcurrency(requestableDays, MAX_PARALLEL_REQUESTS, (day) =>
-    requestDay(input, day, totalDays, placesPerDayForDay(day), zones, cityCenter, anchorForDay?.(day) ?? null),
+    requestDay(input, day, totalDays, windowForDay(day), zones, cityCenter, anchorForDay?.(day) ?? null),
   )
   return results.flat()
 }
@@ -220,9 +225,9 @@ export function dedupeByPlaceId(places: PlaceSuggestion[]): PlaceSuggestion[] {
 // generation is split across independent requests — most notably losing a
 // candidate to the cross-day dedup above — on top of the usual verification
 // attrition. Returns every day under its target, not just empty ones. A day
-// whose target is 0 (see placesPerDayForDay) is never "short" — it wasn't
-// requested at all.
-export function daysNeedingBackfill(places: PlaceSuggestion[], totalDays: number, placesPerDayForDay: (day: number) => number): number[] {
+// whose window is zero-length (see windowForDay) is never "short" — it
+// wasn't requested at all.
+export function daysNeedingBackfill(places: PlaceSuggestion[], totalDays: number, windowForDay: (day: number) => DayWindow): number[] {
   const countByDay = new Map<number, number>()
   for (const place of places) {
     if (typeof place.day !== 'number') continue
@@ -230,7 +235,7 @@ export function daysNeedingBackfill(places: PlaceSuggestion[], totalDays: number
   }
   const short: number[] = []
   for (let day = 1; day <= totalDays; day++) {
-    const target = placesPerDayForDay(day)
+    const target = targetCountForWindow(windowForDay(day))
     if (target > 0 && (countByDay.get(day) ?? 0) < target) short.push(day)
   }
   return short
@@ -258,19 +263,19 @@ export function findExistingAnchor(places: PlaceSuggestion[], day: number): GeoP
 export async function fetchAiPlaces(
   input: CreateTripInput,
   days: number,
-  placesPerDay: number,
+  baseWindow: DayWindow,
 ): Promise<PlaceSuggestion[] | undefined> {
   const { zones, cityCenter } = await planZones(input, days)
 
-  // Day 1 / the last day request fewer candidates when a known flight
-  // arrival/departure narrows their usable hours — see
-  // placesPerDayForFlightDay. Resolved once and reused by both the first
-  // pass and the backfill round below so they stay consistent with each
-  // other and with generateTrip.ts's own per-day cap.
-  const placesPerDayForDay = (day: number) => placesPerDayForFlightDay(placesPerDay, day, days, input)
+  // Day 1 / the last day get a narrower window when a known flight
+  // arrival/departure shortens their usable hours — see windowForFlightDay.
+  // Resolved once and reused by both the first pass and the backfill round
+  // below so they stay consistent with each other and with generateTrip.ts's
+  // own per-day duration-budget walk.
+  const windowForDay = (day: number) => windowForFlightDay(baseWindow, day, days, input)
 
   const dayNumbers = Array.from({ length: Math.ceil(days / DAYS_PER_REQUEST) }, (_, i) => i + 1)
-  const firstPass = await fetchDays(input, dayNumbers, days, placesPerDayForDay, zones, cityCenter)
+  const firstPass = await fetchDays(input, dayNumbers, days, windowForDay, zones, cityCenter)
   let merged = dedupeByPlaceId(firstPass)
 
   // One bounded backfill round for whatever's still short — a fresh,
@@ -282,9 +287,9 @@ export async function fetchAiPlaces(
   // Doesn't loop: a day still short after this stays short, same as the old
   // single-request design's "a short day is legitimate" philosophy for
   // ordinary verification attrition.
-  const shortDays = daysNeedingBackfill(merged, days, placesPerDayForDay)
+  const shortDays = daysNeedingBackfill(merged, days, windowForDay)
   if (shortDays.length > 0) {
-    const backfillPlaces = await fetchDays(input, shortDays, days, placesPerDayForDay, zones, cityCenter, (day) =>
+    const backfillPlaces = await fetchDays(input, shortDays, days, windowForDay, zones, cityCenter, (day) =>
       findExistingAnchor(merged, day),
     )
     merged = dedupeByPlaceId([...merged, ...backfillPlaces])

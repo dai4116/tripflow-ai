@@ -6,14 +6,15 @@ import { explorePlacesForTemplate, exploreTemplates } from '../data/exploreTrips
 import {
   cityFromDestination,
   computeTripDays,
+  dayWindowForPace,
   generateTrip,
   paceForTravelStyles,
-  placesPerDayForPace,
   regionFromDestination,
+  resolveEstimatedTime,
 } from '../data/generateTrip.ts'
 import { geocodePlace, geocodeRawQuery } from '../data/geocode.ts'
 import { geocodeDestination } from '../data/geocodeDestinationClient.ts'
-import { fetchTravelTime } from '../data/routing.ts'
+import { fetchTravelTime, straightLineDistanceKm } from '../data/routing.ts'
 import { fetchTripCoverPhotoRefs } from '../data/tripCoverPhotosClient.ts'
 import type { CreateTripInput, Place, PlaceCategory, Trip, TravelMode } from '../types'
 
@@ -174,12 +175,18 @@ export const useTripsStore = defineStore('trips', () => {
   // kick off their own request for the same from→to pair.
   const pendingTravelFetches = new Set<string>()
 
-  // Auto-fills walking time for adjacent places within a day that don't have
+  // Beyond this straight-line distance, auto-fill switches from walking to
+  // driving — a routed foot-walking leg that far starts feeling impractical
+  // as an itinerary hop. Cycling/manual stay opt-in via the picker regardless
+  // of distance.
+  const AUTO_DRIVE_THRESHOLD_KM = 1.5
+
+  // Auto-fills travel time for adjacent places within a day that don't have
   // it yet (or whose stored travelToNext points at a place that's no longer
-  // actually next — see the TravelToNext type comment). Driving/cycling stay
-  // opt-in via the picker; walking is the one mode shown without the user
-  // having to ask, same as chicTrip defaults to for short hops. Safe to call
-  // repeatedly — already-valid pairs and in-flight ones are skipped.
+  // actually next — see the TravelToNext type comment). Picks walking or
+  // driving itself based on straight-line distance (AUTO_DRIVE_THRESHOLD_KM);
+  // cycling/manual stay opt-in via the picker. Safe to call repeatedly —
+  // already-valid pairs and in-flight ones are skipped.
   function fillMissingTravelTimes(tripId: string) {
     const trip = trips.value.find((item) => item.id === tripId)
     if (!trip) return
@@ -200,18 +207,22 @@ export const useTripsStore = defineStore('trips', () => {
         if (!fromPlace || !toPlace) continue
         if (fromPlace.travelToNext?.toPlaceId === toId) continue
         // A reorder can leave travelToNext pointing at a place that's no
-        // longer next (stale). If the stale value was itself an auto walking
-        // estimate, it's fine to silently replace below. But if the user
-        // deliberately picked driving/cycling/manual for the OLD pairing,
-        // leave it alone rather than clobbering their choice with an
-        // unrequested walking guess for the new one — this also means the
-        // original choice comes back correctly if the old adjacency returns
-        // (e.g. a place inserted between two others gets removed again).
-        if (fromPlace.travelToNext && fromPlace.travelToNext.mode !== 'walking') continue
+        // longer next (stale). If the stale value was itself an auto-computed
+        // estimate, it's fine to silently replace below with a fresh guess
+        // for the new pairing. But if the user deliberately picked a mode via
+        // the picker for the OLD pairing, leave it alone rather than
+        // clobbering their choice — this also means the original choice
+        // comes back correctly if the old adjacency returns (e.g. a place
+        // inserted between two others gets removed again).
+        if (fromPlace.travelToNext && !fromPlace.travelToNext.auto) continue
         if (!hasCoords(fromPlace) || !hasCoords(toPlace)) continue
 
+        const from = { lat: fromPlace.lat, lng: fromPlace.lng }
+        const to = { lat: toPlace.lat, lng: toPlace.lng }
+        const mode = straightLineDistanceKm(from, to) > AUTO_DRIVE_THRESHOLD_KM ? 'driving' : 'walking'
+
         pendingTravelFetches.add(gapKey)
-        fetchTravelTime('walking', { lat: fromPlace.lat, lng: fromPlace.lng }, { lat: toPlace.lat, lng: toPlace.lng })
+        fetchTravelTime(mode, from, to)
           .then((estimate) => {
             if (!estimate) return
             // Re-check adjacency at resolution time, not just at request
@@ -223,7 +234,7 @@ export const useTripsStore = defineStore('trips', () => {
 
             const target = places.value.find((item) => item.id === fromId)
             if (target) {
-              target.travelToNext = { toPlaceId: toId, mode: 'walking', durationMin: estimate.durationMin, distanceKm: estimate.distanceKm }
+              target.travelToNext = { toPlaceId: toId, mode, durationMin: estimate.durationMin, distanceKm: estimate.distanceKm, auto: true }
             }
           })
           .finally(() => pendingTravelFetches.delete(gapKey))
@@ -235,7 +246,7 @@ export const useTripsStore = defineStore('trips', () => {
   // when the user asks, and manual entries never touch routing.ts at all.
   function setTravelToNext(fromPlaceId: string, toPlaceId: string, mode: TravelMode, durationMin: number, distanceKm?: number) {
     const place = places.value.find((item) => item.id === fromPlaceId)
-    if (place) place.travelToNext = { toPlaceId, mode, durationMin, distanceKm }
+    if (place) place.travelToNext = { toPlaceId, mode, durationMin, distanceKm, auto: false }
   }
 
   // Throws rather than silently falling back to a generic local itinerary on
@@ -249,7 +260,7 @@ export const useTripsStore = defineStore('trips', () => {
   // ANTHROPIC_API_KEY in prod — there is no more silent degrade path.
   async function createTrip(input: CreateTripInput): Promise<Trip> {
     const days = computeTripDays(input)
-    const placesPerDay = placesPerDayForPace(paceForTravelStyles(input.travelStyle))
+    const baseWindow = dayWindowForPace(paceForTravelStyles(input.travelStyle))
     // Runs alongside the AI generation (not after it) so this best-effort
     // lookup never adds latency to trip creation — only fired when the user
     // free-typed the destination instead of picking a Google Places
@@ -273,7 +284,7 @@ export const useTripsStore = defineStore('trips', () => {
     )
 
     const [aiPlaces, resolvedDestination, coverPhotoRefs] = await Promise.all([
-      fetchAiPlaces(input, days, placesPerDay),
+      fetchAiPlaces(input, days, baseWindow),
       resolvedDestinationPromise,
       coverPhotoRefsPromise,
     ])
@@ -285,7 +296,7 @@ export const useTripsStore = defineStore('trips', () => {
       effectiveInput,
       trips.value.map((existing) => existing.id),
       aiPlaces,
-      placesPerDay,
+      baseWindow,
     )
     if (coverPhotoRefs?.[0]) trip.coverPhotoRef = coverPhotoRefs[0]
     trips.value.push(trip)
@@ -321,7 +332,7 @@ export const useTripsStore = defineStore('trips', () => {
       tripId: input.tripId,
       name: input.name,
       category: input.category,
-      estimatedTime: 1,
+      estimatedTime: resolveEstimatedTime(input.category),
       address: trip.destination,
       lat: input.lat ?? 0,
       lng: input.lng ?? 0,

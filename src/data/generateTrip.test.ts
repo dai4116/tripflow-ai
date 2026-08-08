@@ -6,12 +6,14 @@ import {
   cityFromDestination,
   computeTripDays,
   dayColorForIndex,
+  dayWindowForPace,
   formatDateRange,
   generateTrip,
   paceForTravelStyles,
-  placesPerDayForFlightDay,
-  placesPerDayForPace,
   regionFromDestination,
+  resolveEstimatedTime,
+  targetCountForWindow,
+  windowForFlightDay,
   type PlaceSuggestion,
 } from './generateTrip.ts'
 
@@ -27,10 +29,10 @@ function baseInput(overrides: Partial<CreateTripInput> = {}): CreateTripInput {
   }
 }
 
-test('placesPerDayForPace maps each pace to its fixed count', () => {
-  assert.equal(placesPerDayForPace('relaxed'), 3)
-  assert.equal(placesPerDayForPace('balanced'), 4)
-  assert.equal(placesPerDayForPace('packed'), 5)
+test('dayWindowForPace maps each pace to its active-hours window', () => {
+  assert.deepEqual(dayWindowForPace('relaxed'), { start: '08:00', end: '17:00' })
+  assert.deepEqual(dayWindowForPace('balanced'), { start: '08:00', end: '19:00' })
+  assert.deepEqual(dayWindowForPace('packed'), { start: '08:00', end: '21:00' })
 })
 
 test('paceForTravelStyles falls back to balanced when nothing resolves', () => {
@@ -38,16 +40,107 @@ test('paceForTravelStyles falls back to balanced when nothing resolves', () => {
   assert.equal(paceForTravelStyles(['不存在的風格']), 'balanced')
 })
 
-test('paceForTravelStyles uses a single style\'s own number directly', () => {
-  assert.equal(paceForTravelStyles(['自在慢旅']), 'relaxed') // 3
-  assert.equal(paceForTravelStyles(['深度探索']), 'balanced') // 4
+test('paceForTravelStyles looks up the selected style directly', () => {
+  assert.equal(paceForTravelStyles(['自在慢旅']), 'relaxed')
+  assert.equal(paceForTravelStyles(['深度探索']), 'balanced')
+  assert.equal(paceForTravelStyles(['精準規劃']), 'packed')
+  assert.equal(paceForTravelStyles(['熱血冒險']), 'packed')
 })
 
-test('paceForTravelStyles averages two styles and rounds to the nearest bucket', () => {
-  // 精準規劃(5) + 自在慢旅(3) averages to exactly 4 -> balanced
-  assert.equal(paceForTravelStyles(['精準規劃', '自在慢旅']), 'balanced')
-  // 精準規劃(5) + 深度探索(4) averages to 4.5 -> rounds up to 5 -> packed
-  assert.equal(paceForTravelStyles(['精準規劃', '深度探索']), 'packed')
+test('paceForTravelStyles only reads the first style if more than one is ever passed', () => {
+  // The form is single-select now, so this shouldn't happen in practice —
+  // but the function itself no longer averages; it just reads travelStyles[0].
+  assert.equal(paceForTravelStyles(['精準規劃', '自在慢旅']), 'packed')
+})
+
+test('targetCountForWindow derives a soft candidate count from window length', () => {
+  assert.equal(targetCountForWindow({ start: '08:00', end: '17:00' }), 5) // relaxed: 540/105 ~ 5.14 -> 5
+  assert.equal(targetCountForWindow({ start: '08:00', end: '19:00' }), 6) // balanced: 660/105 ~ 6.29 -> 6
+  assert.equal(targetCountForWindow({ start: '08:00', end: '21:00' }), 7) // packed: 780/105 ~ 7.43 -> 7
+})
+
+test('targetCountForWindow returns 0 for a zero-length window and never exceeds the hard max', () => {
+  assert.equal(targetCountForWindow({ start: '08:00', end: '08:00' }), 0)
+  assert.equal(targetCountForWindow({ start: '00:00', end: '23:59' }), 7)
+})
+
+test('targetCountForWindow returns 0 for a nonzero window too short to fit even one place, not a floored-up 1', () => {
+  // 20 minutes is under MIN_ESTIMATED_HOURS (30min) — too short for even the
+  // shortest possible stop, so this must be treated the same as "skip this
+  // day," not forced up to a minimum of 1 the way a merely-small-but-viable
+  // window would be.
+  assert.equal(targetCountForWindow({ start: '08:00', end: '08:20' }), 0)
+  // 30 minutes exactly is the shortest a single stop can be — still viable.
+  assert.equal(targetCountForWindow({ start: '08:00', end: '08:30' }), 1)
+})
+
+test('resolveEstimatedTime uses the AI estimate, clamped to a sane range', () => {
+  assert.equal(resolveEstimatedTime('attraction', 2), 2)
+  assert.equal(resolveEstimatedTime('attraction', 0.1), 0.5)
+  assert.equal(resolveEstimatedTime('attraction', 10), 6)
+})
+
+test('resolveEstimatedTime falls back to the category default when the AI value is missing or invalid', () => {
+  assert.equal(resolveEstimatedTime('attraction'), 1.5)
+  assert.equal(resolveEstimatedTime('food', Number.NaN), 1)
+  assert.equal(resolveEstimatedTime('other'), 1)
+})
+
+test('resolveEstimatedTime always uses the fixed default for stay/transport, ignoring any AI estimate', () => {
+  assert.equal(resolveEstimatedTime('stay', 5), 0.5)
+  assert.equal(resolveEstimatedTime('transport', 3), 0.25)
+})
+
+test('windowForFlightDay leaves middle days and days with no flight info untouched', () => {
+  const base = dayWindowForPace('balanced')
+  assert.deepEqual(windowForFlightDay(base, 2, 3, { arrivalTime: '15:00', departureTime: '20:00' }), base)
+  assert.deepEqual(windowForFlightDay(base, 1, 3, {}), base)
+})
+
+test('windowForFlightDay narrows day 1 for a late arrival and the last day for an early departure', () => {
+  const base = dayWindowForPace('balanced') // 08:00-19:00
+  // Arriving 15:00 -> buffered start 16:30.
+  assert.deepEqual(windowForFlightDay(base, 1, 3, { arrivalTime: '15:00' }), { start: '16:30', end: '19:00' })
+  // Departing 12:00 -> buffered end 10:30.
+  assert.deepEqual(windowForFlightDay(base, 3, 3, { departureTime: '12:00' }), { start: '08:00', end: '10:30' })
+})
+
+test('windowForFlightDay + targetCountForWindow: a late arrival leaving only a tiny unusable sliver is treated as "skip this day"', () => {
+  // Balanced pace ends at 19:00. Arriving 17:25 -> buffered start 18:55,
+  // leaving only 5 minutes — nonzero-length (so windowForFlightDay alone
+  // doesn't collapse it), but targetCountForWindow's own too-short floor
+  // must still report 0 rather than forcing a place into 5 minutes of time.
+  const base = dayWindowForPace('balanced')
+  const narrowed = windowForFlightDay(base, 1, 3, { arrivalTime: '17:25' })
+  assert.deepEqual(narrowed, { start: '18:55', end: '19:00' })
+  assert.equal(targetCountForWindow(narrowed), 0)
+})
+
+test('windowForFlightDay combines both ends for a one-day trip with a known arrival and departure', () => {
+  const base = dayWindowForPace('packed') // 08:00-21:00
+  const result = windowForFlightDay(base, 1, 1, { arrivalTime: '09:00', departureTime: '18:00' })
+  // Arrive 09:00 (buffered 10:30), depart 18:00 (buffered 16:30).
+  assert.deepEqual(result, { start: '10:30', end: '16:30' })
+})
+
+test('windowForFlightDay collapses to a zero-length window when a flight leaves no usable time at all', () => {
+  const base = dayWindowForPace('balanced')
+  const result = windowForFlightDay(base, 1, 1, { arrivalTime: '20:00' })
+  assert.deepEqual(result, { start: base.start, end: base.start })
+})
+
+test('windowForFlightDay does not wrap past midnight for a very late arrival or very early departure', () => {
+  // A later arrival must never leave MORE room than an earlier one — both of
+  // these buffer past the window's own end entirely, so both should collapse
+  // to zero length, same as an exact-boundary arrival does (regression: a
+  // naive HH:mm-wrapping buffer previously read a very late arrival as
+  // landing after midnight, which looked EARLIER than the window's end and
+  // wrongly left the window un-narrowed).
+  const base = dayWindowForPace('balanced')
+  assert.deepEqual(windowForFlightDay(base, 1, 3, { arrivalTime: '21:00' }), { start: base.start, end: base.start })
+  assert.deepEqual(windowForFlightDay(base, 1, 3, { arrivalTime: '23:00' }), { start: base.start, end: base.start })
+  assert.deepEqual(windowForFlightDay(base, 3, 3, { departureTime: '09:00' }), { start: base.start, end: base.start })
+  assert.deepEqual(windowForFlightDay(base, 3, 3, { departureTime: '01:00' }), { start: base.start, end: base.start })
 })
 
 test('cityFromDestination / regionFromDestination split on the first comma', () => {
@@ -100,7 +193,7 @@ test('generateTrip groups suggestions by their own day field and drops out-of-ra
     { name: 'NoDay', category: 'other', description: 'd' }, // missing day tag
   ]
   const input = baseInput({ startDate: '2024-03-01', endDate: '2024-03-03' })
-  const { trip, places } = generateTrip(input, [], aiPlaces, 2)
+  const { trip, places } = generateTrip(input, [], aiPlaces)
 
   assert.equal(trip.columns.length, 3)
   const namesForColumn = (columnId: string) =>
@@ -123,12 +216,13 @@ test('generateTrip orders a day by time-of-day bucket first, then nearest-neighb
     { day: 1, name: 'Morning2-near', category: 'attraction', description: 'd', timeOfDay: 'morning', lat: 0, lng: 1 },
   ]
   const input = baseInput({ startDate: '2024-03-01', endDate: '2024-03-01' })
-  const { trip, places } = generateTrip(input, [], aiPlaces, 4)
+  const { trip, places } = generateTrip(input, [], aiPlaces)
 
   const order = trip.columns[0]!.placeIds.map((id) => places.find((p) => p.id === id)!.name)
   // Morning bucket goes first (evening last) and, within it, the greedy
   // nearest-neighbor chain visits the near point before the far one even
-  // though the far one appeared earlier in the input array.
+  // though the far one appeared earlier in the input array. All 4 fit
+  // comfortably within balanced's 11-hour window at ~1.5h/1h each.
   assert.deepEqual(order, ['Morning1', 'Morning2-near', 'Morning3-far', 'Evening1'])
 })
 
@@ -138,80 +232,70 @@ test('generateTrip carries the suggestion\'s Google placeId through to the resul
     { day: 1, name: 'A2', category: 'attraction', description: 'd' }, // no-Google-key fallback path
   ]
   const input = baseInput({ startDate: '2024-03-01', endDate: '2024-03-01' })
-  const { places } = generateTrip(input, [], aiPlaces, 2)
+  const { places } = generateTrip(input, [], aiPlaces)
 
   assert.equal(places.find((p) => p.name === 'A1')!.placeId, 'google-1')
   assert.equal(places.find((p) => p.name === 'A2')!.placeId, undefined)
 })
 
-test('generateTrip caps each day at placesPerDay and does not backfill a short day', () => {
+test('generateTrip resolves each place\'s estimatedTime from its AI-suggested duration', () => {
+  const aiPlaces: PlaceSuggestion[] = [
+    { day: 1, name: 'Landmark', category: 'attraction', description: 'd', estimatedTimeHours: 0.75 },
+    { day: 1, name: 'NoEstimate', category: 'food', description: 'd' },
+  ]
+  const input = baseInput({ startDate: '2024-03-01', endDate: '2024-03-01' })
+  const { places } = generateTrip(input, [], aiPlaces)
+
+  assert.equal(places.find((p) => p.name === 'Landmark')!.estimatedTime, 0.75)
+  // No AI estimate -> falls back to the food category default.
+  assert.equal(places.find((p) => p.name === 'NoEstimate')!.estimatedTime, 1)
+})
+
+test('generateTrip trims a day to its duration budget once accepted places would overshoot the window', () => {
   const aiPlaces: PlaceSuggestion[] = [
     { day: 1, name: 'A1', category: 'attraction', description: 'd' },
     { day: 1, name: 'A2', category: 'attraction', description: 'd' },
     { day: 1, name: 'A3', category: 'attraction', description: 'd' },
   ]
   const input = baseInput({ startDate: '2024-03-01', endDate: '2024-03-01' })
-  const { trip, places } = generateTrip(input, [], aiPlaces, 2)
+  // Each attraction defaults to 1.5h + a 25min inter-stop buffer. Starting at
+  // 08:00: A1 ends 09:30 (+buffer 09:55), A2 would end 11:25 (fits by
+  // 11:30), A3 would end 13:20 (doesn't fit) -> exactly 2 accepted.
+  const { trip, places } = generateTrip(input, [], aiPlaces, { start: '08:00', end: '11:30' })
 
   assert.equal(trip.columns[0]!.placeIds.length, 2)
   assert.equal(places.length, 2)
 })
 
-test('generateTrip falls back to the pace-derived placesPerDay when no override is given', () => {
+test('generateTrip always keeps at least one place even if it alone overshoots the window', () => {
+  const aiPlaces: PlaceSuggestion[] = [{ day: 1, name: 'BigMuseum', category: 'attraction', description: 'd', estimatedTimeHours: 5 }]
+  const input = baseInput({ startDate: '2024-03-01', endDate: '2024-03-01' })
+  const { trip, places } = generateTrip(input, [], aiPlaces, { start: '08:00', end: '09:00' })
+
+  assert.equal(trip.columns[0]!.placeIds.length, 1)
+  assert.equal(places[0]!.estimatedTime, 5)
+})
+
+test('generateTrip falls back to the pace-derived day window when no override is given', () => {
   const aiPlaces: PlaceSuggestion[] = Array.from({ length: 5 }, (_, i) => ({
     day: 1,
     name: `Place${i}`,
     category: 'attraction' as const,
     description: 'd',
   }))
-  // travelStyle: [] -> paceForTravelStyles -> 'balanced' -> 4 per day
+  // travelStyle: [] -> paceForTravelStyles -> 'balanced' -> 08:00-19:00 window
   const input = baseInput({ startDate: '2024-03-01', endDate: '2024-03-01', travelStyle: [] })
   const { trip } = generateTrip(input, [], aiPlaces)
 
   assert.equal(trip.pace, 'balanced')
-  assert.equal(trip.columns[0]!.placeIds.length, 4)
+  // All 5 fit comfortably within balanced's 11-hour window at attraction's
+  // default 1.5h each (5*90 + 4*25 = 550min of 660min available) — the
+  // day-window budget doesn't force an arbitrary count cap the way the old
+  // flat placesPerDay(4) used to.
+  assert.equal(trip.columns[0]!.placeIds.length, 5)
 })
 
-test('placesPerDayForFlightDay leaves middle days and days with no flight info untouched', () => {
-  assert.equal(placesPerDayForFlightDay(4, 2, 3, { arrivalTime: '15:00', departureTime: '20:00' }), 4)
-  assert.equal(placesPerDayForFlightDay(4, 1, 3, {}), 4)
-})
-
-test('placesPerDayForFlightDay thins day 1 for a late arrival and the last day for an early departure', () => {
-  // Arriving 15:00 -> buffered start 16:30, window 16:30-21:00 (270 of 780
-  // baseline minutes) -> floor(4 * 270/780) = 1.
-  assert.equal(placesPerDayForFlightDay(4, 1, 3, { arrivalTime: '15:00' }), 1)
-  // Departing 12:00 -> buffered end 10:30, window 08:00-10:30 (150 of 780
-  // baseline minutes) -> floor(4 * 150/780) = 0.
-  assert.equal(placesPerDayForFlightDay(4, 3, 3, { departureTime: '12:00' }), 0)
-})
-
-test('placesPerDayForFlightDay returns 0 (never negative) when a flight leaves no usable window at all', () => {
-  assert.equal(placesPerDayForFlightDay(4, 1, 1, { arrivalTime: '20:00' }), 0)
-})
-
-test('placesPerDayForFlightDay combines both ends for a one-day trip with a known arrival and departure', () => {
-  // Arrive 09:00 (buffered 10:30), depart 18:00 (buffered 16:30): a 6-hour
-  // window out of the 13-hour (780min) baseline -> floor(4 * 360/780) = 1.
-  const result = placesPerDayForFlightDay(4, 1, 1, { arrivalTime: '09:00', departureTime: '18:00' })
-  assert.ok(result >= 1 && result < 4, `expected a thinned-but-nonzero count, got ${result}`)
-})
-
-test('placesPerDayForFlightDay does not wrap past midnight for a very late arrival or very early departure', () => {
-  // A later arrival must never leave MORE room than an earlier one — both of
-  // these buffer past 21:00 entirely, so both should thin to 0, same as
-  // 21:00 does (regression: a naive HH:mm-wrapping buffer previously read a
-  // 23:00 arrival as landing at 00:30, which looked EARLIER than 21:00 and
-  // wrongly returned the full, un-thinned count).
-  assert.equal(placesPerDayForFlightDay(4, 1, 3, { arrivalTime: '21:00' }), 0)
-  assert.equal(placesPerDayForFlightDay(4, 1, 3, { arrivalTime: '23:00' }), 0)
-  // Same for an early departure: 01:00 must not read as leaving MORE room
-  // than 09:00 just because its buffered boundary would wrap to "23:30".
-  assert.equal(placesPerDayForFlightDay(4, 3, 3, { departureTime: '09:00' }), 0)
-  assert.equal(placesPerDayForFlightDay(4, 3, 3, { departureTime: '01:00' }), 0)
-})
-
-test('generateTrip prepends a manually-timed "抵達機場" card to day 1 and appends "前往機場" to the last day, thinning their AI place counts', () => {
+test('generateTrip prepends a manually-timed "抵達機場" card to day 1 and appends "前往機場" to the last day, narrowing their AI-suggestion windows', () => {
   const aiPlaces: PlaceSuggestion[] = Array.from({ length: 4 }, (_, i) => ({
     day: 1,
     name: `Day1-${i}`,
@@ -231,7 +315,7 @@ test('generateTrip prepends a manually-timed "抵達機場" card to day 1 and ap
     arrivalTime: '15:00',
     departureTime: '20:00',
   })
-  const { trip, places } = generateTrip(input, [], aiPlaces, 4)
+  const { trip, places } = generateTrip(input, [], aiPlaces)
   const placeById = new Map(places.map((p) => [p.id, p]))
 
   const day1 = trip.columns[0]!
@@ -244,18 +328,19 @@ test('generateTrip prepends a manually-timed "抵達機場" card to day 1 and ap
   assert.equal(arrivalCard.estimatedTime, 1.5)
   assert.equal(arrivalCard.lat, 0)
   assert.equal(arrivalCard.skipGeocode, true)
-  // AI places fill the rest of day 1, thinned below the requested 4 to leave
-  // room for the arrival card's own 90-minute buffer.
-  assert.ok(day1.placeIds.length - 1 < 4, `expected day 1's AI places to be thinned below 4, got ${day1.placeIds.length - 1}`)
+  // Day 1's window is buffered to start at 16:30 (arrival + 90min), leaving
+  // only ~2.5 hours of balanced's 08:00-19:00 window — enough for one
+  // 1.5-hour attraction, not all 4 offered.
+  assert.equal(day1.placeIds.length - 1, 1)
 
   const departureCard = placeById.get(day2.placeIds[day2.placeIds.length - 1]!)!
   assert.equal(departureCard.name, '前往機場')
   assert.equal(departureCard.category, 'transport')
   // Buffered: 90 minutes before the raw 20:00 departure.
   assert.equal(departureCard.arrivalTime, '18:30')
-  // Buffered end 18:30 still cuts off the last stretch of the normal
-  // 08:00-21:00 day -> floor(4 * 630/780) = 3 AI places, plus the card itself.
-  assert.equal(day2.placeIds.length, 4)
+  // Day 2's buffered window (08:00-18:30) still comfortably fits all 4
+  // 1.5-hour attractions plus their inter-stop buffers.
+  assert.equal(day2.placeIds.length - 1, 4)
 })
 
 test('generateTrip adds no flight card when no flight info is given', () => {
@@ -268,7 +353,7 @@ test('generateTrip adds no flight card when no flight info is given', () => {
 test('generateTrip on a one-day trip with both arrival and departure sandwiches the AI places between both flight cards', () => {
   const aiPlaces: PlaceSuggestion[] = [{ day: 1, name: 'Lunch', category: 'food', description: 'd' }]
   const input = baseInput({ arrivalTime: '10:00', departureTime: '18:00' })
-  const { trip, places } = generateTrip(input, [], aiPlaces, 4)
+  const { trip, places } = generateTrip(input, [], aiPlaces)
   const names = trip.columns[0]!.placeIds.map((id) => places.find((p) => p.id === id)!.name)
   assert.deepEqual(names, ['抵達機場', 'Lunch', '前往機場'])
 })

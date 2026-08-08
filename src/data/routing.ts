@@ -3,6 +3,21 @@ import type { TravelMode } from '../types'
 export type GeoPoint = { lat: number; lng: number }
 export type TravelEstimate = { durationMin: number; distanceKm: number }
 
+// Straight-line (haversine) distance in km — used to pick walking vs
+// driving for auto-fill before any routed lookup happens (see trips.ts's
+// fillMissingTravelTimes), not as a stand-in for the routed distanceKm
+// fetchTravelTime returns. Duplicated from generateTrip.ts/placesVerify.ts's
+// identical formula rather than imported, same reasoning as those two.
+export function straightLineDistanceKm(a: GeoPoint, b: GeoPoint): number {
+  const R = 6371
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180
+  const lat1 = (a.lat * Math.PI) / 180
+  const lat2 = (b.lat * Math.PI) / 180
+  const h = Math.sin(dLat / 2) ** 2 + Math.sin(dLng / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2)
+  return 2 * R * Math.asin(Math.sqrt(h))
+}
+
 // Shared by TravelTimeRow.vue (the inline board display) and
 // TravelTimeModal.vue (the picker's own manual-entry button) so the two
 // always read the same way — "80" minutes is "1 小時 20分" in both places,

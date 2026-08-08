@@ -395,6 +395,14 @@ const dragStyle = computed(() => {
 })
 
 function onDragStart(event: PointerEvent) {
+  // A pointerdown on the close button bubbles up to this header listener
+  // too — starting a drag here would call setPointerCapture on the header,
+  // which retargets the tap's eventual click away from the button (a real
+  // browser dispatches that click to whichever element captured the
+  // pointer, not to whatever's visually underneath it), silently
+  // swallowing the tap instead of closing the modal. Bail out so the
+  // button's own @click handler fires normally.
+  if ((event.target as HTMLElement).closest('.add-place-modal__close')) return
   isDragging.value = true
   dragPointerId = event.pointerId
   dragStartY = event.clientY

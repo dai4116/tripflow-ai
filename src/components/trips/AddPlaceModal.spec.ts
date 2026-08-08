@@ -43,6 +43,12 @@ describe('AddPlaceModal', () => {
     expect(wrapper.emitted('close')).toHaveLength(1)
   })
 
+  it('close button emits close on the sheet variant too', async () => {
+    const wrapper = mountModal({ sheet: true })
+    await wrapper.find('.add-place-modal__close').trigger('click')
+    expect(wrapper.emitted('close')).toHaveLength(1)
+  })
+
   it('clicking a category chip searches and renders results, using the chip as the category', async () => {
     const response: PlacesSearchResponse = { results: [searchResult()], cityCenter: null }
     vi.spyOn(placesSearchClient, 'searchPlaces').mockResolvedValue(response)
@@ -143,6 +149,25 @@ describe('AddPlaceModal', () => {
     it('renders a drag handle for the sheet variant', () => {
       const wrapper = mountModal({ sheet: true })
       expect(wrapper.find('.add-place-modal__handle').exists()).toBe(true)
+    })
+
+    // Regression: a pointerdown that starts on the close button bubbles up to
+    // the header's own pointerdown listener too. If that listener started a
+    // drag (setPointerCapture) regardless of where the pointerdown actually
+    // originated, a real browser retargets the tap's eventual click to
+    // whichever element captured the pointer — the header, not the button —
+    // silently swallowing the tap instead of closing the modal (confirmed
+    // live in a real browser on the mobile sheet layout; jsdom/happy-dom's
+    // synthetic click dispatch doesn't model that retargeting, so this test
+    // instead asserts on the drag state directly, via dragStyle's transform).
+    it('does not start a drag when the pointerdown originates on the close button', async () => {
+      const wrapper = mountModal({ sheet: true })
+      const closeBtn = wrapper.find('.add-place-modal__close')
+      await closeBtn.trigger('pointerdown', { pointerId: 1, clientY: 0 })
+      await wrapper.find('.add-place-modal__header').trigger('pointermove', { pointerId: 1, clientY: 200 })
+      // If onDragStart had incorrectly started a drag, dragY would now be
+      // 200 and the section would carry a translate3d transform for it.
+      expect(wrapper.find('.add-place-modal').attributes('style')).toBeUndefined()
     })
 
     it('emits close once a downward drag passes the distance threshold', async () => {

@@ -20,6 +20,11 @@ export type TravelToNext = {
   mode: TravelMode
   durationMin: number
   distanceKm?: number
+  // True when this was computed by fillMissingTravelTimes rather than
+  // chosen by the user via the picker — lets stale-entry cleanup tell
+  // "safe to silently replace with a new guess" apart from "user picked
+  // this deliberately, leave it alone" (see trips.ts).
+  auto?: boolean
 }
 
 export type TripColumn = {
@@ -162,9 +167,10 @@ export type CreateTripInput = {
   // rather than collected as its own field.
   startDate: string
   endDate: string
-  // Up to 2 selected style archetypes (e.g. 精準規劃/自在慢旅) — plural because
-  // the form allows a 2-select combination whose paces get averaged (see
-  // paceForTravelStyles in generateTrip.ts), not a single free-text style.
+  // A single selected style archetype (e.g. 精準規劃/自在慢旅), held as a
+  // 0-or-1-element array for a stable field type rather than a bare
+  // `string | undefined` — see paceForTravelStyles in generateTrip.ts, which
+  // reads just the first element.
   travelStyle: string[]
   // Free-text catch-all for anything the structured fields don't cover —
   // places to avoid, but just as often a positive request (dietary needs, "want
@@ -174,8 +180,8 @@ export type CreateTripInput = {
   preferences: string[]
   // Optional flight-aware scheduling, both 'HH:mm' local time (no timezone
   // conversion — see CreateTripPage.vue's helper text). When set,
-  // generateTrip.ts thins day 1's / the last day's placesPerDay to fit the
-  // shortened window (see placesPerDayForFlightDay) AND prepends/appends a
+  // generateTrip.ts narrows day 1's / the last day's active-hours window to
+  // fit the shortened time (see windowForFlightDay) AND prepends/appends a
   // real "抵達機場"/"前往機場" Place card carrying the time as its manual
   // arrivalTime — that card is what actually drives the schedule cascade
   // (via computeArrivalTimes' existing manual-arrival handling) and gets the

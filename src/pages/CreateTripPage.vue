@@ -67,7 +67,7 @@
 
       <BaseCard class="form-card">
         <h3>旅遊風格</h3>
-        <p class="form-card__hint">最多選 2 個</p>
+        <p class="form-card__hint">選一個最符合你的風格</p>
         <div class="choice-grid">
           <button
             v-for="style in travelStyles"
@@ -76,7 +76,7 @@
             class="choice-pill"
             :class="{ 'choice-pill--selected': selectedTravelStyles.includes(style) }"
             :aria-pressed="selectedTravelStyles.includes(style)"
-            @click="toggleTravelStyle(style)"
+            @click="selectTravelStyle(style)"
           >
             <AppIcon :name="getStyleIcon(style)" :size="15" />
             {{ style }}
@@ -228,10 +228,9 @@ const showLongWaitNotice = ref(false)
 const destinationError = ref('')
 const dateRangeError = ref('')
 const destinationInputRef = ref<InstanceType<typeof DestinationAutocomplete> | null>(null)
-const selectedPreferences = ref(['必吃美食', '人文古蹟', '特色建築'])
-// Max 2 — see paceForTravelStyles in generateTrip.ts for how a 2-style
-// selection resolves to one pace (averages their places-per-day numbers).
-const MAX_TRAVEL_STYLES = 2
+const selectedPreferences = ref(['必吃美食', '逛街購物', '熱門打卡'])
+// Single-select — see paceForTravelStyles in generateTrip.ts for how the one
+// selected style resolves directly to a pace.
 const selectedTravelStyles = ref(['深度探索'])
 
 const defaultStart = new Date()
@@ -335,7 +334,10 @@ const cityLabel = computed(() => form.destination.split(/[,，]/)[0].trim() || '
 // Live caption under the style picker — a punchy 4-character label like
 // "深度探索" doesn't say what it actually changes about the itinerary, and
 // hover tooltips (the button's title attribute) don't work on touch, which
-// is most of this app's usage. Joins both hints when 2 styles are selected.
+// is most of this app's usage. selectedTravelStyles only ever holds 0 or 1
+// elements now (single-select — see selectTravelStyle), so .join('；') never
+// actually joins anything; kept as-is since it's harmless on a 1-element
+// array and avoids a needless [0]-indexing rewrite.
 const selectedStyleHints = computed(() =>
   selectedTravelStyles.value.map((style) => travelStyleHints[style]).filter(Boolean).join('；'),
 )
@@ -371,13 +373,8 @@ function clearStageTimer() {
   }
 }
 
-function toggleTravelStyle(style: string) {
-  if (selectedTravelStyles.value.includes(style)) {
-    selectedTravelStyles.value = selectedTravelStyles.value.filter((item) => item !== style)
-    return
-  }
-  if (selectedTravelStyles.value.length >= MAX_TRAVEL_STYLES) return
-  selectedTravelStyles.value = [...selectedTravelStyles.value, style]
+function selectTravelStyle(style: string) {
+  selectedTravelStyles.value = [style]
 }
 
 function togglePreference(preference: string) {
