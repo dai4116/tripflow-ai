@@ -33,8 +33,8 @@ function textSearchBody(places: FakePlace[]): string {
 }
 
 const TAIPEI = { lat: 25.03, lng: 121.56 }
-// ~166km north of TAIPEI (well past the 80km MAX_KM_FROM_CITY guard).
-const FAR_FROM_TAIPEI = { lat: 26.5, lng: 121.56 }
+// ~444km north of TAIPEI (well past the 350km MAX_KM_FROM_CITY guard).
+const FAR_FROM_TAIPEI = { lat: 29.03, lng: 121.56 }
 
 test('distanceKm is 0 for the same point and matches the known ~111km/degree-of-latitude figure', () => {
   assert.equal(distanceKm(TAIPEI, TAIPEI), 0)

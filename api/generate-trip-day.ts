@@ -204,7 +204,11 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
     // candidate has to be geographically consistent with what's already
     // there — otherwise the first accepted candidate here becomes the
     // anchor, same as a first-pass request.
-    const MAX_KM_FROM_DAY_ANCHOR = 12
+    // 40km (not a tight single-neighborhood radius) so a day trip inside a
+    // region-scale destination (e.g. a "美瑛/富良野" day within a 北海道
+    // trip, where the flower fields and viewpoints genuinely spread over
+    // 20-30km) doesn't get gutted the same way MAX_KM_FROM_CITY above did.
+    const MAX_KM_FROM_DAY_ANCHOR = 40
     let anchor: GeoPoint | null = existingAnchor ?? null
     const accepted: typeof deduped = []
     for (const hit of deduped) {

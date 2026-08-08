@@ -60,8 +60,13 @@ function resolveAnchor(dayAnchor: GeoPoint | null, cityCenter: GeoPoint | null):
 
 // A verified hit further than this from the destination city center is
 // rejected as a wrong-city fuzzy match (Taichung -> Taipei is ~130km, well
-// past this). Generous enough to keep legit day-trip / suburban spots.
-const MAX_KM_FROM_CITY = 80
+// past this). Generous enough to keep legit day-trip / suburban spots, and
+// wide enough to cover a region/prefecture-scale destination too (e.g.
+// "北海道，日本" resolving near Sapporo but legitimately including Furano/
+// Biei ~115km out or Hakodate ~300km out — confirmed live: the old 80km cap
+// rejected nearly every candidate for a Hokkaido trip, since the whole point
+// of that destination is spanning cities this far apart).
+const MAX_KM_FROM_CITY = 350
 
 export type GeoPoint = { lat: number; lng: number }
 export type VerifiedPlace = { placeId: string; name: string; lat: number; lng: number; photoRef?: string }
