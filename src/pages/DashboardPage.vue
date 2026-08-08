@@ -39,7 +39,6 @@
           </p>
           <div class="upcoming-trip__stats">
             <span><AppIcon name="calendar" :size="13" />{{ spotlightTrip.days }} 天</span>
-            <span><AppIcon name="users" :size="13" />{{ spotlightTrip.travelers }} 位旅伴</span>
             <span><AppIcon name="pin" :size="13" />{{ spotlightTrip.placeCount }} 個地點</span>
           </div>
         </div>

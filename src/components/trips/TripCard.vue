@@ -37,7 +37,6 @@
     <div class="trip-card__body">
       <div class="trip-card__meta">
         <span><AppIcon name="calendar" :size="12" />{{ trip.days }} 天</span>
-        <span><AppIcon name="users" :size="12" />{{ trip.travelers }}</span>
         <span><AppIcon name="pin" :size="12" />{{ trip.placeCount }}</span>
       </div>
     </div>

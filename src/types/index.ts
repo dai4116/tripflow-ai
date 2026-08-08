@@ -34,7 +34,6 @@ export type TripSummary = {
   title: string
   destination: string
   days: number
-  travelers: number
   placeCount: number
   color: string
   // Google Places photo resource name for the trip's chosen cover photo (see
@@ -163,7 +162,6 @@ export type CreateTripInput = {
   // rather than collected as its own field.
   startDate: string
   endDate: string
-  travelers: number
   // Up to 2 selected style archetypes (e.g. 精準規劃/自在慢旅) — plural because
   // the form allows a 2-select combination whose paces get averaged (see
   // paceForTravelStyles in generateTrip.ts), not a single free-text style.

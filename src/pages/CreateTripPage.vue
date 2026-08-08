@@ -24,7 +24,6 @@
       <BaseCard class="form-card">
         <h3>行程細節</h3>
         <BaseDateRangeInput label="旅遊日期" v-model:start="form.startDate" v-model:end="form.endDate" :error="dateRangeError" />
-        <BaseInput v-model="form.travelers" label="旅伴人數" type="number" icon="users" :min="1" :max="12" />
 
         <label class="flight-toggle">
           <span class="flight-toggle__copy">
@@ -250,7 +249,6 @@ const form = reactive({
   destinationLng: undefined as number | undefined,
   startDate: toDateInputValue(defaultStart),
   endDate: toDateInputValue(defaultEnd),
-  travelers: '2',
   additionalNotes: '',
   arrivalTime: undefined as string | undefined,
   departureTime: undefined as string | undefined,
@@ -493,7 +491,6 @@ async function finishGeneration() {
       destinationLng: form.destinationLng,
       startDate: form.startDate,
       endDate: form.endDate,
-      travelers: Number(form.travelers) || 1,
       travelStyle: selectedTravelStyles.value,
       additionalNotes: form.additionalNotes,
       preferences: selectedPreferences.value,

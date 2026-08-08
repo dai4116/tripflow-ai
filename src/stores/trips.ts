@@ -454,7 +454,6 @@ export const useTripsStore = defineStore('trips', () => {
       title: template.title,
       destination: template.destination,
       days: template.days,
-      travelers: template.travelers,
       placeCount: 0,
       color: template.color,
       coverImage: template.coverImage,

@@ -44,7 +44,6 @@ function seedTrip(overrides: Partial<Trip> = {}): Trip {
     title: '測試之旅',
     destination: '京都，日本',
     days: 2,
-    travelers: 2,
     placeCount: 0,
     color: '#000',
     dateRange: '',

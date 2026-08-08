@@ -458,7 +458,6 @@ export function generateTrip(
     title: `${city}之旅`,
     destination: input.destination,
     days,
-    travelers: input.travelers,
     placeCount: places.length,
     color,
     dateRange: formatDateRange(input.startDate, input.endDate),

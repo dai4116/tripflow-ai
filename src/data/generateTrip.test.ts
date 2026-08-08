@@ -20,7 +20,6 @@ function baseInput(overrides: Partial<CreateTripInput> = {}): CreateTripInput {
     destination: '京都，日本',
     startDate: '2024-03-01',
     endDate: '2024-03-01',
-    travelers: 2,
     travelStyle: [],
     additionalNotes: '',
     preferences: [],

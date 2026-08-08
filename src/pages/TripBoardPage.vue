@@ -6,7 +6,6 @@
         <span :class="{ 'trip-header__unscheduled-date': !activeTrip.startDate }">
           {{ activeTrip.dateRange }}
         </span>
-        · {{ activeTrip.travelers }} 位旅伴
       </template>
 
       <template #badge>
