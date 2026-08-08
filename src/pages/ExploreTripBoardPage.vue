@@ -127,9 +127,10 @@
           </div>
 
           <div class="place-drawer__content">
-            <div class="place-drawer__title-row">
-              <CategoryChip :category="drawerPlace.category" />
-            </div>
+            <button type="button" class="place-drawer__nav-button" @click="openGoogleMapsNav">
+              <AppIcon name="compass" :size="14" />
+              Google map 導航
+            </button>
 
             <p class="place-drawer__description">{{ drawerPlace.description }}</p>
 
@@ -174,7 +175,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '../components/layout/PageHeader.vue'
-import CategoryChip, { categoryLabels } from '../components/trips/CategoryChip.vue'
+import { categoryLabels } from '../components/trips/CategoryChip.vue'
 import DayTabs from '../components/trips/DayTabs.vue'
 import PlaceCard from '../components/trips/PlaceCard.vue'
 import TripMap from '../components/trips/TripMap.vue'
@@ -184,6 +185,7 @@ import { useColumnSchedule } from '../composables/useColumnSchedule'
 import { useIsMobile } from '../composables/useIsMobile'
 import { usePlacePhoto } from '../composables/usePlacePhoto'
 import { explorePlacesForTemplate, exploreTemplates } from '../data/exploreTrips'
+import { googleMapsDirectionsUrl } from '../data/googleMapsUrl'
 import { useTripsStore } from '../stores/trips'
 
 const route = useRoute()
@@ -306,6 +308,11 @@ function closeDrawer() {
 function viewOnMap() {
   if (isMobile.value) mobileView.value = 'map'
   closeDrawer()
+}
+
+function openGoogleMapsNav() {
+  if (!drawerPlace.value) return
+  window.open(googleMapsDirectionsUrl(drawerPlace.value), '_blank', 'noopener,noreferrer')
 }
 
 function getPlaceDay(columnId: string) {

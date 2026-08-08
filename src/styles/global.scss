@@ -3225,11 +3225,26 @@ h3 {
   padding: 16px;
 }
 
-.place-drawer__title-row {
-  display: flex;
+.place-drawer__nav-button {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  justify-self: start;
+  gap: 6px;
+  padding: 7px 13px;
+  border: 0;
+  border-radius: $radius-pill;
+  background: $color-primary-soft;
+  color: $color-primary-text;
+  font-size: $fs-small;
+  font-weight: 700;
+}
+
+.place-drawer__nav-button:hover {
+  background: color.adjust($color-primary-soft, $lightness: -4%);
+}
+
+.place-drawer__nav-button:focus-visible {
+  @include focus-ring;
 }
 
 .place-drawer__description {

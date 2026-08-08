@@ -232,9 +232,10 @@
 
           <div class="place-drawer__content">
             <template v-if="!isEditingPlace">
-              <div class="place-drawer__title-row">
-                <CategoryChip :category="drawerPlace.category" />
-              </div>
+              <button type="button" class="place-drawer__nav-button" @click="openGoogleMapsNav">
+                <AppIcon name="compass" :size="14" />
+                Google map 導航
+              </button>
 
               <p class="place-drawer__description">{{ drawerPlace.description }}</p>
 
@@ -492,7 +493,7 @@ import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '../components/layout/PageHeader.vue'
 import AddPlaceModal from '../components/trips/AddPlaceModal.vue'
 import AskAiPanel from '../components/trips/AskAiPanel.vue'
-import CategoryChip, { allPlaceCategories, categoryLabels } from '../components/trips/CategoryChip.vue'
+import { allPlaceCategories, categoryLabels } from '../components/trips/CategoryChip.vue'
 import DayPickerSheet from '../components/trips/DayPickerSheet.vue'
 import DayStepper from '../components/trips/DayStepper.vue'
 import DayTabs from '../components/trips/DayTabs.vue'
@@ -511,6 +512,7 @@ import { useConfirmDialog } from '../composables/useConfirmDialog'
 import { useIsMobile } from '../composables/useIsMobile'
 import { usePlacePhoto } from '../composables/usePlacePhoto'
 import { cityFromDestination, computeTripDays, formatDateRange, toDateInputValue } from '../data/generateTrip'
+import { googleMapsDirectionsUrl } from '../data/googleMapsUrl'
 import type { GeoPoint } from '../data/placesSearchClient'
 import {
   addMinutes,
@@ -1192,6 +1194,11 @@ function focusColumn(columnId: string) {
 function viewOnMap() {
   if (isMobile.value) mobileView.value = 'map'
   closeDrawer()
+}
+
+function openGoogleMapsNav() {
+  if (!drawerPlace.value) return
+  window.open(googleMapsDirectionsUrl(drawerPlace.value), '_blank', 'noopener,noreferrer')
 }
 
 function getPlaceDay(columnId: string) {
