@@ -3676,7 +3676,13 @@ h3 {
 }
 
 .add-place-modal__suggestions {
+  // align-content defaults to `normal`, which computes to `stretch` for
+  // auto-sized grid rows — without this, leftover height in the scroll area
+  // gets divided evenly across the result rows (growing taller as picking a
+  // result removes it from the list and leaves fewer rows to share the
+  // space) instead of each row staying a fixed, content-sized height.
   display: grid;
+  align-content: start;
   gap: 8px;
   width: min(560px, 100%);
   margin-inline: auto;
@@ -3762,6 +3768,7 @@ h3 {
 }
 
 .add-place-suggestion__body strong {
+  color: $color-ink;
   font-size: $fs-ui;
 }
 
