@@ -3,7 +3,6 @@ import { stripBilingualName } from './_lib/placeName.js'
 import { distanceKm, geocodeCityCenter, verifyPlace, type GeoPoint } from './_lib/placesVerify.js'
 import {
   buildDayPrompt,
-  CLIENT_HARD_MAX_PLACES_PER_DAY,
   mapWithConcurrency,
   overAskCountFor,
   PLACE_SCHEMA,
@@ -250,11 +249,8 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
     // A loose sanity ceiling, not an exact cap — the precise trim against
     // this day's real duration budget happens client-side in
     // generateTrip.ts once every candidate's estimatedTimeHours is known.
-    // Also capped at CLIENT_HARD_MAX_PLACES_PER_DAY: the client's walk never
-    // keeps more than that many places for one day regardless of
-    // targetPlaceCount, so shipping more than that back (each carrying full
-    // Google Places verification data) would just be discarded, wasted payload.
-    const MAX_ACCEPTED_PER_DAY = Math.min(overAskCountFor(targetPlaceCount!), CLIENT_HARD_MAX_PLACES_PER_DAY)
+    // See overAskCountFor's own comment for why it's already clamped.
+    const MAX_ACCEPTED_PER_DAY = overAskCountFor(targetPlaceCount!)
     let anchor: GeoPoint | null = existingAnchor ?? null
     const accepted: typeof deduped = []
     for (const hit of deduped) {

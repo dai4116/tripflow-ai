@@ -11,10 +11,16 @@ export type ColumnCard = {
 
 // Shared by TripBoardPage and ExploreTripBoardPage — both lay out a day
 // column's cards from the same cascade and need to look a single place's
-// resolved schedule back up for the drawer. `places`/`columns` are getters
+// resolved schedule back up for the drawer. All three params are getters
 // (not values) so this stays reactive to whichever store/computed each page
 // reads its data from.
-export function useColumnSchedule(places: () => Place[], columns: () => TripColumn[]) {
+//
+// dayStartTime is required rather than defaulted: both pages have a trip
+// (and therefore a pace-derived window start) right there, and silently
+// falling back to a fixed hour is exactly the bug this param exists to fix —
+// a board rendering from a different clock than the one its day was budgeted
+// against. See computeArrivalTimes' own dayStartTime comment.
+export function useColumnSchedule(places: () => Place[], columns: () => TripColumn[], dayStartTime: () => string) {
   function getColumnPlaces(placeIds: string[]): Place[] {
     const allPlaces = places()
     return placeIds
@@ -27,7 +33,7 @@ export function useColumnSchedule(places: () => Place[], columns: () => TripColu
   // day's cascade once per card.
   function getColumnCards(placeIds: string[]): ColumnCard[] {
     const columnPlaces = getColumnPlaces(placeIds)
-    const schedule = computeArrivalTimes(columnPlaces)
+    const schedule = computeArrivalTimes(columnPlaces, dayStartTime())
 
     return columnPlaces.map((place, index) => ({
       place,

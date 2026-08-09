@@ -39,14 +39,21 @@ export function paceForTravelStyles(travelStyles: string[]): TripPace {
   return TRAVEL_STYLE_PACE[travelStyles[0] ?? ''] ?? 'balanced'
 }
 
-// How long a day's active hours run, by pace — a relaxed trip leaves more
-// breathing room (ends earlier), a packed one fits more in (ends later). The
-// actual number of places that land in a day falls out of this window
-// budget (see the columns loop's duration-budget walk below) rather than
-// being a flat count target, so a day of mostly quick photo-stop attractions
-// naturally fits more than a day with a couple of half-day museums.
+// When a day's active hours run, by pace. Both ends matter, not just the
+// length: `start` is also the hour the rendered schedule cascades from (see
+// computeArrivalTimes' dayStartTime in placeSchedule.ts), so relaxed starting
+// at 10:00 is what actually gives a 自在慢旅 trip a sleep-in morning rather
+// than just a shorter day. The number of places that land in a day falls out
+// of this window's duration budget (see selectPlacesForWindow below) rather
+// than a flat count target, so a day of quick photo stops naturally fits more
+// than a day with a couple of half-day museums.
 const DAY_WINDOW_BY_PACE: Record<TripPace, DayWindow> = {
-  relaxed: { start: '08:00', end: '17:00' },
+  // 9 hours, the shortest of the three: a late start is what makes this pace
+  // a sleep-in, but the day still has to stay sparser than balanced's — an
+  // earlier 10:00-20:00 version pushed relaxed to a 10-hour day, which
+  // silently gave it the same place count as balanced (6) and left the two
+  // paces differing only in what time they began.
+  relaxed: { start: '10:00', end: '19:00' },
   balanced: { start: '08:00', end: '19:00' },
   packed: { start: '08:00', end: '21:00' },
 }
@@ -122,9 +129,22 @@ const HARD_MAX_PLACES_PER_DAY = 7
 // The shortest a single place's clamped duration can ever be (see
 // MIN_ESTIMATED_HOURS below, shared here so both agree on what "too short
 // for even one stop" means) — declared before resolveEstimatedTime since
-// targetCountForWindow needs it too.
-const MIN_ESTIMATED_HOURS = 0.5
+// targetCountForWindow needs it too. 1 hour, not something smaller: a real
+// stop (food/attraction/shopping) realistically never wraps up in under an
+// hour once you count actually being there, not just the "typical visit"
+// number an AI might give for a quick photo spot. This also raises
+// targetCountForWindow's "too short to fit even one place" floor from 30 to
+// 60 minutes — deliberate, since a window that can't fit a full hour
+// shouldn't have a place forced into it either.
+const MIN_ESTIMATED_HOURS = 1
 const MAX_ESTIMATED_HOURS = 6
+
+// Every resolved duration is rounded UP to the nearest half hour (never
+// down) — an AI estimate like "1.2 hours" displaying as "1 時 12 分" reads as
+// falsely precise; itinerary stay times are inherently rough guesses, so
+// they should look like one (1, 1.5, 2h, ...) rather than an oddly specific
+// number of minutes.
+const ESTIMATED_HOURS_ROUNDING_STEP = 0.5
 
 // A window shorter than the shortest possible single stop isn't just
 // "round(minutes/105) happens to hit 0" — it's genuinely too short for even
@@ -159,14 +179,16 @@ const DEFAULT_DURATION_BY_CATEGORY: Record<PlaceCategory, number> = {
 
 // Resolves a place's stay duration: the AI's own estimate (see
 // estimatedTimeHours in api/_lib/tripGen.ts's PLACE_SCHEMA), clamped to a
-// sane range, or a per-category default when there's no AI estimate at all
-// (manually-added places) or the value is missing/invalid. stay/transport
-// always use their fixed default regardless of any AI value — see
-// FIXED_OBLIGATION_CATEGORIES above.
+// sane range and rounded up to a clean half-hour, or a per-category default
+// when there's no AI estimate at all (manually-added places) or the value is
+// missing/invalid — the defaults are already clean, in-range numbers, so they
+// skip the rounding step. stay/transport always use their fixed default
+// regardless of any AI value — see FIXED_OBLIGATION_CATEGORIES above.
 export function resolveEstimatedTime(category: PlaceCategory, aiHours?: number): number {
   if (FIXED_OBLIGATION_CATEGORIES.includes(category)) return DEFAULT_DURATION_BY_CATEGORY[category]
   if (typeof aiHours === 'number' && Number.isFinite(aiHours)) {
-    return Math.min(MAX_ESTIMATED_HOURS, Math.max(MIN_ESTIMATED_HOURS, aiHours))
+    const clamped = Math.min(MAX_ESTIMATED_HOURS, Math.max(MIN_ESTIMATED_HOURS, aiHours))
+    return Math.ceil(clamped / ESTIMATED_HOURS_ROUNDING_STEP) * ESTIMATED_HOURS_ROUNDING_STEP
   }
   return DEFAULT_DURATION_BY_CATEGORY[category]
 }

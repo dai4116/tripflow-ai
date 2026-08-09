@@ -1,10 +1,10 @@
 import type { Place } from '../types'
 
 // Places without a manual arrivalTime cascade off the one before them. Each
-// day starts at 08:00; a place advances the cursor by its stay duration, or
-// uses its explicit departureTime when departure mode is active. A manual
-// arrival becomes the next anchor, so edits only ripple forward.
-const DAY_START_TIME = '08:00'
+// day starts at its trip's own start hour (see computeArrivalTimes'
+// dayStartTime); a place advances the cursor by its stay duration, or uses
+// its explicit departureTime when departure mode is active. A manual arrival
+// becomes the next anchor, so edits only ripple forward.
 
 export type ScheduledTime = { time: string; hasOverlap: boolean; hasInvalidDeparture: boolean }
 
@@ -68,13 +68,25 @@ export function hhmmToHours(value: string): number {
 // them in) and resolves each one's effective arrival time.
 export function computeArrivalTimes(
   places: Pick<Place, 'id' | 'estimatedTime' | 'arrivalTime' | 'scheduleMode' | 'departureTime' | 'travelToNext'>[],
+  // The hour this day's cascade starts from, when its first place has no
+  // manual arrivalTime — the trip's own pace-derived window start (see
+  // dayWindowForPace in generateTrip.ts), so a 自在慢旅 trip's board really
+  // does start late morning instead of every trip starting at the same fixed
+  // hour. This has to be the SAME window start generateTrip.ts already used
+  // to decide how many places fit the day: when the two disagree, the day is
+  // budgeted against one clock and rendered against another (confirmed live —
+  // a 10:00-20:00 window still rendered from 08:00, so the "sleeps in" pace
+  // just silently got a longer day instead of a later one). Required, not
+  // defaulted — a silent fallback here would let a caller compile back into
+  // exactly this bug (see useColumnSchedule's own dayStartTime comment).
+  dayStartTime: string,
 ): ScheduledTime[] {
-  let cursor = DAY_START_TIME
+  let cursor = dayStartTime
   // Tracks the latest end time seen so far (not just the previous card's) —
   // a short intermediate stay can pull `cursor` earlier than an even-earlier
   // card's real end, and comparing overlap against `cursor` alone would then
   // miss a manual arrival that still lands inside that earlier card's window.
-  let maxEnd = DAY_START_TIME
+  let maxEnd = dayStartTime
 
   return places.map((place, index) => {
     const time = place.arrivalTime ?? cursor

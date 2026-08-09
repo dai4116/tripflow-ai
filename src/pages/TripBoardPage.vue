@@ -511,7 +511,7 @@ import { useColumnSchedule } from '../composables/useColumnSchedule'
 import { useConfirmDialog } from '../composables/useConfirmDialog'
 import { useIsMobile } from '../composables/useIsMobile'
 import { usePlacePhoto } from '../composables/usePlacePhoto'
-import { cityFromDestination, computeTripDays, formatDateRange, toDateInputValue } from '../data/generateTrip'
+import { cityFromDestination, computeTripDays, dayWindowForPace, formatDateRange, toDateInputValue } from '../data/generateTrip'
 import { googleMapsDirectionsUrl } from '../data/googleMapsUrl'
 import type { GeoPoint } from '../data/placesSearchClient'
 import {
@@ -623,9 +623,14 @@ ensureColumns()
 
 const displayedColumns = computed(() => activeTrip.value.columns)
 const tripPlaces = computed(() => places.value.filter((place) => place.tripId === activeTrip.value.id))
+// The hour this trip's days start rendering from — the same pace-derived
+// window start generateTrip.ts budgeted each day against, so the board's
+// clock and the "how many places fit" clock can't drift apart.
+const dayStartTime = computed(() => dayWindowForPace(activeTrip.value.pace).start)
 const { getColumnPlaces, getColumnCards, getPlaceSchedule } = useColumnSchedule(
   () => tripPlaces.value,
   () => displayedColumns.value,
+  () => dayStartTime.value,
 )
 
 // Bundles each card with its immediate successor (or null if it's last in
@@ -1154,8 +1159,8 @@ function startEdit() {
     ? getColumnPlaces(column.placeIds).map((item) => (item.id === place.id ? { ...item, arrivalTime: undefined } : item))
     : []
   const autoIndex = placesWithoutOverride.findIndex((item) => item.id === place.id)
-  const autoSchedule = computeArrivalTimes(placesWithoutOverride)
-  editForm.arrivalTimeAuto = (autoIndex === -1 ? undefined : autoSchedule[autoIndex]?.time) ?? '08:00'
+  const autoSchedule = computeArrivalTimes(placesWithoutOverride, dayStartTime.value)
+  editForm.arrivalTimeAuto = (autoIndex === -1 ? undefined : autoSchedule[autoIndex]?.time) ?? dayStartTime.value
 
   editForm.arrivalTimeMode = place.arrivalTime ? 'manual' : 'auto'
   editForm.arrivalTimeManual = place.arrivalTime ?? editForm.arrivalTimeAuto

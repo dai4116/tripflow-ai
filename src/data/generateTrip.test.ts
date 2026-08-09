@@ -30,7 +30,10 @@ function baseInput(overrides: Partial<CreateTripInput> = {}): CreateTripInput {
 }
 
 test('dayWindowForPace maps each pace to its active-hours window', () => {
-  assert.deepEqual(dayWindowForPace('relaxed'), { start: '08:00', end: '17:00' })
+  // relaxed starts late morning on purpose (a sleep-in pace), so its start
+  // hour differs from the other two rather than only its length — and it's
+  // still the shortest day of the three, so it stays the sparsest pace.
+  assert.deepEqual(dayWindowForPace('relaxed'), { start: '10:00', end: '19:00' })
   assert.deepEqual(dayWindowForPace('balanced'), { start: '08:00', end: '19:00' })
   assert.deepEqual(dayWindowForPace('packed'), { start: '08:00', end: '21:00' })
 })
@@ -54,7 +57,8 @@ test('paceForTravelStyles only reads the first style if more than one is ever pa
 })
 
 test('targetCountForWindow derives a soft candidate count from window length', () => {
-  assert.equal(targetCountForWindow({ start: '08:00', end: '17:00' }), 5) // relaxed: 540/105 ~ 5.14 -> 5
+  // Each pace stays a distinct density: relaxed < balanced < packed.
+  assert.equal(targetCountForWindow({ start: '10:00', end: '19:00' }), 5) // relaxed: 540/105 ~ 5.14 -> 5
   assert.equal(targetCountForWindow({ start: '08:00', end: '19:00' }), 6) // balanced: 660/105 ~ 6.29 -> 6
   assert.equal(targetCountForWindow({ start: '08:00', end: '21:00' }), 7) // packed: 780/105 ~ 7.43 -> 7
 })
@@ -65,19 +69,26 @@ test('targetCountForWindow returns 0 for a zero-length window and never exceeds 
 })
 
 test('targetCountForWindow returns 0 for a nonzero window too short to fit even one place, not a floored-up 1', () => {
-  // 20 minutes is under MIN_ESTIMATED_HOURS (30min) — too short for even the
+  // 50 minutes is under MIN_ESTIMATED_HOURS (60min) — too short for even the
   // shortest possible stop, so this must be treated the same as "skip this
   // day," not forced up to a minimum of 1 the way a merely-small-but-viable
   // window would be.
-  assert.equal(targetCountForWindow({ start: '08:00', end: '08:20' }), 0)
-  // 30 minutes exactly is the shortest a single stop can be — still viable.
-  assert.equal(targetCountForWindow({ start: '08:00', end: '08:30' }), 1)
+  assert.equal(targetCountForWindow({ start: '08:00', end: '08:50' }), 0)
+  // 60 minutes exactly is the shortest a single stop can be — still viable.
+  assert.equal(targetCountForWindow({ start: '08:00', end: '09:00' }), 1)
 })
 
 test('resolveEstimatedTime uses the AI estimate, clamped to a sane range', () => {
   assert.equal(resolveEstimatedTime('attraction', 2), 2)
-  assert.equal(resolveEstimatedTime('attraction', 0.1), 0.5)
+  assert.equal(resolveEstimatedTime('attraction', 0.1), 1)
   assert.equal(resolveEstimatedTime('attraction', 10), 6)
+})
+
+test('resolveEstimatedTime rounds a valid AI estimate up to the nearest half hour, never down', () => {
+  assert.equal(resolveEstimatedTime('attraction', 1.2), 1.5)
+  assert.equal(resolveEstimatedTime('food', 1.6), 2)
+  // Already a clean half-hour value — rounding is a no-op.
+  assert.equal(resolveEstimatedTime('attraction', 2), 2)
 })
 
 test('resolveEstimatedTime falls back to the category default when the AI value is missing or invalid', () => {
@@ -240,13 +251,14 @@ test('generateTrip carries the suggestion\'s Google placeId through to the resul
 
 test('generateTrip resolves each place\'s estimatedTime from its AI-suggested duration', () => {
   const aiPlaces: PlaceSuggestion[] = [
-    { day: 1, name: 'Landmark', category: 'attraction', description: 'd', estimatedTimeHours: 0.75 },
+    { day: 1, name: 'Landmark', category: 'attraction', description: 'd', estimatedTimeHours: 1.2 },
     { day: 1, name: 'NoEstimate', category: 'food', description: 'd' },
   ]
   const input = baseInput({ startDate: '2024-03-01', endDate: '2024-03-01' })
   const { places } = generateTrip(input, [], aiPlaces)
 
-  assert.equal(places.find((p) => p.name === 'Landmark')!.estimatedTime, 0.75)
+  // 1.2 is clamped/rounded up to a clean 1.5, not stored as-is.
+  assert.equal(places.find((p) => p.name === 'Landmark')!.estimatedTime, 1.5)
   // No AI estimate -> falls back to the food category default.
   assert.equal(places.find((p) => p.name === 'NoEstimate')!.estimatedTime, 1)
 })

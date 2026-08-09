@@ -40,34 +40,71 @@ test('hoursToHHMM / hhmmToHours round-trip', () => {
 })
 
 test('computeArrivalTimes cascades from 08:00 using each place\'s duration', () => {
-  const result = computeArrivalTimes([
-    { id: 'a', estimatedTime: 1 },
-    { id: 'b', estimatedTime: 2 },
-  ])
+  const result = computeArrivalTimes(
+    [
+      { id: 'a', estimatedTime: 1 },
+      { id: 'b', estimatedTime: 2 },
+    ],
+    '08:00',
+  )
   assert.deepEqual(result, [
     { time: '08:00', hasOverlap: false, hasInvalidDeparture: false },
     { time: '09:00', hasOverlap: false, hasInvalidDeparture: false },
   ])
 })
 
+test('computeArrivalTimes cascades from a caller-supplied day start instead of the 08:00 default', () => {
+  // A relaxed-pace trip's day window starts at 10:00 (dayWindowForPace in
+  // generateTrip.ts) — the board has to render from that same hour, not the
+  // default, or the day gets budgeted against one clock and shown on another.
+  const result = computeArrivalTimes(
+    [
+      { id: 'a', estimatedTime: 1 },
+      { id: 'b', estimatedTime: 2 },
+    ],
+    '10:00',
+  )
+  assert.deepEqual(result.map((entry) => entry.time), ['10:00', '11:00'])
+})
+
+test('computeArrivalTimes measures overlap against the supplied day start too, not a fixed 08:00', () => {
+  // 09:00 is before this day even begins, so the first card can't be a valid
+  // anchor for a later one — but the first card is never flagged itself, so
+  // the regression this guards is the SECOND card silently reading as fine.
+  const result = computeArrivalTimes(
+    [
+      { id: 'a', estimatedTime: 1 }, // no manual time -> starts 10:00, ends 11:00
+      { id: 'b', estimatedTime: 1, arrivalTime: '10:30' }, // lands inside a's stay
+    ],
+    '10:00',
+  )
+  assert.equal(result[1]!.hasOverlap, true)
+})
+
 test('computeArrivalTimes never flags the first card as overlapping, even with an early manual arrival', () => {
-  const [first] = computeArrivalTimes([{ id: 'a', estimatedTime: 1, arrivalTime: '03:00' }])
+  const [first] = computeArrivalTimes([{ id: 'a', estimatedTime: 1, arrivalTime: '03:00' }], '08:00')
   assert.equal(first!.hasOverlap, false)
 })
 
 test('computeArrivalTimes flags a manual arrival that lands before the previous card ends', () => {
-  const result = computeArrivalTimes([
-    { id: 'a', estimatedTime: 1 }, // 08:00 -> 09:00
-    { id: 'b', estimatedTime: 1, arrivalTime: '08:30' }, // overlaps a's 09:00 end
-  ])
+  const result = computeArrivalTimes(
+    [
+      { id: 'a', estimatedTime: 1 }, // 08:00 -> 09:00
+      { id: 'b', estimatedTime: 1, arrivalTime: '08:30' }, // overlaps a's 09:00 end
+    ],
+    '08:00',
+  )
   assert.equal(result[1]!.hasOverlap, true)
 })
 
 test('computeArrivalTimes does not flag a manual arrival that lands after the previous card ends', () => {
-  const result = computeArrivalTimes([
-    { id: 'a', estimatedTime: 1 }, // 08:00 -> 09:00
-    { id: 'b', estimatedTime: 1, arrivalTime: '10:00' },
-  ])
+  const result = computeArrivalTimes(
+    [
+      { id: 'a', estimatedTime: 1 }, // 08:00 -> 09:00
+      { id: 'b', estimatedTime: 1, arrivalTime: '10:00' },
+    ],
+    '08:00',
+  )
   assert.equal(result[1]!.hasOverlap, false)
   assert.equal(result[1]!.time, '10:00')
 })
@@ -80,44 +117,59 @@ test('computeArrivalTimes compares overlap against the latest end seen so far, n
   // c: manual 10:00 arrival is inside a's window (08:00-11:00) but after b's
   //    departure (09:15) — only checking against maxEnd (11:00), not cursor
   //    (09:15), catches this as an overlap.
-  const result = computeArrivalTimes([
-    { id: 'a', estimatedTime: 3 },
-    { id: 'b', estimatedTime: 0.25, arrivalTime: '09:00' },
-    { id: 'c', estimatedTime: 1, arrivalTime: '10:00' },
-  ])
+  const result = computeArrivalTimes(
+    [
+      { id: 'a', estimatedTime: 3 },
+      { id: 'b', estimatedTime: 0.25, arrivalTime: '09:00' },
+      { id: 'c', estimatedTime: 1, arrivalTime: '10:00' },
+    ],
+    '08:00',
+  )
   assert.equal(result[1]!.hasOverlap, true)
   assert.equal(result[2]!.hasOverlap, true)
 })
 
 test('computeArrivalTimes honors a valid departure-mode time', () => {
-  const result = computeArrivalTimes([
-    { id: 'a', estimatedTime: 1, scheduleMode: 'departure', departureTime: '10:00' },
-    { id: 'b', estimatedTime: 1 },
-  ])
+  const result = computeArrivalTimes(
+    [
+      { id: 'a', estimatedTime: 1, scheduleMode: 'departure', departureTime: '10:00' },
+      { id: 'b', estimatedTime: 1 },
+    ],
+    '08:00',
+  )
   assert.equal(result[0]!.hasInvalidDeparture, false)
   assert.equal(result[1]!.time, '10:00')
 })
 
 test('computeArrivalTimes falls back to duration-based end when departure-mode time is invalid', () => {
-  const result = computeArrivalTimes([
-    { id: 'a', estimatedTime: 1, arrivalTime: '09:00', scheduleMode: 'departure', departureTime: '08:30' },
-    { id: 'b', estimatedTime: 1 },
-  ])
+  const result = computeArrivalTimes(
+    [
+      { id: 'a', estimatedTime: 1, arrivalTime: '09:00', scheduleMode: 'departure', departureTime: '08:30' },
+      { id: 'b', estimatedTime: 1 },
+    ],
+    '08:00',
+  )
   assert.equal(result[0]!.hasInvalidDeparture, true)
   // duration-based fallback: 09:00 + 1h = 10:00, not the invalid 08:30
   assert.equal(result[1]!.time, '10:00')
 })
 
 test('computeArrivalTimes applies travelToNext only when it still points at the actual next place', () => {
-  const withMatchingTravel = computeArrivalTimes([
-    { id: 'a', estimatedTime: 1, travelToNext: { toPlaceId: 'b', mode: 'driving', durationMin: 15 } },
-    { id: 'b', estimatedTime: 1 },
-  ])
+  const withMatchingTravel = computeArrivalTimes(
+    [
+      { id: 'a', estimatedTime: 1, travelToNext: { toPlaceId: 'b', mode: 'driving', durationMin: 15 } },
+      { id: 'b', estimatedTime: 1 },
+    ],
+    '08:00',
+  )
   assert.equal(withMatchingTravel[1]!.time, '09:15')
 
-  const withStaleTravel = computeArrivalTimes([
-    { id: 'a', estimatedTime: 1, travelToNext: { toPlaceId: 'x', mode: 'driving', durationMin: 15 } },
-    { id: 'b', estimatedTime: 1 },
-  ])
+  const withStaleTravel = computeArrivalTimes(
+    [
+      { id: 'a', estimatedTime: 1, travelToNext: { toPlaceId: 'x', mode: 'driving', durationMin: 15 } },
+      { id: 'b', estimatedTime: 1 },
+    ],
+    '08:00',
+  )
   assert.equal(withStaleTravel[1]!.time, '09:00')
 })

@@ -26,12 +26,12 @@ const PLACES: Place[] = [
 const COLUMNS: TripColumn[] = [{ id: 'day-1', title: '第1天', dayNumber: 1, placeIds: ['a', 'b'] }]
 
 test('getColumnPlaces resolves placeIds to Place objects, dropping unknown ids', () => {
-  const { getColumnPlaces } = useColumnSchedule(() => PLACES, () => COLUMNS)
+  const { getColumnPlaces } = useColumnSchedule(() => PLACES, () => COLUMNS, () => '08:00')
   assert.deepEqual(getColumnPlaces(['a', 'missing', 'b']).map((p) => p.id), ['a', 'b'])
 })
 
 test('getColumnCards bundles each place with its order, arrival time, and overlap flag', () => {
-  const { getColumnCards } = useColumnSchedule(() => PLACES, () => COLUMNS)
+  const { getColumnCards } = useColumnSchedule(() => PLACES, () => COLUMNS, () => '08:00')
   const cards = getColumnCards(['a', 'b'])
 
   assert.equal(cards.length, 2)
@@ -50,21 +50,21 @@ test('getColumnCards reports a departure-mode overlap as overlapReason "departur
     place({ id: 'a', estimatedTime: 1 }),
     place({ id: 'b', estimatedTime: 1, arrivalTime: '09:00', scheduleMode: 'departure', departureTime: '08:30' }),
   ]
-  const { getColumnCards } = useColumnSchedule(() => places, () => COLUMNS)
+  const { getColumnCards } = useColumnSchedule(() => places, () => COLUMNS, () => '08:00')
   const cards = getColumnCards(['a', 'b'])
   assert.equal(cards[1]!.hasTimeOverlap, true)
   assert.equal(cards[1]!.overlapReason, 'departure')
 })
 
 test('getPlaceSchedule looks up a place\'s own column and returns its resolved card', () => {
-  const { getPlaceSchedule } = useColumnSchedule(() => PLACES, () => COLUMNS)
+  const { getPlaceSchedule } = useColumnSchedule(() => PLACES, () => COLUMNS, () => '08:00')
   const schedule = getPlaceSchedule(PLACES[1])
   assert.equal(schedule?.place.id, 'b')
   assert.equal(schedule?.arrivalTime, '08:30')
 })
 
 test('getPlaceSchedule returns null for a null/undefined place or one whose column no longer exists', () => {
-  const { getPlaceSchedule } = useColumnSchedule(() => PLACES, () => COLUMNS)
+  const { getPlaceSchedule } = useColumnSchedule(() => PLACES, () => COLUMNS, () => '08:00')
   assert.equal(getPlaceSchedule(null), null)
   assert.equal(getPlaceSchedule(undefined), null)
   assert.equal(getPlaceSchedule(place({ id: 'orphan', columnId: 'day-missing' })), null)

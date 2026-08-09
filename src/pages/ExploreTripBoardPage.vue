@@ -185,6 +185,7 @@ import { useColumnSchedule } from '../composables/useColumnSchedule'
 import { useIsMobile } from '../composables/useIsMobile'
 import { usePlacePhoto } from '../composables/usePlacePhoto'
 import { explorePlacesForTemplate, exploreTemplates } from '../data/exploreTrips'
+import { dayWindowForPace } from '../data/generateTrip'
 import { googleMapsDirectionsUrl } from '../data/googleMapsUrl'
 import { useTripsStore } from '../stores/trips'
 
@@ -204,6 +205,10 @@ const templatePlaces = computed(() => explorePlacesForTemplate(template.value.id
 const { getColumnPlaces, getColumnCards, getPlaceSchedule } = useColumnSchedule(
   () => templatePlaces.value,
   () => template.value.columns,
+  // Templates carry their own pace (see exploreTrips.ts), so a relaxed
+  // template's preview board starts late morning just like a real trip of
+  // that pace would.
+  () => dayWindowForPace(template.value.pace).start,
 )
 
 const mobileView = ref<'board' | 'map'>('board')
