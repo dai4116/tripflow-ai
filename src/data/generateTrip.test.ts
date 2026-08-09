@@ -45,9 +45,7 @@ test('paceForTravelStyles falls back to balanced when nothing resolves', () => {
 
 test('paceForTravelStyles looks up the selected style directly', () => {
   assert.equal(paceForTravelStyles(['自在慢旅']), 'relaxed')
-  assert.equal(paceForTravelStyles(['深度探索']), 'balanced')
   assert.equal(paceForTravelStyles(['精準規劃']), 'packed')
-  assert.equal(paceForTravelStyles(['熱血冒險']), 'packed')
 })
 
 test('paceForTravelStyles only reads the first style if more than one is ever passed', () => {

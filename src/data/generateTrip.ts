@@ -20,15 +20,10 @@ export function dayColorForIndex(index: number): string {
 }
 
 // Each style's own pace bucket — single-select now (see CreateTripPage.vue),
-// so this is a direct style -> pace lookup, no averaging needed. Preserves
-// the same effective mapping the old evenly-spaced place-count numbers
-// implied (精準規劃/熱血冒險 -> packed, 深度探索 -> balanced, 自在慢旅 ->
-// relaxed).
+// so this is a direct style -> pace lookup, no averaging needed.
 const TRAVEL_STYLE_PACE: Record<string, TripPace> = {
   精準規劃: 'packed',
   自在慢旅: 'relaxed',
-  深度探索: 'balanced',
-  熱血冒險: 'packed',
 }
 
 // Resolves the selected travel style into a pace. Single-select means at

@@ -231,7 +231,7 @@ const destinationInputRef = ref<InstanceType<typeof DestinationAutocomplete> | n
 const selectedPreferences = ref(['必吃美食', '逛街購物', '熱門打卡'])
 // Single-select — see paceForTravelStyles in generateTrip.ts for how the one
 // selected style resolves directly to a pace.
-const selectedTravelStyles = ref(['深度探索'])
+const selectedTravelStyles = ref(['精準規劃'])
 
 const defaultStart = new Date()
 const defaultEnd = new Date()
@@ -331,13 +331,13 @@ watch(
 )
 
 const cityLabel = computed(() => form.destination.split(/[,，]/)[0].trim() || '你的')
-// Live caption under the style picker — a punchy 4-character label like
-// "深度探索" doesn't say what it actually changes about the itinerary, and
-// hover tooltips (the button's title attribute) don't work on touch, which
-// is most of this app's usage. selectedTravelStyles only ever holds 0 or 1
-// elements now (single-select — see selectTravelStyle), so .join('；') never
-// actually joins anything; kept as-is since it's harmless on a 1-element
-// array and avoids a needless [0]-indexing rewrite.
+// Live caption under the style picker — a punchy 4-character label doesn't
+// say what it actually changes about the itinerary, and hover tooltips (the
+// button's title attribute) don't work on touch, which is most of this app's
+// usage. selectedTravelStyles only ever holds 0 or 1 elements now
+// (single-select — see selectTravelStyle), so .join('；') never actually
+// joins anything; kept as-is since it's harmless on a 1-element array and
+// avoids a needless [0]-indexing rewrite.
 const selectedStyleHints = computed(() =>
   selectedTravelStyles.value.map((style) => travelStyleHints[style]).filter(Boolean).join('；'),
 )
@@ -390,8 +390,6 @@ function getStyleIcon(style: string): IconName {
   const icons: Record<string, IconName> = {
     精準規劃: 'list',
     自在慢旅: 'coffee',
-    深度探索: 'compass',
-    熱血冒險: 'mountain',
   }
 
   return icons[style] ?? 'sparkle'

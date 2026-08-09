@@ -104,8 +104,6 @@ export const ZONE_SCHEMA = {
 const STYLE_FLAVOR: Record<string, string> = {
   精準規劃: '偏好效率高、評價好的必去景點，盡量減少繞路移動',
   自在慢旅: '景點數不用多，重視氛圍與步調，不趕行程',
-  深度探索: '偏好小眾景點、巷弄與在地生活體驗，避免只選熱門觀光打卡點',
-  熱血冒險: '偏好戶外、有挑戰性、新奇的活動與體驗',
 }
 
 export function styleFlavorLines(travelStyle: string[] | undefined): string {
@@ -149,9 +147,8 @@ export function overAskCountFor(targetPlaceCount: number): number {
 // excluded from buildZonePlanPrompt's "distribute every preference across at
 // least one day" list below since it's already guaranteed EVERY day rather
 // than needing an "at least one day" assignment. Pre-selected by default on
-// the form, but not hardcoded around: a user who deselects it (or picks a
-// food-agnostic travel style like 熱血冒險) shouldn't have a day's place
-// burned on a meal they never asked for.
+// the form, but not hardcoded around: a user who deselects it shouldn't have
+// a day's place burned on a meal they never asked for.
 const FOOD_PREFERENCE = '必吃美食'
 
 export type TripContext = {
@@ -350,7 +347,7 @@ export function buildDayPrompt(
       : '這趟行程沒有特別要求美食類地點，請完全依旅遊風格與興趣偏好決定這天的地點類型組成，不用刻意安排美食地點——如果某個地點剛好符合風格或偏好、恰好是美食類也可以，但不要為了湊「每天都要有吃的」而特地加入。',
     '每個景點包含分類、名稱、一句簡短描述（繁體中文）。',
     '另外每個景點都要填 timeOfDay 欄位，標示這個地點通常/最適合什麼時段前往：morning（適合上午，例如市場、日出景點）、afternoon（適合下午，沒有明顯時段限制的多數景點也可以用這個）、evening（只適合晚上或傍晚以後，例如夜市、酒吧、夜景、只供應晚餐的餐廳）、anytime（真的完全不受時段限制，例如大型商場、一般博物館）。請依你對這個地點的實際了解判斷，不要每個都填同一個值敷衍——這個欄位會直接影響行程排序與顯示時間。',
-    `每個景點也請填 estimatedTimeHours 欄位——一般遊客實際會在這個地點停留的時數（可以有小數，例如 1.5），只算停留時間本身，不用算進交通時間，且不會低於 1 小時。請依地點的實際性質估算，不要每個都填同一個數字：一餐飯約 1-2 小時；大型主題樂園、超大型展館可以到 4 小時以上；其餘大多數地點（地標、博物館、公園、商圈、老街）都落在 1-3 小時之間，實際多少取決於這個地點本身的規模，以及會玩得多深入——例如淺草寺，如果只是拍雷門大燈籠、入本堂參拜、走馬看花，約 1 小時就夠；但如果會逛仲見世商店街、吃傳統小吃、抽籤買御守，就要抓 2-3 小時。請同時參考這位旅客的旅遊風格與興趣偏好（見上方）判斷這趟通常會怎麼玩：「精準規劃」「熱血冒險」這類重效率、行程緊湊的風格，同一個地點通常抓比較短；「自在慢旅」「深度探索」這類不趕行程、重視細看慢逛的風格，或「在地體驗」「必吃美食」這類偏好，同一個地點可以抓比較長。`,
+    `每個景點也請填 estimatedTimeHours 欄位——一般遊客實際會在這個地點停留的時數（可以有小數，例如 1.5），只算停留時間本身，不用算進交通時間，且不會低於 1 小時。請依地點的實際性質估算，不要每個都填同一個數字：一餐飯約 1-2 小時；大型主題樂園、超大型展館可以到 4 小時以上；其餘大多數地點（地標、博物館、公園、商圈、老街）都落在 1-3 小時之間，實際多少取決於這個地點本身的規模，以及會玩得多深入——例如淺草寺，如果只是拍雷門大燈籠、入本堂參拜、走馬看花，約 1 小時就夠；但如果會逛仲見世商店街、吃傳統小吃、抽籤買御守，就要抓 2-3 小時。請同時參考這位旅客的旅遊風格與興趣偏好（見上方）判斷這趟通常會怎麼玩：「精準規劃」這類重效率、行程緊湊的風格，同一個地點通常抓比較短；「自在慢旅」這類不趕行程、重視細看慢逛的風格，或「在地體驗」「必吃美食」這類偏好，同一個地點可以抓比較長。`,
     '名稱優先使用繁體中文慣用名稱，不要同時附上英文原文或重複的括號翻譯（例如寫「洽圖洽週末市場」，不要寫「Chatuchak Weekend Market（洽圖洽週末市場）」）。若沒有通行的繁體中文名稱，或外文是官方品牌名稱，請保留官方名稱；分店、分校、校區等必要辨識資訊可用繁體中文括號註明（例如「Wall Street English（信義分校）」）。',
     '另外提供 geocodeQuery 欄位：這是給地圖服務（OpenStreetMap）查詢定位用的完整字串，不會顯示給使用者。格式必須是「地點官方名稱, 城市, 國家」，三段全部使用同一種語言，而且優先使用當地官方語言（地圖資料庫幾乎都是用當地語言登記地點名稱，翻成英文常常查不到、或誤配到完全不相關的地方）；只有目的地本身是英語系國家，或這個地點是國際連鎖品牌、慣用英文名稱時，才用英文。絕對不要中文和其他語言混用在同一個 geocodeQuery 裡。例如目的地是義大利佛羅倫斯，應填寫「Galleria degli Uffizi, Firenze, Italia」（義大利文），不要翻成「Uffizi Gallery, Florence, Italy」；目的地是韓國釜山，應填寫「부산시립미술관, 부산, 대한민국」（韓文），不要翻成「Busan Museum of Art, Busan, South Korea」。只有目的地本身是華語地區時，才整段使用中文（例如「九份老街, 新北市, 台灣」）。',
     '如果不確定這個地點在地圖服務上的正式登記名稱（例如是複合式建築、市場、商圈，官方全名可能跟通俗說法不同），請額外提供 geocodeQueryAlt 欄位，格式同 geocodeQuery，但改用更簡短、更通用的常見說法（例如 geocodeQuery 是「Mercato Centrale di San Lorenzo, Firenze, Italia」，geocodeQueryAlt 可以是「Mercato Centrale, Firenze, Italia」），作為查詢失敗時的備援；有把握的話可以不用提供這個欄位。另一種常見狀況是地點名稱本身已經把城市名黏在前面（例如「부산영화체험박물관」），這種寫法常常查不到，這時 geocodeQueryAlt 請把城市名從地點名稱裡拿掉、只留給城市那個欄位（例如寫成「영화체험박물관, 부산, 대한민국」）。',

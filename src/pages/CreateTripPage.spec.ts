@@ -91,17 +91,17 @@ describe('CreateTripPage', () => {
     const byLabel = (label: string) => pills().find((p) => p.text().includes(label))!
     const selectedLabels = () => pills().filter((p) => p.classes().includes('choice-pill--selected')).map((p) => p.text())
 
-    // '深度探索' is selected by default.
-    expect(byLabel('深度探索').classes()).toContain('choice-pill--selected')
+    // '精準規劃' is selected by default.
+    expect(byLabel('精準規劃').classes()).toContain('choice-pill--selected')
     expect(selectedLabels()).toHaveLength(1)
 
-    await byLabel('精準規劃').trigger('click') // picking a different style swaps the selection
-    expect(byLabel('精準規劃').classes()).toContain('choice-pill--selected')
-    expect(byLabel('深度探索').classes()).not.toContain('choice-pill--selected')
+    await byLabel('自在慢旅').trigger('click') // picking a different style swaps the selection
+    expect(byLabel('自在慢旅').classes()).toContain('choice-pill--selected')
+    expect(byLabel('精準規劃').classes()).not.toContain('choice-pill--selected')
     expect(selectedLabels()).toHaveLength(1)
 
-    await byLabel('精準規劃').trigger('click') // clicking the already-selected pill is a no-op, never deselects to zero
-    expect(byLabel('精準規劃').classes()).toContain('choice-pill--selected')
+    await byLabel('自在慢旅').trigger('click') // clicking the already-selected pill is a no-op, never deselects to zero
+    expect(byLabel('自在慢旅').classes()).toContain('choice-pill--selected')
     expect(selectedLabels()).toHaveLength(1)
   })
 
