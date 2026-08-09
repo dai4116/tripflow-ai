@@ -130,6 +130,21 @@ export const useTripsStore = defineStore('trips', () => {
     })
   }
 
+  // trip.destination is a '・'-joined display string for a multi-city trip
+  // (e.g. "阿姆斯特丹・布魯塞爾" — see generateTrip.ts) with no comma for
+  // cityFromDestination/regionFromDestination to split on, so passing it
+  // straight through would compose a garbled multi-city Nominatim query (see
+  // geocodePlace) instead of a real, matchable "City, Country" — the same
+  // failure mode as concatenating unrelated-language strings into one query.
+  // The first city's own destination string is always well-formed, so it
+  // stands in here — same "AI pipeline only knows the first city" stand-in
+  // this whole stage uses for actual place generation (see
+  // CreateTripInput.cities' own comment); a place's true per-column city
+  // isn't threaded through yet.
+  function geocodeDestinationFor(trip: Trip): string {
+    return trip.cities?.[0]?.destination ?? trip.destination
+  }
+
   // Places generated through createTrip are now verified server-side against
   // Google Places and arrive WITH real coordinates (see
   // api/generate-trip-day.ts), so most of the time there's nothing to
@@ -300,7 +315,7 @@ export const useTripsStore = defineStore('trips', () => {
     if (coverPhotoRefs?.[0]) trip.coverPhotoRef = coverPhotoRefs[0]
     trips.value.push(trip)
     places.value.push(...newPlaces)
-    geocodeNewPlaces(newPlaces, trip.destination)
+    geocodeNewPlaces(newPlaces, geocodeDestinationFor(trip))
     return trip
   }
 
@@ -346,7 +361,7 @@ export const useTripsStore = defineStore('trips', () => {
     places.value.push(place)
     column.placeIds.push(place.id)
     recalcPlaceCount(trip)
-    geocodeNewPlaces([place], trip.destination)
+    geocodeNewPlaces([place], geocodeDestinationFor(trip))
 
     return place
   }
@@ -437,7 +452,7 @@ export const useTripsStore = defineStore('trips', () => {
       // (the geocodeQuery branch) queries it as typed, with nothing appended.
       place.geocodeQuery = patch.name
       const trip = trips.value.find((item) => item.id === place.tripId)
-      if (trip) geocodeNewPlaces([place], trip.destination)
+      if (trip) geocodeNewPlaces([place], geocodeDestinationFor(trip))
     }
   }
 

@@ -32,6 +32,28 @@ export type TripColumn = {
   title: string
   dayNumber: number
   placeIds: string[]
+  // Which of Trip.cities this day belongs to, for a multi-destination trip
+  // (e.g. 荷蘭 3 天 + 比利時 2 天) — undefined for every single-destination
+  // trip, including all trips created before this field existed. Assigned
+  // once at creation from CreateTripInput.cities' own per-city day counts
+  // (see generateTrip.ts) and from then on just inherited by addDay/
+  // removeDay (TripBoardPage.vue) like dayNumber already is, so "which day
+  // maps to which city" can never drift out of sync with the column list
+  // itself — there's no separate segments/day-count list to keep in sync.
+  cityId?: string
+}
+
+// One destination within a multi-city trip (e.g. 荷蘭 3 天 + 比利時 2 天 +
+// 法國 5 天) — see TripColumn.cityId. Absent (Trip.cities undefined) for
+// every single-destination trip; the ordinary destination/destinationPlaceId/
+// destinationLat/destinationLng fields on Trip keep meaning exactly what they
+// mean today either way (see CreateTripInput.cities' own comment for why).
+export type TripCity = {
+  id: string
+  destination: string
+  destinationPlaceId?: string
+  destinationLat?: number
+  destinationLng?: number
 }
 
 export type TripSummary = {
@@ -80,6 +102,8 @@ export type Trip = TripSummary & {
   preferences: string[]
   pace: TripPace
   columns: TripColumn[]
+  // See TripColumn.cityId. Undefined for every single-destination trip.
+  cities?: TripCity[]
 }
 
 // A curated sample itinerary shown on the Explore page — same shape as Trip
@@ -189,4 +213,24 @@ export type CreateTripInput = {
   // means editing that place card directly, same as any other place.
   arrivalTime?: string
   departureTime?: string
+  // Present only when CreateTripPage.vue's form has more than one
+  // destination row — every entry, including the first (whose fields are
+  // duplicated onto this type's own destination/destinationPlaceId/
+  // destinationLat/destinationLng above, since the AI generation pipeline
+  // — aiTripClient.ts/plan-trip-zones.ts/generate-trip-day.ts — doesn't know
+  // how to split a request per city segment yet and needs ONE real
+  // destination string to search against; see that pipeline's own trip-
+  // generation-per-day-requests design for why per-day requests are actually
+  // well-suited to eventually reading this instead). generateTrip.ts uses
+  // this to label the trip and tag each day column with the city it belongs
+  // to (see TripColumn.cityId) — until the generation pipeline is updated to
+  // match, every day's AI-suggested places still come from the first city
+  // only, regardless of how many cities are listed here.
+  cities?: {
+    destination: string
+    destinationPlaceId?: string
+    destinationLat?: number
+    destinationLng?: number
+    days: number
+  }[]
 }

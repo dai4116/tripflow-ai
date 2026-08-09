@@ -917,7 +917,23 @@ function addDay() {
   // nanoid rather than `day-${nextDayNumber}` — after a mid-list day is
   // removed and the rest renumbered, a position-based id could collide with
   // a survivor that kept its original id.
-  const newColumn: TripColumn = { id: `day-${nanoid(6)}`, dayNumber: nextDayNumber, title: `第${nextDayNumber}天`, placeIds: [] }
+  //
+  // cityId inherits the last existing column's (undefined for every single-
+  // destination trip, so this is a no-op there) — a day added to a multi-
+  // city trip is appended at the end, so it naturally continues whichever
+  // city the trip currently ends in, same as this button already implicitly
+  // meant "one more day of the current itinerary" before cities existed.
+  // Without this, TripColumn.cityId's own comment ("inherited by addDay/
+  // removeDay ... like dayNumber already is") would be false — removeDay's
+  // map below does already preserve cityId via its object spread, but
+  // addDay built its new column from scratch with no cityId field at all.
+  const newColumn: TripColumn = {
+    id: `day-${nanoid(6)}`,
+    dayNumber: nextDayNumber,
+    title: `第${nextDayNumber}天`,
+    placeIds: [],
+    cityId: displayedColumns.value.at(-1)?.cityId,
+  }
   activeTrip.value.columns = [...displayedColumns.value, newColumn]
   activeTrip.value.days = activeTrip.value.columns.length
   recalcDateRange()

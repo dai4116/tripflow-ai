@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid'
 import { addMinutes, clockTimeToMinutes } from './placeSchedule.ts'
-import type { CreateTripInput, Place, PlaceCategory, Trip, TripColumn, TripPace } from '../types'
+import type { CreateTripInput, Place, PlaceCategory, Trip, TripCity, TripColumn, TripPace } from '../types'
 
 // A day's active-hours window, 'HH:mm' local time. Exported so
 // aiTripClient.ts can share this instead of redeclaring the same shape.
@@ -432,12 +432,57 @@ export function generateTrip(
   aiPlaces?: PlaceSuggestion[],
   baseWindow?: DayWindow,
 ): { trip: Trip; places: Place[] } {
-  const city = cityFromDestination(input.destination)
   const days = computeTripDays(input)
   const pace = paceForTravelStyles(input.travelStyle)
   const resolvedWindow = baseWindow ?? dayWindowForPace(pace)
   const tripId = `${slugify(input.destination)}-${nanoid(6)}`
   const color = TRIP_PALETTE[existingTripIds.length % TRIP_PALETTE.length]!
+
+  // See CreateTripInput.cities' own comment — undefined/single-entry input
+  // (every trip before this field existed, and every trip created today
+  // through the single-destination form) takes the untouched path below:
+  // displayDestination falls straight back to input.destination and
+  // cityIdForDay always returns undefined, so `trip` and `columns` end up
+  // byte-for-byte what this function already produced before cities existed.
+  // A 1-entry `input.cities` collapses to undefined here too, not just an
+  // absent one — Trip.cities/TripColumn.cityId's own contract is "undefined
+  // for every single-destination trip," and a single entry IS a single
+  // destination regardless of which shape it arrived in, so this is the one
+  // place that distinction gets normalized rather than leaking to every
+  // consumer of `cities`/`trip.cities` below.
+  const cities: TripCity[] | undefined =
+    input.cities && input.cities.length > 1
+      ? input.cities.map((entry) => ({
+          id: nanoid(6),
+          destination: entry.destination,
+          destinationPlaceId: entry.destinationPlaceId,
+          destinationLat: entry.destinationLat,
+          destinationLng: entry.destinationLng,
+        }))
+      : undefined
+
+  const displayDestination = cities ? cities.map((entry) => cityFromDestination(entry.destination)).join('・') : input.destination
+  const city = cityFromDestination(displayDestination)
+
+  // Which city a day belongs to, derived once from input.cities' own
+  // per-city day counts (cumulative) rather than stored per-day —
+  // CreateTripPage.vue guarantees those counts sum to `days` (the trip's
+  // derived end date comes from that same sum), so this always lands on a
+  // real city for every day 1..days once cities is actually present. Reads
+  // `cities`, not `input.cities`, as the presence check — a 1-entry
+  // `input.cities` already collapsed `cities` to undefined above, and that's
+  // exactly the case this must also treat as "no cities," so there's a
+  // single source of truth for the collapse instead of two conditions that
+  // could drift apart.
+  function cityIdForDay(dayNumber: number): string | undefined {
+    if (!cities) return undefined
+    let cursor = 0
+    for (let i = 0; i < input.cities!.length; i++) {
+      cursor += input.cities![i]!.days
+      if (dayNumber <= cursor) return cities[i]?.id
+    }
+    return cities.at(-1)?.id
+  }
 
   const places: Place[] = []
 
@@ -556,13 +601,13 @@ export function generateTrip(
       placeIds.push(departurePlace.id)
     }
 
-    return { id: columnId, title: `第${dayNumber}天`, dayNumber, placeIds }
+    return { id: columnId, title: `第${dayNumber}天`, dayNumber, placeIds, cityId: cityIdForDay(dayNumber) }
   })
 
   const trip: Trip = {
     id: tripId,
     title: `${city}之旅`,
-    destination: input.destination,
+    destination: displayDestination,
     days,
     placeCount: places.length,
     color,
@@ -574,6 +619,7 @@ export function generateTrip(
     preferences: input.preferences,
     pace,
     columns,
+    cities,
   }
 
   return { trip, places }

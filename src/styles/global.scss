@@ -710,6 +710,36 @@ h3 {
   font-weight: 650;
 }
 
+// BaseDateInput.vue — same "transparent native input as an interaction layer
+// over an app-owned label" pattern as .date-range-field__control/__value
+// above, just a single field instead of a start/end pair.
+.date-field__control {
+  position: relative;
+  cursor: pointer;
+}
+
+.date-field__value {
+  min-width: 0;
+  color: $color-text;
+  font-size: $fs-ui;
+  font-weight: 550;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.date-field__control input[type='date'] {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
 .status-badge {
   display: inline-flex;
   align-items: center;
@@ -2077,6 +2107,109 @@ h3 {
   color: $color-subtle;
   font-size: $fs-caption;
   font-weight: 600;
+}
+
+.destination-list {
+  display: grid;
+  gap: 10px;
+}
+
+.destination-list__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.destination-list__row .base-field {
+  flex: 1;
+  min-width: 0;
+}
+
+.destination-list__days {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  height: 44px;
+  padding: 0 6px;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+  background: $color-surface;
+}
+
+.destination-list__day-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: $radius-sm;
+  background: none;
+  color: $color-muted;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.destination-list__day-btn:hover:not(:disabled) {
+  background: $color-primary-soft;
+  color: $color-primary-text;
+}
+
+.destination-list__day-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.destination-list__day-count {
+  min-width: 32px;
+  text-align: center;
+  color: $color-text;
+  font-size: $fs-small;
+  font-weight: 700;
+}
+
+.destination-list__remove {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  // .destination-list__row is align-items: flex-start (so the day-stepper/
+  // remove button stay pinned to the input's own top edge if an error
+  // message grows it taller) — align-self overrides that for just this
+  // smaller button so it centers against the row's tallest sibling instead
+  // of sitting flush with the top.
+  align-self: center;
+  border: 0;
+  border-radius: $radius-pill;
+  background: none;
+  color: $color-subtle;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.destination-list__remove:hover {
+  background: $color-danger-soft;
+  color: $color-danger;
+}
+
+.destination-list__add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  justify-self: start;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: $radius-sm;
+  background: none;
+  color: $color-primary-text;
+  font-size: $fs-small;
+  font-weight: 700;
+  transition: background 140ms ease;
+}
+
+.destination-list__add:hover {
+  background: $color-primary-soft;
 }
 
 .trip-form__submit {

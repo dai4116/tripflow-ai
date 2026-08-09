@@ -9,21 +9,65 @@
 
     <form v-if="!isGenerating" class="trip-form" @submit.prevent="generateTrip">
       <BaseCard class="form-card">
-        <DestinationAutocomplete
-          ref="destinationInputRef"
-          v-model="form.destination"
-          label="你想去哪裡？"
-          placeholder="例如：東京，日本"
-          icon="search"
-          :error="destinationError"
-          :resolved="Boolean(form.destinationPlaceId)"
-          @select="onDestinationSelect"
-        />
+        <h3>你想去哪裡？</h3>
+        <div class="destination-list">
+          <div v-for="(city, index) in form.cities" :key="city.key" class="destination-list__row">
+            <DestinationAutocomplete
+              :ref="(el) => setCityInputRef(city.key, el)"
+              v-model="city.destination"
+              :placeholder="index === 0 ? '例如：東京' : '例如：大阪'"
+              icon="search"
+              :error="city.key === destinationErrorKey ? destinationError : undefined"
+              :resolved="Boolean(city.destinationPlaceId)"
+              @select="(selection) => onCitySelect(index, selection)"
+            />
+            <div class="destination-list__days">
+              <button
+                type="button"
+                class="destination-list__day-btn"
+                aria-label="減少天數"
+                :disabled="city.days <= 1"
+                @click="decrementDays(index)"
+              >
+                <AppIcon name="minus" :size="12" />
+              </button>
+              <span class="destination-list__day-count">{{ city.days }} 天</span>
+              <button
+                type="button"
+                class="destination-list__day-btn"
+                aria-label="增加天數"
+                :disabled="totalDays >= MAX_TRIP_DAYS"
+                @click="incrementDays(index)"
+              >
+                <AppIcon name="plus" :size="12" />
+              </button>
+            </div>
+            <button
+              v-if="form.cities.length > 1"
+              type="button"
+              class="destination-list__remove"
+              aria-label="移除這個城市"
+              @click="removeCity(index)"
+            >
+              <AppIcon name="close" :size="14" />
+            </button>
+          </div>
+          <button
+            v-if="form.cities.length < MAX_CITIES && totalDays < MAX_TRIP_DAYS"
+            type="button"
+            class="destination-list__add"
+            @click="addCity"
+          >
+            <AppIcon name="plus" :size="13" />
+            新增城市
+          </button>
+        </div>
       </BaseCard>
 
       <BaseCard class="form-card">
         <h3>行程細節</h3>
-        <BaseDateRangeInput label="旅遊日期" v-model:start="form.startDate" v-model:end="form.endDate" :error="dateRangeError" />
+        <BaseDateInput label="出發日期" v-model="form.startDate" :error="dateRangeError" />
+        <p class="form-card__hint form-card__hint--live">共 {{ totalDays }} 天・{{ dateSummary }}</p>
 
         <label class="flight-toggle">
           <span class="flight-toggle__copy">
@@ -117,7 +161,7 @@
         開始規劃
       </BaseButton>
       <p class="trip-form__note">
-        AI 會產生 {{ tripDays }} 天行程看板・精選地點・優化路線
+        AI 會產生 {{ totalDays }} 天行程看板・精選地點・優化路線
       </p>
 
       <TimePickerSheet
@@ -184,14 +228,25 @@ import PageHeader from '../components/layout/PageHeader.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
 import BaseButton from '../components/ui/BaseButton.vue'
 import BaseCard from '../components/ui/BaseCard.vue'
-import BaseDateRangeInput from '../components/ui/BaseDateRangeInput.vue'
+import BaseDateInput from '../components/ui/BaseDateInput.vue'
 import BaseInput from '../components/ui/BaseInput.vue'
 import TimePickerSheet from '../components/ui/TimePickerSheet.vue'
 import type { IconName } from '../components/ui/icons'
 import DestinationAutocomplete from '../components/trips/DestinationAutocomplete.vue'
-import { computeTripDays, toDateInputValue } from '../data/generateTrip'
+import { formatDateRange, toDateInputValue } from '../data/generateTrip'
 import { preferences, travelStyleHints, travelStyles } from '../data/mockPreferences'
 import { useTripsStore } from '../stores/trips'
+
+// Mirrors computeTripDays' own clamp in generateTrip.ts — kept in sync there
+// rather than imported, since this bounds the day-count stepper's UI (how
+// high "+" can go) while computeTripDays clamps the derived total for
+// whatever actually gets submitted; the two independently agreeing is what
+// keeps the stepper from ever promising a day the submission would silently
+// truncate.
+const MAX_TRIP_DAYS = 30
+// A sane UI cap on how many destinations one trip can list — arbitrary, just
+// large enough that no real itinerary hits it.
+const MAX_CITIES = 8
 
 // The real generation call now runs concurrently with this cosmetic ticker
 // (see generateTrip/finishGeneration below), not after it — so this is how
@@ -211,7 +266,7 @@ let stageDurationMs = 12000
 // most of a long trip's wait instead of completing in a fixed 36s regardless
 // of day count.
 function computeStageDuration(): number {
-  return Math.max(12000, Math.round((tripDays.value / 4) * 4000))
+  return Math.max(12000, Math.round((totalDays.value / 4) * 4000))
 }
 
 const router = useRouter()
@@ -226,32 +281,78 @@ const currentStageIndex = ref(0)
 // instead of leaving the subtitle looking frozen/stuck.
 const showLongWaitNotice = ref(false)
 const destinationError = ref('')
+// Which row in form.cities destinationError actually belongs to — a blank or
+// unresolved destination can be any city in the list, not just the first, so
+// the error can't just be a bare string shown under a fixed field (see the
+// template's :error binding). Keyed by the row's own CityFormRow.key, not
+// its array index — an index would go stale the moment a city BEFORE the
+// error's row is removed (every later row's position shifts, but this
+// wouldn't move with it), either hiding a still-broken field's error or
+// misattributing it to whatever different city now sits at that index. null
+// when there's no active destination error.
+const destinationErrorKey = ref<string | null>(null)
 const dateRangeError = ref('')
-const destinationInputRef = ref<InstanceType<typeof DestinationAutocomplete> | null>(null)
 const selectedPreferences = ref(['必吃美食', '逛街購物', '熱門打卡'])
 // Single-select — see paceForTravelStyles in generateTrip.ts for how the one
 // selected style resolves directly to a pace.
 const selectedTravelStyles = ref(['精準規劃'])
 
+type CityFormRow = {
+  key: string
+  destination: string
+  // Set when the user picks a suggestion from DestinationAutocomplete rather
+  // than just typing free text — see onCitySelect below.
+  destinationPlaceId?: string
+  destinationLat?: number
+  destinationLng?: number
+  days: number
+}
+
+function makeCityRow(days = 4): CityFormRow {
+  return { key: crypto.randomUUID(), destination: '', days }
+}
+
 const defaultStart = new Date()
-const defaultEnd = new Date()
-// +3, not +4 — computeTripDays counts both ends inclusively, so a 4-day
-// default trip spans start..start+3 (4 calendar days), not start..start+4.
-defaultEnd.setDate(defaultEnd.getDate() + 3)
 
 const form = reactive({
-  destination: '',
-  // Set when the user picks a suggestion from DestinationAutocomplete rather
-  // than just typing free text — see onDestinationSelect below.
-  destinationPlaceId: undefined as string | undefined,
-  destinationLat: undefined as number | undefined,
-  destinationLng: undefined as number | undefined,
+  // Start date + each city's own day count is the source of truth (see
+  // totalDays/computedEndDate below) — there's no separate end-date field to
+  // keep in sync with it, unlike the old start/end range this form used to
+  // collect (see BaseDateRangeInput, no longer used here).
+  cities: [makeCityRow()] as CityFormRow[],
   startDate: toDateInputValue(defaultStart),
-  endDate: toDateInputValue(defaultEnd),
   additionalNotes: '',
   arrivalTime: undefined as string | undefined,
   departureTime: undefined as string | undefined,
 })
+
+// One DestinationAutocomplete ref per form.cities row, keyed by the row's own
+// CityFormRow.key rather than its v-for index — needed for the same two
+// things destinationInputRef used to do when there was only one (focus() on
+// a validation failure, resolvePending() before submit), now fanned out per
+// row instead of a single ref. Keyed, not an index-parallel array: Vue
+// re-invokes an inline function :ref on every update where its identity
+// changed (a fresh closure every render, since it captures the v-for index),
+// calling the OLD closure with null and the NEW one with the element — for a
+// surviving row whose index shifted after a removeCity() elsewhere in the
+// list, an index-keyed array could receive that stale-index null AFTER
+// removeCity's own splice already placed the right element at its new index,
+// clobbering it back to null. Keying by the row's own stable key instead
+// means both the old and new closures for a given row always target the same
+// entry, so there's nothing for a shifted index to clobber.
+const cityInputRefs = new Map<string, InstanceType<typeof DestinationAutocomplete>>()
+function setCityInputRef(key: string, el: unknown) {
+  // Vue calls this with null on unmount/unbind (see this const's own
+  // comment) — for a REMOVED row that fires after removeCity's own delete()
+  // already ran, so without this branch it would silently resurrect a
+  // null-valued entry for a key that no longer exists in form.cities at all,
+  // a small leak that never gets cleaned up on any later add/remove cycle.
+  if (el === null) {
+    cityInputRefs.delete(key)
+    return
+  }
+  cityInputRefs.set(key, el as InstanceType<typeof DestinationAutocomplete>)
+}
 
 // Toggling off clears both times instead of just hiding the fields — a user
 // who unchecks "我知道航班時間" clearly no longer wants them applied, and
@@ -305,32 +406,108 @@ function confirmFlightTimePicker(value: string) {
   flightTimePickerAnchorEl.value = null
 }
 
-function onDestinationSelect(selection: { placeId: string; lat: number; lng: number } | null) {
-  form.destinationPlaceId = selection?.placeId
-  form.destinationLat = selection?.lat
-  form.destinationLng = selection?.lng
+function onCitySelect(index: number, selection: { placeId: string; lat: number; lng: number } | null) {
+  const city = form.cities[index]
+  if (!city) return
+  city.destinationPlaceId = selection?.placeId
+  city.destinationLat = selection?.lat
+  city.destinationLng = selection?.lng
+}
+
+function addCity() {
+  if (form.cities.length >= MAX_CITIES) return
+  // Guards against the 30-day trip cap, not just the city-count cap above —
+  // without this, adding a city once totalDays is already at MAX_TRIP_DAYS
+  // still pushes a row with days >= 1, silently pushing the true sum past
+  // the cap. totalDays' own Math.min(MAX_TRIP_DAYS, ...) clamp would then
+  // hide that overflow from the UI entirely, while generateTrip.ts's
+  // cityIdForDay (which walks input.cities' cumulative day counts up to
+  // exactly `days`) would never reach the new city — it'd be stored in
+  // trip.cities but own zero actual day columns.
+  if (totalDays.value >= MAX_TRIP_DAYS) return
+  form.cities.push(makeCityRow(Math.max(1, Math.min(3, MAX_TRIP_DAYS - totalDays.value))))
+}
+
+function removeCity(index: number) {
+  if (form.cities.length <= 1) return
+  const [removed] = form.cities.splice(index, 1)
+  if (!removed) return
+  cityInputRefs.delete(removed.key)
+  // The removed row was the one currently showing a destination error —
+  // nothing left to show it on, so drop the error rather than leave it
+  // pointing at a key that no longer exists in form.cities.
+  if (destinationErrorKey.value === removed.key) {
+    destinationError.value = ''
+    destinationErrorKey.value = null
+  }
+}
+
+function incrementDays(index: number) {
+  if (totalDays.value >= MAX_TRIP_DAYS) return
+  const city = form.cities[index]
+  if (city) city.days += 1
+}
+
+function decrementDays(index: number) {
+  const city = form.cities[index]
+  if (city && city.days > 1) city.days -= 1
 }
 
 // Clear each error as soon as its own field is actually fixed, rather than
 // only on the next full submit — otherwise a red border can sit there
 // looking wrong even after the user has already typed a valid value.
 watch(
-  () => form.destination,
-  (value) => {
-    if (value.trim()) destinationError.value = ''
-  },
-)
-
-watch(
-  [() => form.startDate, () => form.endDate],
-  ([start, end]) => {
-    if (start && end && new Date(end).getTime() > new Date(start).getTime()) {
-      dateRangeError.value = ''
+  () => form.cities.map((city) => city.destination),
+  () => {
+    const key = destinationErrorKey.value
+    if (key === null) return
+    if (form.cities.find((city) => city.key === key)?.destination.trim()) {
+      destinationError.value = ''
+      destinationErrorKey.value = null
     }
   },
 )
 
-const cityLabel = computed(() => form.destination.split(/[,，]/)[0].trim() || '你的')
+watch(
+  () => form.startDate,
+  (value) => {
+    if (value) dateRangeError.value = ''
+  },
+)
+
+const totalDays = computed(() => Math.min(MAX_TRIP_DAYS, form.cities.reduce((sum, city) => sum + city.days, 0)))
+
+// The trip's derived end date — start date + total days across every city,
+// inclusive (see computeTripDays' identical +1 convention in
+// generateTrip.ts). This is the only place that convention gets duplicated:
+// CreateTripInput itself still takes a plain startDate/endDate pair exactly
+// like before this form existed (see finishGeneration below), so nothing
+// downstream needs to know "end date is derived" is even a concept.
+//
+// Built from form.startDate's numeric y/m/d parts, NOT `new Date(form.startDate)`
+// — the string constructor parses "YYYY-MM-DD" as UTC midnight, which in any
+// timezone west of UTC lands on the previous calendar day locally, so the
+// setDate() arithmetic below (which reads/writes local date fields) would
+// silently land one day short. Same pitfall toDateInputValue's own comment
+// warns about; DashboardPage.vue's daysUntil() sidesteps it the same way.
+const computedEndDate = computed(() => {
+  const [year, month, day] = form.startDate.split('-').map(Number)
+  if (!year || !month || !day) return form.startDate
+
+  const end = new Date(year, month - 1, day)
+  end.setDate(end.getDate() + totalDays.value - 1)
+  return toDateInputValue(end)
+})
+
+const dateSummary = computed(() => {
+  if (!form.startDate) return ''
+  return formatDateRange(form.startDate, computedEndDate.value)
+})
+
+const cityLabel = computed(() => {
+  const names = form.cities.map((city) => city.destination.split(/[,，]/)[0].trim()).filter(Boolean)
+  return names.length > 0 ? names.join('・') : '你的'
+})
 // Live caption under the style picker — a punchy 4-character label doesn't
 // say what it actually changes about the itinerary, and hover tooltips (the
 // button's title attribute) don't work on touch, which is most of this app's
@@ -341,7 +518,6 @@ const cityLabel = computed(() => form.destination.split(/[,，]/)[0].trim() || '
 const selectedStyleHints = computed(() =>
   selectedTravelStyles.value.map((style) => travelStyleHints[style]).filter(Boolean).join('；'),
 )
-const tripDays = computed(() => computeTripDays({ startDate: form.startDate, endDate: form.endDate }))
 const stages = computed(() => [
   '讀取你的偏好設定',
   `搜尋${cityLabel.value}的景點`,
@@ -409,38 +585,42 @@ async function generateTrip() {
   if (isGenerating.value || submitInFlight) return
   submitInFlight = true
   try {
-    if (!form.destination.trim()) {
-      destinationError.value = '請先告訴我們你要去哪裡。'
-      destinationInputRef.value?.focus()
-      return
+    for (const city of form.cities) {
+      if (!city.destination.trim()) {
+        destinationError.value = '請先告訴我們你要去哪裡。'
+        destinationErrorKey.value = city.key
+        cityInputRefs.get(city.key)?.focus()
+        return
+      }
     }
 
-    if (!form.startDate || !form.endDate) {
-      dateRangeError.value = '請選擇旅遊日期。'
-      return
-    }
-
-    if (new Date(form.endDate).getTime() <= new Date(form.startDate).getTime()) {
-      dateRangeError.value = '結束日期必須晚於開始日期。'
+    if (!form.startDate) {
+      dateRangeError.value = '請選擇出發日期。'
       return
     }
 
     // Runs last, after every cheap synchronous check already passed — this
-    // can trigger a real network search (see resolvePending's own comment),
-    // so it's not worth paying for until the rest of the form is otherwise
-    // ready to submit. Catches Enter/Confirm fired before the debounced
-    // suggestion dropdown had a chance to appear: flushes any pending search
-    // and, if it turns up more than one candidate, opens the dropdown and
-    // stops the submit instead of silently falling back to unresolved free
-    // text.
-    const destinationResolved = (await destinationInputRef.value?.resolvePending()) ?? true
-    if (!destinationResolved) {
-      destinationError.value = '請從清單中選擇一個目的地。'
-      destinationInputRef.value?.focus()
-      return
+    // can trigger a real network search per city (see resolvePending's own
+    // comment), so it's not worth paying for until the rest of the form is
+    // otherwise ready to submit. Sequential, not parallel, so the first city
+    // that actually needs the user's attention is the one left focused —
+    // catches Enter/Confirm fired before a debounced suggestion dropdown had
+    // a chance to appear: flushes any pending search and, if it turns up
+    // more than one candidate, opens that city's dropdown and stops the
+    // submit instead of silently falling back to unresolved free text.
+    for (const city of form.cities) {
+      const ref = cityInputRefs.get(city.key)
+      const resolved = (await ref?.resolvePending()) ?? true
+      if (!resolved) {
+        destinationError.value = '請從清單中選擇一個目的地。'
+        destinationErrorKey.value = city.key
+        ref?.focus()
+        return
+      }
     }
 
     destinationError.value = ''
+    destinationErrorKey.value = null
     dateRangeError.value = ''
     generationFailed.value = false
     isGenerating.value = true
@@ -508,18 +688,38 @@ let cancelled = false
 async function finishGeneration() {
   requestInFlight = true
   try {
+    const firstCity = form.cities[0]!
     const trip = await tripsStore.createTrip({
-      destination: form.destination.trim(),
-      destinationPlaceId: form.destinationPlaceId,
-      destinationLat: form.destinationLat,
-      destinationLng: form.destinationLng,
+      // The AI generation pipeline (aiTripClient.ts and below) doesn't split
+      // a request per city segment yet — it needs ONE real destination to
+      // search against, so that's always the first city, same as the single-
+      // destination path this form used to be exclusively. See cities below
+      // and CreateTripInput.cities' own comment.
+      destination: firstCity.destination.trim(),
+      destinationPlaceId: firstCity.destinationPlaceId,
+      destinationLat: firstCity.destinationLat,
+      destinationLng: firstCity.destinationLng,
       startDate: form.startDate,
-      endDate: form.endDate,
+      endDate: computedEndDate.value,
       travelStyle: selectedTravelStyles.value,
       additionalNotes: form.additionalNotes,
       preferences: selectedPreferences.value,
       arrivalTime: form.arrivalTime,
       departureTime: form.departureTime,
+      // Only sent once there's more than one destination — a single-city
+      // trip's CreateTripInput ends up with cities left undefined, exactly
+      // as if this field didn't exist, so createTrip/generateTrip.ts take
+      // the identical path they always have for that case.
+      cities:
+        form.cities.length > 1
+          ? form.cities.map((city) => ({
+              destination: city.destination.trim(),
+              destinationPlaceId: city.destinationPlaceId,
+              destinationLat: city.destinationLat,
+              destinationLng: city.destinationLng,
+              days: city.days,
+            }))
+          : undefined,
     })
     requestInFlight = false
     if (cancelled) return

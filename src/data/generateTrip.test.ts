@@ -386,3 +386,72 @@ test('generateTrip carries the resolved trip metadata through', () => {
   assert.equal(trip.placeCount, places.length)
   assert.equal(places.length, 0)
 })
+
+test('generateTrip leaves cities and every column.cityId undefined when input.cities is absent — the untouched single-destination path', () => {
+  const input = baseInput({ destination: '京都，日本', startDate: '2024-03-01', endDate: '2024-03-03' })
+  const { trip } = generateTrip(input, [], [])
+
+  assert.equal(trip.cities, undefined)
+  assert.equal(trip.destination, '京都，日本')
+  assert.ok(trip.columns.every((column) => column.cityId === undefined))
+})
+
+test('generateTrip assigns each column a cityId from input.cities\' cumulative day counts', () => {
+  const input = baseInput({
+    destination: '阿姆斯特丹，荷蘭',
+    startDate: '2024-03-01',
+    endDate: '2024-03-05',
+    cities: [
+      { destination: '阿姆斯特丹，荷蘭', days: 3 },
+      { destination: '布魯塞爾，比利時', days: 2 },
+    ],
+  })
+  const { trip } = generateTrip(input, [], [])
+
+  assert.equal(trip.cities?.length, 2)
+  const [amsterdam, brussels] = trip.cities!
+  assert.equal(amsterdam!.destination, '阿姆斯特丹，荷蘭')
+  assert.equal(brussels!.destination, '布魯塞爾，比利時')
+
+  assert.equal(trip.columns.length, 5)
+  assert.deepEqual(
+    trip.columns.map((column) => column.cityId),
+    [amsterdam!.id, amsterdam!.id, amsterdam!.id, brussels!.id, brussels!.id],
+  )
+})
+
+test('generateTrip joins every city name into trip.destination once there is more than one, but keeps the plain single-city string for just one', () => {
+  const multiCity = generateTrip(
+    baseInput({
+      destination: '阿姆斯特丹，荷蘭',
+      startDate: '2024-03-01',
+      endDate: '2024-03-02',
+      cities: [
+        { destination: '阿姆斯特丹，荷蘭', days: 1 },
+        { destination: '布魯塞爾，比利時', days: 1 },
+      ],
+    }),
+    [],
+    [],
+  ).trip
+  assert.equal(multiCity.destination, '阿姆斯特丹・布魯塞爾')
+  assert.equal(multiCity.title, '阿姆斯特丹・布魯塞爾之旅')
+
+  // A single-entry cities array collapses to the same untouched path as it
+  // being absent entirely — a single entry IS a single destination, so
+  // trip.cities and every column.cityId must stay undefined here too, not
+  // just when `cities` is omitted outright.
+  const singleCityViaArray = generateTrip(
+    baseInput({
+      destination: '阿姆斯特丹，荷蘭',
+      startDate: '2024-03-01',
+      endDate: '2024-03-01',
+      cities: [{ destination: '阿姆斯特丹，荷蘭', days: 1 }],
+    }),
+    [],
+    [],
+  ).trip
+  assert.equal(singleCityViaArray.destination, '阿姆斯特丹，荷蘭')
+  assert.equal(singleCityViaArray.cities, undefined)
+  assert.ok(singleCityViaArray.columns.every((column) => column.cityId === undefined))
+})
