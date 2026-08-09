@@ -266,14 +266,6 @@
                 </div>
               </div>
 
-              <div v-if="drawerPlace.travelTip" class="place-drawer__tip">
-                <AppIcon name="sparkle" :size="15" />
-                <div>
-                  <b>旅遊小提示</b>
-                  {{ drawerPlace.travelTip }}
-                </div>
-              </div>
-
               <div class="place-drawer__actions">
                 <BaseButton @click="viewOnMap">在地圖上查看</BaseButton>
                 <div class="place-drawer__move-wrap">
@@ -404,7 +396,6 @@
               </div>
 
               <BaseInput v-model="editForm.description" label="筆記" multiline :rows="3" />
-              <BaseInput v-model="editForm.travelTip" label="旅遊小提示（選填）" placeholder="選填提示" />
 
               <div class="place-drawer__edit-actions">
                 <BaseButton variant="secondary" @click="cancelEdit">取消</BaseButton>
@@ -567,7 +558,6 @@ const editForm = reactive({
   name: '',
   category: 'attraction' as PlaceCategory,
   description: '',
-  travelTip: '',
   arrivalTimeMode: 'auto' as 'auto' | 'manual',
   arrivalTimeManual: '',
   // Display-only — what "系統規劃" would show even while "手動設定" is
@@ -1149,7 +1139,6 @@ function startEdit() {
   editForm.category = place.category
   editForm.stayDuration = hoursToHHMM(place.estimatedTime)
   editForm.description = place.description
-  editForm.travelTip = place.travelTip ?? ''
 
   // What this place's arrival time would be with no manual override, even
   // if one is currently set — so "系統規劃" always shows a real value to
@@ -1184,7 +1173,6 @@ function saveEdit() {
     category: editForm.category,
     estimatedTime: editFormStayHours.value,
     description: editForm.description.trim() || drawerPlace.value.description,
-    travelTip: editForm.travelTip.trim() || undefined,
     arrivalTime: editForm.arrivalTimeMode === 'manual' ? editForm.arrivalTimeManual || undefined : undefined,
     scheduleMode: editForm.stayMode,
     departureTime: editForm.stayDeparture || undefined,

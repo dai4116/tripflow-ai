@@ -44,7 +44,6 @@ export type NewPlaceInput = {
   name: string
   category: PlaceCategory
   description: string
-  travelTip?: string
   geocodeQuery?: string
   geocodeQueryAlt?: string
   // Present when the place was picked from a verified Google Places search
@@ -337,7 +336,6 @@ export const useTripsStore = defineStore('trips', () => {
       lat: input.lat ?? 0,
       lng: input.lng ?? 0,
       description: input.description,
-      travelTip: input.travelTip,
       geocodeQuery: input.geocodeQuery,
       geocodeQueryAlt: input.geocodeQueryAlt,
       columnId: input.columnId,
@@ -407,7 +405,6 @@ export const useTripsStore = defineStore('trips', () => {
         | 'category'
         | 'estimatedTime'
         | 'description'
-        | 'travelTip'
         | 'arrivalTime'
         | 'scheduleMode'
         | 'departureTime'

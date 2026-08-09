@@ -153,14 +153,6 @@
               </div>
             </div>
 
-            <div v-if="drawerPlace.travelTip" class="place-drawer__tip">
-              <AppIcon name="sparkle" :size="15" />
-              <div>
-                <b>旅遊小提示</b>
-                {{ drawerPlace.travelTip }}
-              </div>
-            </div>
-
             <div class="place-drawer__actions place-drawer__actions--single">
               <BaseButton @click="viewOnMap">在地圖上查看</BaseButton>
             </div>

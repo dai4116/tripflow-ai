@@ -344,7 +344,6 @@ function applyIntent(intent: AiIntent) {
         name: place.name,
         category: place.category,
         description: place.description,
-        travelTip: place.travelTip,
         geocodeQuery: place.geocodeQuery,
         geocodeQueryAlt: place.geocodeQueryAlt,
       })

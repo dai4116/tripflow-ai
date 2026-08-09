@@ -11,7 +11,6 @@ export const places: Place[] = [
     lat: 35.7148,
     lng: 139.7967,
     description: '東京最古老的佛教寺廟，擁有標誌性的雷門與仲見世商店街。',
-    travelTip: '建議早上8點前抵達以避開人潮',
     columnId: 'day-1',
   },
   {
@@ -36,7 +35,6 @@ export const places: Place[] = [
     lat: 35.6655,
     lng: 139.7707,
     description: '一早穿梭在新鮮海鮮攤與小吃店之間的美食巡禮。',
-    travelTip: '大部分攤位下午稍早就會收攤，建議10點前抵達',
     columnId: 'day-1',
   },
   {
@@ -145,7 +143,6 @@ export const places: Place[] = [
     lat: 35.6938,
     lng: 139.7034,
     description: '東京柏悅酒店，新宿——電影《愛情，不用翻譯》的取景地，擁有絕美天際線景觀。',
-    travelTip: '可以要求面向新宿的房型——下午3點開始入住',
     columnId: 'day-1',
   },
 ]

@@ -197,7 +197,6 @@ export type PlaceSuggestion = {
   category: PlaceCategory
   name: string
   description: string
-  travelTip?: string
   // English/local-language search string for the geocoder — the display
   // `name` is Traditional Chinese by design (see the AI prompts), which
   // OpenStreetMap/Nominatim usually can't match for places outside
@@ -417,7 +416,7 @@ export function selectPlacesForWindow(dayPlaces: PlaceSuggestion[], dayWindow: D
 
 // aiPlaces (merged from many /api/generate-trip-day requests — see
 // aiTripClient.ts) supplies the
-// name/category/description/travelTip for each place, in visit order, and —
+// name/category/description for each place, in visit order, and —
 // when verified server-side against Google Places — its coordinates too. All
 // other bookkeeping (ids, palette color, estimatedTime/cost) stays local
 // rather than trusting the model for facts it can't actually know. Days are
@@ -463,7 +462,6 @@ export function generateTrip(
       lat: suggestion.lat ?? 0,
       lng: suggestion.lng ?? 0,
       description: suggestion.description,
-      travelTip: suggestion.travelTip,
       geocodeQuery: suggestion.geocodeQuery,
       geocodeQueryAlt: suggestion.geocodeQueryAlt,
       columnId,

@@ -70,7 +70,6 @@ const TOOLS: Anthropic.Tool[] = [
               geocodeQuery: { type: 'string' },
               geocodeQueryAlt: { type: 'string' },
               description: { type: 'string' },
-              travelTip: { type: 'string' },
             },
             required: ['category', 'name', 'geocodeQuery', 'description'],
             additionalProperties: false,
