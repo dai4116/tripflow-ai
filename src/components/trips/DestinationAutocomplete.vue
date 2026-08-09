@@ -72,10 +72,16 @@ const emit = defineEmits<{
   select: [payload: { placeId: string; lat: number; lng: number } | null]
 }>()
 
-// Keystrokes debounce like AddPlaceModal.vue's search (same 400ms, same
+// Keystrokes debounce like AddPlaceModal.vue's search (same
 // abort-the-in-flight-request-on-a-newer-one pattern) — inlined here rather
-// than a composable since this is the only consumer today.
-const DEBOUNCE_MS = 400
+// than a composable since this is the only consumer today. Short (not
+// AddPlaceModal's 400ms) because Google bills per session token (see
+// sessionToken below), not per request — extra requests within one session
+// are free, so there's no cost reason to wait longer before searching, only
+// latency to the dropdown appearing. resolvePending() below also relies on
+// this being short: it flushes this timer and awaits one real search, so a
+// large value here would make a submit-time flush noticeably laggy.
+const DEBOUNCE_MS = 150
 let debounceTimer: number | undefined
 let activeController: AbortController | null = null
 // Separate from activeController above — that one only ever tracks the
@@ -289,5 +295,40 @@ function focus() {
   fieldEl.value?.focus({ preventScroll: true })
 }
 
-defineExpose({ focus })
+// Called by CreateTripPage.vue right before submit, to catch the common case
+// of a user typing a destination and hitting Enter/Confirm before the
+// debounced dropdown had a chance to appear — without this, that keystroke
+// pattern silently falls back to free text (see handleValueChange's
+// lastSelectedLabel drop), losing the resolved placeId/lat/lng even though a
+// suggestion for it existed all along.
+//
+// Resolves to true when the caller may proceed with submit as-is: either the
+// current text already matches a resolved selection, or a fresh search comes
+// back with exactly one match (auto-picked here) or with none at all (falls
+// back to free text, same as today — this field is an optional augmentation,
+// never a hard gate, per runSearch's own "undefined = fail open" comment).
+// Resolves to false only when a fresh search finds multiple candidates: the
+// dropdown is left open with the first one highlighted so the user can
+// confirm, and the caller should stop the submit rather than guess for them.
+async function resolvePending(): Promise<boolean> {
+  if (lastSelectedLabel.value === props.modelValue) return true
+
+  const query = props.modelValue.trim()
+  if (!query) return true
+
+  window.clearTimeout(debounceTimer)
+  await runSearch()
+
+  if (suggestions.value.length === 1) {
+    await selectSuggestion(suggestions.value[0])
+    return true
+  }
+  if (suggestions.value.length > 1) {
+    highlightedIndex.value = 0
+    return false
+  }
+  return true
+}
+
+defineExpose({ focus, resolvePending })
 </script>

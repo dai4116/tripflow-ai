@@ -395,34 +395,63 @@ function getStyleIcon(style: string): IconName {
   return icons[style] ?? 'sparkle'
 }
 
-function generateTrip() {
-  if (isGenerating.value) return
+// Guards the async gap in generateTrip() between its top-of-function check
+// and isGenerating.value actually flipping true. generateTrip is no longer
+// synchronous up to that point now that it awaits the destination field's
+// own resolution (see resolvePending), which can itself await a real network
+// search — without this, a fast double-click/double-Enter landing in that
+// window passes the isGenerating check twice and fires two concurrent
+// tripsStore.createTrip() calls. Mirrors requestInFlight above, which guards
+// the same class of race for retryGeneration.
+let submitInFlight = false
 
-  if (!form.destination.trim()) {
-    destinationError.value = '請先告訴我們你要去哪裡。'
-    destinationInputRef.value?.focus()
-    return
+async function generateTrip() {
+  if (isGenerating.value || submitInFlight) return
+  submitInFlight = true
+  try {
+    if (!form.destination.trim()) {
+      destinationError.value = '請先告訴我們你要去哪裡。'
+      destinationInputRef.value?.focus()
+      return
+    }
+
+    if (!form.startDate || !form.endDate) {
+      dateRangeError.value = '請選擇旅遊日期。'
+      return
+    }
+
+    if (new Date(form.endDate).getTime() <= new Date(form.startDate).getTime()) {
+      dateRangeError.value = '結束日期必須晚於開始日期。'
+      return
+    }
+
+    // Runs last, after every cheap synchronous check already passed — this
+    // can trigger a real network search (see resolvePending's own comment),
+    // so it's not worth paying for until the rest of the form is otherwise
+    // ready to submit. Catches Enter/Confirm fired before the debounced
+    // suggestion dropdown had a chance to appear: flushes any pending search
+    // and, if it turns up more than one candidate, opens the dropdown and
+    // stops the submit instead of silently falling back to unresolved free
+    // text.
+    const destinationResolved = (await destinationInputRef.value?.resolvePending()) ?? true
+    if (!destinationResolved) {
+      destinationError.value = '請從清單中選擇一個目的地。'
+      destinationInputRef.value?.focus()
+      return
+    }
+
+    destinationError.value = ''
+    dateRangeError.value = ''
+    generationFailed.value = false
+    isGenerating.value = true
+    currentStageIndex.value = 0
+    showLongWaitNotice.value = false
+    stageDurationMs = computeStageDuration()
+    advanceStage()
+    finishGeneration()
+  } finally {
+    submitInFlight = false
   }
-
-  if (!form.startDate || !form.endDate) {
-    dateRangeError.value = '請選擇旅遊日期。'
-    return
-  }
-
-  if (new Date(form.endDate).getTime() <= new Date(form.startDate).getTime()) {
-    dateRangeError.value = '結束日期必須晚於開始日期。'
-    return
-  }
-
-  destinationError.value = ''
-  dateRangeError.value = ''
-  generationFailed.value = false
-  isGenerating.value = true
-  currentStageIndex.value = 0
-  showLongWaitNotice.value = false
-  stageDurationMs = computeStageDuration()
-  advanceStage()
-  finishGeneration()
 }
 
 // Re-runs the same stage animation before hitting the AI again, rather than

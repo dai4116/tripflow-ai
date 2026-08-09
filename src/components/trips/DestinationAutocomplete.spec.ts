@@ -155,6 +155,64 @@ describe('DestinationAutocomplete', () => {
     expect(selectEvents.some((e) => e?.placeId === 'pB')).toBe(true)
   })
 
+  it('resolvePending flushes a still-debouncing search and auto-selects a sole match', async () => {
+    vi.spyOn(placesAutocompleteClient, 'autocompleteDestination').mockResolvedValue([{ placeId: 'pA', mainText: '東京', secondaryText: '日本' }])
+    vi.spyOn(placesAutocompleteClient, 'resolveDestinationPlace').mockResolvedValue({ lat: 35, lng: 139 })
+    const { wrapper, selectEvents } = mountHost('')
+
+    await wrapper.find('input').setValue('東京') // debounce still pending — no timer advance, simulating Enter right after typing
+    const resolved = await wrapper.findComponent(DestinationAutocomplete).vm.resolvePending()
+
+    expect(resolved).toBe(true)
+    expect(selectEvents.at(-1)).toEqual({ placeId: 'pA', lat: 35, lng: 139 })
+  })
+
+  it('resolvePending opens the dropdown and blocks submit when multiple matches come back', async () => {
+    vi.spyOn(placesAutocompleteClient, 'autocompleteDestination').mockResolvedValue([
+      { placeId: 'pA', mainText: '東京', secondaryText: '日本' },
+      { placeId: 'pB', mainText: '東京都', secondaryText: '日本' },
+    ])
+    const { wrapper, selectEvents } = mountHost('')
+
+    await wrapper.find('input').setValue('東京')
+    const resolved = await wrapper.findComponent(DestinationAutocomplete).vm.resolvePending()
+
+    expect(resolved).toBe(false)
+    expect(wrapper.find('.destination-autocomplete__suggestions').exists()).toBe(true)
+    expect(selectEvents).toEqual([]) // nothing auto-picked — left for the user to confirm
+  })
+
+  it('resolvePending is a no-op when the text already matches a resolved selection', async () => {
+    const spy = vi.spyOn(placesAutocompleteClient, 'autocompleteDestination').mockResolvedValue([
+      { placeId: 'pA', mainText: '東京', secondaryText: '日本' },
+    ])
+    vi.spyOn(placesAutocompleteClient, 'resolveDestinationPlace').mockResolvedValue({ lat: 35, lng: 139 })
+    const { wrapper } = mountHost('')
+
+    await wrapper.find('input').setValue('東京')
+    await vi.advanceTimersByTimeAsync(400)
+    await flushPromises()
+    await wrapper.find('.destination-autocomplete__option').trigger('mousedown')
+    await flushPromises()
+    spy.mockClear()
+
+    const resolved = await wrapper.findComponent(DestinationAutocomplete).vm.resolvePending()
+
+    expect(resolved).toBe(true)
+    expect(spy).not.toHaveBeenCalled() // already resolved — no redundant search
+  })
+
+  it('resolvePending falls back to free text when the search comes back empty', async () => {
+    vi.spyOn(placesAutocompleteClient, 'autocompleteDestination').mockResolvedValue([])
+    const { wrapper, selectEvents } = mountHost('')
+
+    await wrapper.find('input').setValue('一個不存在的地方')
+    const resolved = await wrapper.findComponent(DestinationAutocomplete).vm.resolvePending()
+
+    expect(resolved).toBe(true)
+    expect(selectEvents).toEqual([]) // never resolved a place — caller submits the typed text as-is
+  })
+
   it('Escape closes an open dropdown', async () => {
     vi.spyOn(placesAutocompleteClient, 'autocompleteDestination').mockResolvedValue([{ placeId: 'pA', mainText: '東京', secondaryText: '' }])
     const { wrapper } = mountHost('')

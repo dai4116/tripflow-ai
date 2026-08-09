@@ -132,8 +132,12 @@ describe('CreateTripPage', () => {
     const { wrapper, router } = await mountPage()
     await wrapper.find('input[role="combobox"]').setValue('京都，日本')
 
+    // generateTrip is now async (it awaits the destination field's own
+    // pending resolution — see resolvePending — before flipping into the
+    // generating view), so there's no longer a synchronous moment right
+    // after submit where the generating view is showing but createTrip()
+    // hasn't been kicked off yet; go straight to the settled end state.
     await wrapper.find('form').trigger('submit')
-    expect(wrapper.find('.generating').exists()).toBe(true)
     await flushPromises()
 
     expect(router.currentRoute.value.name).toBe('trip-board')
