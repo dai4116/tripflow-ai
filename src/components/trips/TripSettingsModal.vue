@@ -84,7 +84,7 @@
             </BaseCard>
 
             <BaseCard class="form-card">
-              <BaseDateRangeInput label="行程日期" v-model:start="startDate" v-model:end="endDate" :error="dateRangeError" />
+              <BaseDateInput label="出發日期" v-model="startDate" :error="dateError" />
             </BaseCard>
           </div>
 
@@ -103,12 +103,12 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useCoverPhotoUrl } from '../../composables/useCoverPhotoUrl'
 import { useImageWithFallback } from '../../composables/useImageWithFallback'
 import { fetchTripCoverPhotoRefs } from '../../data/tripCoverPhotosClient'
-import { toDateInputValue } from '../../data/generateTrip'
+import { parseDateInputValue, toDateInputValue } from '../../data/generateTrip'
 import type { Trip, TripSettingsSavePayload } from '../../types'
 import AppIcon from '../ui/AppIcon.vue'
 import BaseButton from '../ui/BaseButton.vue'
 import BaseCard from '../ui/BaseCard.vue'
-import BaseDateRangeInput from '../ui/BaseDateRangeInput.vue'
+import BaseDateInput from '../ui/BaseDateInput.vue'
 import BaseInput from '../ui/BaseInput.vue'
 import TrailCoverArt from '../ui/TrailCoverArt.vue'
 
@@ -120,26 +120,31 @@ const emit = defineEmits<{
 }>()
 
 // Trips without a startDate yet (AI-generated ones, for now) default the
-// picker to today rather than leaving it blank, so the range summary makes
-// sense immediately instead of showing nothing until the user picks a date.
-//
-// `trip.days` counts inclusive calendar days (see computeTripDays in
-// generateTrip.ts) — Mar 15 to Mar 22 is "8 days", both ends included. So
-// the end date that reproduces it is startDate + (days - 1), the same
-// offset columnDate uses for the last day-column's date.
+// picker to today rather than leaving it blank.
 const initialStart = props.trip.startDate ?? toDateInputValue(new Date())
-const initialEnd = (() => {
-  const end = new Date(initialStart)
-  end.setDate(end.getDate() + Math.max(props.trip.days - 1, 0))
-  return toDateInputValue(end)
-})()
 
 const title = ref(props.trip.title)
 const startDate = ref(initialStart)
-const endDate = ref(initialEnd)
 const titleError = ref('')
-const dateRangeError = ref('')
+const dateError = ref('')
 const titleInputRef = ref<InstanceType<typeof BaseInput> | null>(null)
+
+// Day COUNT isn't editable here — this modal only shifts when the trip
+// starts, not how long it is (that's TripBoardPage.vue's own add/remove-day
+// controls). `endDate` is derived, never user-entered, so it's always
+// startDate + (days - 1) — trip.days counts inclusive calendar days (see
+// computeTripDays in generateTrip.ts: Mar 15 to Mar 22 is "8 days", both
+// ends included), the same offset columnDate uses for the last day-column's
+// date.
+//
+// parseDateInputValue, not `new Date(startDate.value)` — see its own
+// comment for why the string constructor would silently land the
+// setDate() arithmetic below one day short in timezones west of UTC.
+const endDate = computed(() => {
+  const end = parseDateInputValue(startDate.value)
+  end.setDate(end.getDate() + Math.max(props.trip.days - 1, 0))
+  return toDateInputValue(end)
+})
 
 // The currently selected cover photo — starts at whatever the trip already
 // has (possibly none), and only changes when the user actually picks a new
@@ -233,10 +238,8 @@ watch(title, (value) => {
   if (value.trim()) titleError.value = ''
 })
 
-watch([startDate, endDate], ([start, end]) => {
-  if (start && end && new Date(end).getTime() > new Date(start).getTime()) {
-    dateRangeError.value = ''
-  }
+watch(startDate, (value) => {
+  if (value) dateError.value = ''
 })
 
 function close() {
@@ -251,13 +254,8 @@ function handleSave() {
     return
   }
 
-  if (!startDate.value || !endDate.value) {
-    dateRangeError.value = '請選擇旅遊日期'
-    return
-  }
-
-  if (new Date(endDate.value).getTime() <= new Date(startDate.value).getTime()) {
-    dateRangeError.value = '結束日期必須晚於開始日期'
+  if (!startDate.value) {
+    dateError.value = '請選擇出發日期'
     return
   }
 

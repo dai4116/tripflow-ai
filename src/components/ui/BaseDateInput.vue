@@ -27,10 +27,9 @@ const emit = defineEmits<{
 
 const inputEl = ref<HTMLInputElement | null>(null)
 
-// Same reasoning as BaseDateRangeInput.vue's identical helper — native date
-// text is laid out differently by iOS WebKit and can't be styled reliably
-// across releases, so the native input stays for its picker only, with a
-// stable app-owned label displayed above it.
+// Native date text is laid out differently by iOS WebKit and can't be
+// styled reliably across releases, so the native input stays for its picker
+// only, with a stable app-owned label displayed above it.
 function formatDateValue(value?: string) {
   const match = value?.match(/^(\d{4})-(\d{2})-(\d{2})$/)
   if (!match) return ''
@@ -44,7 +43,6 @@ function onInput(event: Event) {
   emit('update:modelValue', (event.target as HTMLInputElement).value)
 }
 
-// Same fallback as BaseDateRangeInput.vue's openPicker.
 function openPicker() {
   const input = inputEl.value
   if (!input) return

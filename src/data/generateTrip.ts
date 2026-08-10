@@ -312,6 +312,43 @@ export type CitySegment = {
   endDay: number
 }
 
+// Whether two segments are the SAME real-world city — matches by
+// destinationPlaceId when BOTH have one (the reliable signal, set when the
+// user picked a Google Places suggestion — see DestinationAutocomplete.vue),
+// otherwise falls back to matching by free-text city name whenever EITHER
+// side lacks a placeId. That fallback is a deliberate trade-off, not an
+// oversight: comparing placeId against a "no placeId" segment can never
+// match, so a genuine repeat visit where the user free-typed the second
+// occurrence instead of re-picking from autocomplete would otherwise be
+// silently treated as two unrelated cities (aiTripClient.ts's
+// planCitySegments would then plan them independently, reviving the
+// converging-zone-picks problem unifying that planning exists to avoid).
+// The residual risk this accepts: two DIFFERENT real cities that share a
+// bare name (e.g. two different "Cambridge"s) both left unresolved (no
+// placeId on either) still match by text — there is no better signal
+// available once neither side has a placeId to disambiguate with.
+export function sameCity(a: CitySegment, b: CitySegment): boolean {
+  if (a.destinationPlaceId && b.destinationPlaceId) return a.destinationPlaceId === b.destinationPlaceId
+  return cityFromDestination(a.destination) === cityFromDestination(b.destination)
+}
+
+// Which segment a given absolute day number falls within (startDay <=
+// dayNumber <= endDay) — the one predicate this file's own cityIdForDay/
+// destinationForDay share, and that aiTripClient.ts's planForDay reuses too
+// (mapping SegmentPlan -> its own .segment first, then back). Falls back to
+// the segment with the largest endDay when none actually contains
+// dayNumber — defensively unreachable for any dayNumber a real caller here
+// passes (1..totalDays against segments already covering that whole range),
+// but every existing caller wants a segment back either way, not undefined.
+// `segments` is never empty — resolveCitySegments below always returns at
+// least one.
+export function segmentForDay(segments: CitySegment[], dayNumber: number): CitySegment {
+  return (
+    segments.find((segment) => dayNumber >= segment.startDay && dayNumber <= segment.endDay) ??
+    segments.reduce((latest, segment) => (segment.endDay > latest.endDay ? segment : latest))
+  )
+}
+
 // The single source of truth for "which city does day N belong to" — used
 // by this file's own cityIdForDay (see generateTrip below) AND by
 // aiTripClient.ts's per-city generation orchestration. Two independent
@@ -401,6 +438,20 @@ export function toDateInputValue(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
+}
+
+// The inverse of toDateInputValue — NOT `new Date(dateStr)`, which parses
+// "YYYY-MM-DD" as UTC midnight and lands on the previous calendar day in any
+// timezone west of UTC. Built from numeric y/m/d parts instead, so
+// subsequent local-time arithmetic (setDate(), etc.) on the result stays on
+// the intended calendar day. Falls back to `new Date(dateStr)` for a
+// malformed/non-YYYY-MM-DD string — every current caller only ever passes a
+// value that itself came from toDateInputValue or a native <input
+// type="date">, so this path is defensive, not a real fallback in practice.
+export function parseDateInputValue(dateStr: string): Date {
+  const [year, month, day] = dateStr.split('-').map(Number)
+  if (!year || !month || !day) return new Date(dateStr)
+  return new Date(year, month - 1, day)
 }
 
 export function formatDateRange(startDate: string, endDate: string): string {
@@ -595,10 +646,14 @@ export function generateTrip(
   // deliberately treat that case as "no cities," so this stays consistent
   // with `cities` without a second condition to keep in sync.
   const segments = resolveCitySegments(input, days)
+  // `cities` and `segments` are index-parallel whenever `cities` is defined
+  // — both built by walking the SAME `input.cities` array in the same
+  // order (cities via a plain .map, segments via resolveCitySegments'
+  // cumulative walk) — so segmentForDay's matched segment's own index
+  // within `segments` is also its corresponding TripCity's index.
   function cityIdForDay(dayNumber: number): string | undefined {
     if (!cities) return undefined
-    const index = segments.findIndex((segment) => dayNumber >= segment.startDay && dayNumber <= segment.endDay)
-    return cities[index === -1 ? cities.length - 1 : index]?.id
+    return cities[segments.indexOf(segmentForDay(segments, dayNumber))]?.id
   }
 
   const places: Place[] = []
@@ -607,12 +662,9 @@ export function generateTrip(
   // `address` — for a multi-city trip this is the ACTUAL city that day
   // belongs to (segments), not input.destination (which for a multi-city
   // trip is only the first city, kept there purely as the AI generation
-  // pipeline's stand-in — see CreateTripInput.cities' own comment). Falls
-  // back to input.destination when a day somehow resolves to no segment,
-  // same defensive fallback resolveCitySegments itself already guarantees
-  // shouldn't be reachable.
+  // pipeline's stand-in — see CreateTripInput.cities' own comment).
   function destinationForDay(dayNumber: number): string {
-    return segments.find((segment) => dayNumber >= segment.startDay && dayNumber <= segment.endDay)?.destination ?? input.destination
+    return segmentForDay(segments, dayNumber).destination
   }
 
   function addPlace(suggestion: PlaceSuggestion, columnId: string, destination: string): Place {

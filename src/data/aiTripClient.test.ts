@@ -10,7 +10,7 @@ import test, { type TestContext } from 'node:test'
 
 import type { CitySegment } from './generateTrip.ts'
 import type { CreateTripInput } from '../types/index.ts'
-import { dedupeByPlaceId, daysNeedingBackfill, fetchAiPlaces, findExistingAnchor, preferencesForSegment } from './aiTripClient.ts'
+import { dedupeByPlaceId, daysNeedingBackfill, fetchAiPlaces, findExistingAnchor, preferencesForGroup } from './aiTripClient.ts'
 import type { PlaceSuggestion } from './generateTrip.ts'
 
 // A generic non-zero-length placeholder window, for tests that don't care
@@ -73,25 +73,118 @@ test('findExistingAnchor returns the first coordinate-bearing place for a day, o
   assert.equal(findExistingAnchor(places, 3), null)
 })
 
-test('preferencesForSegment returns the input unchanged for a single-segment (single-destination) trip', () => {
-  const segments: CitySegment[] = [{ destination: '京都，日本', startDay: 1, endDay: 5 }]
+test('preferencesForGroup returns the input unchanged for a single-group (single-destination) trip', () => {
+  const group: CitySegment[] = [{ destination: '京都，日本', startDay: 1, endDay: 5 }]
   const preferences = ['必吃美食', '逛街購物', '自然秘境']
-  assert.equal(preferencesForSegment(preferences, segments[0]!, segments), preferences)
+  assert.equal(preferencesForGroup(preferences, group, [group]), preferences)
 })
 
-test('preferencesForSegment distributes preferences across segments proportional to each segment\'s day share', () => {
-  const segments: CitySegment[] = [
-    { destination: 'A', startDay: 1, endDay: 3 },
-    { destination: 'B', startDay: 4, endDay: 5 },
-  ]
+test('preferencesForGroup distributes preferences across groups proportional to each group\'s day share', () => {
+  const groupA: CitySegment[] = [{ destination: 'A', startDay: 1, endDay: 3 }]
+  const groupB: CitySegment[] = [{ destination: 'B', startDay: 4, endDay: 5 }]
+  const allGroups = [groupA, groupB]
   const preferences = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6']
-  const forA = preferencesForSegment(preferences, segments[0]!, segments)
-  const forB = preferencesForSegment(preferences, segments[1]!, segments)
-  // Every preference goes to exactly one segment, none dropped or duplicated.
+  const forA = preferencesForGroup(preferences, groupA, allGroups)
+  const forB = preferencesForGroup(preferences, groupB, allGroups)
+  // Every preference goes to exactly one group, none dropped or duplicated.
   assert.deepEqual([...forA!, ...forB!].sort(), [...preferences].sort())
-  // The 3-day segment gets a larger (or equal) share than the 2-day one.
+  // The 3-day group gets a larger (or equal) share than the 2-day one.
   assert.ok(forA!.length >= forB!.length, `expected A's share (${forA!.length}) >= B's (${forB!.length})`)
   assert.ok(forB!.length > 0, 'expected B to get at least one preference, not be starved entirely')
+})
+
+test('preferencesForGroup treats a repeated city\'s multiple segments as ONE group, sized by their combined day count', () => {
+  // Tokyo visited 3 days, then (after a 2-day Kyoto detour) 2 more days —
+  // Tokyo's allocation should be sized as a 5-day city, not as two separate
+  // 3-day/2-day allocations that would each individually lose to Kyoto's
+  // contiguous 2 days.
+  const tokyoGroup: CitySegment[] = [
+    { destination: '東京，日本', startDay: 1, endDay: 3 },
+    { destination: '東京，日本', startDay: 6, endDay: 7 },
+  ]
+  const kyotoGroup: CitySegment[] = [{ destination: '京都，日本', startDay: 4, endDay: 5 }]
+  const allGroups = [tokyoGroup, kyotoGroup]
+  const preferences = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7']
+
+  const forTokyo = preferencesForGroup(preferences, tokyoGroup, allGroups)
+  const forKyoto = preferencesForGroup(preferences, kyotoGroup, allGroups)
+  assert.deepEqual([...forTokyo!, ...forKyoto!].sort(), [...preferences].sort())
+  // Tokyo's combined 5 of 7 total days should clearly outweigh Kyoto's 2.
+  assert.ok(
+    forTokyo!.length > forKyoto!.length,
+    `expected Tokyo's 5-day combined share (${forTokyo!.length}) > Kyoto's 2-day share (${forKyoto!.length})`,
+  )
+})
+
+test('preferencesForGroup guarantees every group at least 1 preference once there are enough to go around, even a tiny group next to a huge one', () => {
+  // Direct regression case for the bug plain largest-remainder apportionment
+  // had: a 1-day group's ideal share (2 * 1/100 = 0.02) floors to 0, and it
+  // still loses the single leftover seat to the 99-day group's larger
+  // fractional remainder — so with exactly 2 preferences for 2 groups, the
+  // 1-day group got zero even though preferences.length >= allGroups.length.
+  const tinyGroup: CitySegment[] = [{ destination: 'Tiny', startDay: 1, endDay: 1 }]
+  const hugeGroup: CitySegment[] = [{ destination: 'Huge', startDay: 2, endDay: 100 }]
+  const allGroups = [tinyGroup, hugeGroup]
+  const preferences = ['p1', 'p2']
+
+  const forTiny = preferencesForGroup(preferences, tinyGroup, allGroups)
+  const forHuge = preferencesForGroup(preferences, hugeGroup, allGroups)
+  assert.deepEqual([...forTiny!, ...forHuge!].sort(), [...preferences].sort())
+  assert.equal(forTiny!.length, 1, 'the 1-day group must not be starved to zero when there are enough preferences for both groups')
+  assert.equal(forHuge!.length, 1)
+})
+
+test('preferencesForGroup still lets a group legitimately get zero when there are not enough preferences to guarantee one each', () => {
+  const groupA: CitySegment[] = [{ destination: 'A', startDay: 1, endDay: 1 }]
+  const groupB: CitySegment[] = [{ destination: 'B', startDay: 2, endDay: 99 }]
+  const allGroups = [groupA, groupB]
+  const preferences = ['p1']
+
+  const forA = preferencesForGroup(preferences, groupA, allGroups)
+  const forB = preferencesForGroup(preferences, groupB, allGroups)
+  assert.deepEqual([...forA!, ...forB!].sort(), preferences)
+  assert.equal(forA!.length, 0)
+  assert.equal(forB!.length, 1)
+})
+
+test('preferencesForGroup matches a group by sameCity (destinationPlaceId OR text), not object identity or a stale key', () => {
+  // A structurally-identical-but-freshly-constructed group (same city, same
+  // shape, but not the literal array reference held in allGroups) must still
+  // resolve correctly — matching by sameCity rather than reference equality
+  // or a precomputed key is what makes this work.
+  const groupA: CitySegment[] = [{ destination: 'A', destinationPlaceId: 'place-a', startDay: 1, endDay: 3 }]
+  const groupB: CitySegment[] = [{ destination: 'B', destinationPlaceId: 'place-b', startDay: 4, endDay: 5 }]
+  const allGroups = [groupA, groupB]
+  const preferences = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6']
+
+  const reconstructedGroupA: CitySegment[] = [{ destination: 'A', destinationPlaceId: 'place-a', startDay: 1, endDay: 3 }]
+  const forA = preferencesForGroup(preferences, reconstructedGroupA, allGroups)
+  assert.ok(forA && forA.length > 0, 'expected the reconstructed-but-sameCity group to still resolve to a real allocation, not fall through to []')
+})
+
+test('preferencesForGroup merges a repeated city\'s visits into one group even when only ONE occurrence carries a destinationPlaceId', () => {
+  // sameCity is an OR-match: placeId when BOTH sides have one, else a text
+  // fallback — covering the asymmetric case where, say, the user picked a
+  // Google Places suggestion for Tokyo's first visit but typed the second
+  // visit's destination as free text (no placeId). Both must still be
+  // recognized as the SAME group, or Tokyo's zone-planning silently splits
+  // back into two uncoordinated allocations — the exact bug this whole
+  // unified-group design exists to prevent.
+  const tokyoGroup: CitySegment[] = [
+    { destination: '東京，日本', destinationPlaceId: 'place-tokyo', startDay: 1, endDay: 3 },
+    { destination: '東京，日本', startDay: 6, endDay: 7 }, // no placeId — e.g. typed as free text
+  ]
+  const kyotoGroup: CitySegment[] = [{ destination: '京都，日本', destinationPlaceId: 'place-kyoto', startDay: 4, endDay: 5 }]
+  const allGroups = [tokyoGroup, kyotoGroup]
+  const preferences = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7']
+
+  const forTokyo = preferencesForGroup(preferences, tokyoGroup, allGroups)
+  const forKyoto = preferencesForGroup(preferences, kyotoGroup, allGroups)
+  assert.deepEqual([...forTokyo!, ...forKyoto!].sort(), [...preferences].sort())
+  assert.ok(
+    forTokyo!.length > forKyoto!.length,
+    `expected Tokyo's 5-day combined share (${forTokyo!.length}) > Kyoto's 2-day share (${forKyoto!.length})`,
+  )
 })
 
 // Shared fetch dispatcher for the fetchAiPlaces integration tests below —
@@ -322,4 +415,204 @@ test('fetchAiPlaces fans a multi-city trip out into one independent, correctly-s
   // requests, not misrouted to Amsterdam or some other segment.
   assert.ok(result?.filter((p) => p.day === 4).every((p) => p.placeId?.startsWith('布魯塞爾，比利時-1-')))
   assert.ok(result?.filter((p) => p.day === 5).every((p) => p.placeId?.startsWith('布魯塞爾，比利時-2-')))
+})
+
+test('fetchAiPlaces plans a repeated city as ONE unified multi-day visit — a single zone-planning call covering its combined day count, not one call per visit', async (t) => {
+  type ZoneBody = { destination: string; totalDays: number }
+  type DayBody = { destination: string; day: number; totalDays: number; zones: { day: number; zone: string }[] }
+  const zoneBodies: ZoneBody[] = []
+  const dayBodies: DayBody[] = []
+  const WIDE_WINDOW = { start: '08:00', end: '20:00' }
+
+  mockFetch(t, {
+    zones: (body) => {
+      const b = body as ZoneBody
+      zoneBodies.push(b)
+      if (b.destination === '東京，日本') {
+        // A distinct theme per relative day, 1..totalDays — if Tokyo is
+        // correctly planned as ONE 5-day visit, this returns 5 entries in
+        // a single call; if it were wrongly split back into per-visit
+        // calls, this same handler would instead get invoked twice with
+        // totalDays 3 and 2.
+        return new Response(
+          JSON.stringify({
+            zones: Array.from({ length: b.totalDays }, (_, i) => ({ day: i + 1, zone: `TokyoZone${i + 1}`, focus: 'f', assignedPreferences: [] })),
+            cityCenter: { lat: 35.68, lng: 139.69 },
+          }),
+          { status: 200 },
+        )
+      }
+      return new Response(JSON.stringify({ zones: [{ day: 1, zone: 'KyotoZone', focus: 'f', assignedPreferences: [] }, { day: 2, zone: 'KyotoZone2', focus: 'f', assignedPreferences: [] }], cityCenter: null }), { status: 200 })
+    },
+    day: (body) => {
+      dayBodies.push(body as DayBody)
+      const places = Array.from({ length: 8 }, (_, i) => dayPlace(body.day, `${body.destination}-${body.day}-${i}`))
+      return new Response(JSON.stringify({ places }), { status: 200 })
+    },
+  })
+
+  // Tokyo 3 days, then Kyoto 2 days, then back to Tokyo for 2 more days.
+  const input = baseInput({
+    destination: '東京，日本',
+    cities: [
+      { destination: '東京，日本', days: 3 },
+      { destination: '京都，日本', days: 2 },
+      { destination: '東京，日本', days: 2 },
+    ],
+  })
+  const result = await fetchAiPlaces(input, 7, WIDE_WINDOW)
+
+  // Exactly ONE zone-planning call for Tokyo (not two, one per visit),
+  // covering its combined 5 days (3 + 2) — Kyoto gets its own separate call.
+  const tokyoZoneBodies = zoneBodies.filter((b) => b.destination === '東京，日本')
+  assert.equal(tokyoZoneBodies.length, 1)
+  assert.equal(tokyoZoneBodies[0]!.totalDays, 5)
+  assert.equal(zoneBodies.filter((b) => b.destination === '京都，日本').length, 1)
+
+  const tokyoDayBodies = dayBodies.filter((b) => b.destination === '東京，日本').sort((a, b) => a.day - b.day)
+  assert.equal(tokyoDayBodies.length, 5)
+  // day/totalDays sent to the server are relative to the whole 5-day Tokyo
+  // GROUP, continuing across the Kyoto interruption — absolute days 1/2/3
+  // (first visit) map to group-relative 1/2/3, and absolute days 6/7
+  // (second visit) map to group-relative 4/5, all against totalDays=5.
+  assert.deepEqual(tokyoDayBodies.map((b) => [b.day, b.totalDays]), [
+    [1, 5],
+    [2, 5],
+    [3, 5],
+    [4, 5],
+    [5, 5],
+  ])
+  // Every Tokyo day-request sees the SAME shared 5-entry zones array (proof
+  // the second visit isn't independently re-planning) — day 4/5 aren't
+  // missing or truncated relative to day 1-3's.
+  for (const b of tokyoDayBodies) assert.equal(b.zones.length, 5)
+
+  // The returned places are re-tagged back to ABSOLUTE trip days — the
+  // second Tokyo visit's group-relative days 4/5 (what the mock's placeId
+  // is built from, since that's what the server actually saw) resolve to
+  // absolute days 6/7 in the merged result, not misattributed to Kyoto's
+  // own absolute days 4/5.
+  assert.ok(result?.filter((p) => p.day === 6).every((p) => p.placeId?.startsWith('東京，日本-4-')))
+  assert.ok(result?.filter((p) => p.day === 7).every((p) => p.placeId?.startsWith('東京，日本-5-')))
+  // Absolute days 4/5 belong entirely to Kyoto, not Tokyo's group-relative
+  // days of the same number — no cross-city confusion despite the number
+  // reuse.
+  assert.ok(result?.filter((p) => p.day === 4).every((p) => p.placeId?.startsWith('京都，日本-')))
+  assert.ok(result?.filter((p) => p.day === 5).every((p) => p.placeId?.startsWith('京都，日本-')))
+})
+
+test('fetchAiPlaces still merges a repeated city into ONE zone-planning call when only ONE visit carries a destinationPlaceId', async (t) => {
+  // planCitySegments groups segments with its own sameCity-based array scan
+  // (a separate call site from preferencesForGroup, though both share the
+  // same sameCity function) — this exercises THAT grouping loop directly,
+  // for the asymmetric case where the user picked a Places suggestion for
+  // Tokyo's first visit (destinationPlaceId set) but typed the second visit
+  // as free text (no placeId, same city name).
+  type ZoneBody = { destination: string; totalDays: number }
+  const zoneBodies: ZoneBody[] = []
+  const WIDE_WINDOW = { start: '08:00', end: '20:00' }
+
+  mockFetch(t, {
+    zones: (body) => {
+      zoneBodies.push(body as ZoneBody)
+      return new Response(JSON.stringify({ zones: [], cityCenter: null }), { status: 200 })
+    },
+    day: (body) => new Response(JSON.stringify({ places: [dayPlace(body.day, `p${body.day}`)] }), { status: 200 }),
+  })
+
+  const input = baseInput({
+    destination: '東京，日本',
+    destinationPlaceId: 'place-tokyo',
+    cities: [
+      { destination: '東京，日本', destinationPlaceId: 'place-tokyo', days: 3 },
+      { destination: '京都，日本', destinationPlaceId: 'place-kyoto', days: 2 },
+      { destination: '東京，日本', days: 2 }, // no placeId — e.g. typed as free text
+    ],
+  })
+  await fetchAiPlaces(input, 7, WIDE_WINDOW)
+
+  const tokyoZoneBodies = zoneBodies.filter((b) => b.destination === '東京，日本')
+  assert.equal(tokyoZoneBodies.length, 1, 'expected the two Tokyo visits to merge into one zone-planning call despite only one carrying a placeId')
+  assert.equal(tokyoZoneBodies[0]!.totalDays, 5)
+})
+
+test('fetchAiPlaces sends every day-request in a repeated-city group the SAME destination text — the group\'s first occurrence\'s, not each visit\'s own', async (t) => {
+  // Regression test: day-requests used to send each segment's OWN
+  // destination text (plan.segment.destination) even though the whole
+  // group shares one zone-planning call's context. sameCity's text fallback
+  // can merge two occurrences whose destination text genuinely differs (same
+  // city, different wording — here "東京，日本" vs a free-typed "東京", both
+  // reducing to the same cityFromDestination "東京") — without this fix, the
+  // second Tokyo visit's day-requests would describe the destination as
+  // "東京" while the shared zone hints/city-center were planned against
+  // "東京，日本", a mismatch between what Claude was told when planning zones
+  // and what later day-requests for the same group say.
+  type DayBody = { destination: string; day: number }
+  const dayBodies: DayBody[] = []
+  const WIDE_WINDOW = { start: '08:00', end: '20:00' }
+
+  mockFetch(t, {
+    zones: () => new Response(JSON.stringify({ zones: [], cityCenter: null }), { status: 200 }),
+    day: (body) => {
+      dayBodies.push(body as DayBody)
+      // 8 places (well above any day's target count) so this doesn't trigger
+      // a backfill retry for the same day — a retry would push a second body
+      // with the identical destination text, which is harmless to what this
+      // test checks but would make the exact-count assertion below brittle.
+      const places = Array.from({ length: 8 }, (_, i) => dayPlace(body.day, `${body.destination}-${body.day}-${i}`))
+      return new Response(JSON.stringify({ places }), { status: 200 })
+    },
+  })
+
+  const input = baseInput({
+    destination: '東京，日本',
+    cities: [
+      { destination: '東京，日本', days: 3 },
+      { destination: '京都，日本', days: 2 },
+      { destination: '東京', days: 2 }, // free-typed, no comma — same real city, different text
+    ],
+  })
+  await fetchAiPlaces(input, 7, WIDE_WINDOW)
+
+  // Every day-request whose absolute day belongs to Tokyo (1-3 for the first
+  // visit, 6-7 for the second) must use the group's shared destination text
+  // — the first occurrence's "東京，日本" — never the second visit's own
+  // free-typed "東京".
+  const secondVisitBodies = dayBodies.filter((b) => b.destination === '東京')
+  assert.deepEqual(secondVisitBodies, [], 'expected no day-request to use the second visit\'s own destination text once merged into the Tokyo group')
+  assert.equal(dayBodies.filter((b) => b.destination === '東京，日本').length, 5, 'expected all 5 Tokyo-group day-requests (3 + 2) to share the representative\'s destination text')
+})
+
+test('fetchAiPlaces does not merge two DIFFERENT same-named cities into one combined zone-planning call, even though their destination text shares a bare city name', async (t) => {
+  // Two distinct real places named "Cambridge" (UK vs. USA) — same text
+  // before the first comma, but resolved to different Google Places
+  // suggestions, so they carry different destinationPlaceId values. Under
+  // the unified-group design, wrongly merging these would combine two
+  // unrelated cities into a single "5-day Cambridge" zone-planning call
+  // that makes no geographic sense for either.
+  type ZoneBody = { destination: string; totalDays: number }
+  const zoneBodies: ZoneBody[] = []
+  const WIDE_WINDOW = { start: '08:00', end: '20:00' }
+
+  mockFetch(t, {
+    zones: (body) => {
+      const b = body as ZoneBody
+      zoneBodies.push(b)
+      return new Response(JSON.stringify({ zones: [], cityCenter: null }), { status: 200 })
+    },
+    day: (body) => new Response(JSON.stringify({ places: [dayPlace(body.day, `${body.destination}-${body.day}`)] }), { status: 200 }),
+  })
+
+  const input = baseInput({
+    destination: 'Cambridge, United Kingdom',
+    cities: [
+      { destination: 'Cambridge, United Kingdom', destinationPlaceId: 'place-cambridge-uk', days: 1 },
+      { destination: 'Cambridge, United States', destinationPlaceId: 'place-cambridge-us', days: 1 },
+    ],
+  })
+  await fetchAiPlaces(input, 2, WIDE_WINDOW)
+
+  // Two independent 1-day calls, not one merged 2-day call.
+  assert.equal(zoneBodies.length, 2)
+  assert.ok(zoneBodies.every((b) => b.totalDays === 1))
 })

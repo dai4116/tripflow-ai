@@ -130,22 +130,6 @@ export const useTripsStore = defineStore('trips', () => {
     })
   }
 
-  // trip.destination is a '・'-joined display string for a multi-city trip
-  // (e.g. "阿姆斯特丹・布魯塞爾" — see generateTrip.ts) with no comma for
-  // cityFromDestination/regionFromDestination to split on, so passing it
-  // straight through would compose a garbled multi-city Nominatim query (see
-  // geocodePlace) instead of a real, matchable "City, Country" — the same
-  // failure mode as concatenating unrelated-language strings into one query.
-  // The first city's own destination string is always well-formed, so it
-  // stands in here — used ONLY where there's no single column to resolve the
-  // real one from (createTrip()'s initial batch, which can span every
-  // column/city at once). Anywhere a specific column IS known, use
-  // destinationForColumn below instead — that's the actually-correct city,
-  // not just a stand-in.
-  function geocodeDestinationFor(trip: Trip): string {
-    return trip.cities?.[0]?.destination ?? trip.destination
-  }
-
   // The real city a SPECIFIC column belongs to, via its cityId (see
   // TripColumn.cityId) — falls back to trip.destination when cityId/cities
   // are unset (every single-destination trip), same untouched value as
@@ -166,10 +150,14 @@ export const useTripsStore = defineStore('trips', () => {
   // places (AddPlaceModal), and AI places from the no-Google-key interim path.
   // It runs in the background — geocodePlace's queue is rate-limited to
   // ~1 req/sec — and the map picks up each pin as it resolves.
-  function geocodeNewPlaces(newPlaces: Place[], destination: string) {
-    const city = cityFromDestination(destination)
-    const region = regionFromDestination(destination)
-
+  //
+  // Takes `trip` rather than one shared destination string — `newPlaces` can
+  // span every column/city at once (createTrip()'s initial batch), so each
+  // place resolves its OWN column's city via destinationForColumn instead of
+  // every place in the batch being geocoded against whichever city happens
+  // to be first. A batch that's actually just one place (addPlace/updatePlace)
+  // still goes through the same per-place lookup — same result, one path.
+  function geocodeNewPlaces(newPlaces: Place[], trip: Trip) {
     // Already-placed (server-verified) places don't fire a geocode callback,
     // so their walking-time gaps would never get filled by the per-place
     // callback below — trigger one fill pass up front for them.
@@ -181,6 +169,10 @@ export const useTripsStore = defineStore('trips', () => {
     for (const newPlace of newPlaces) {
       if (hasCoords(newPlace)) continue // already positioned by Google — skip Nominatim
       if (newPlace.skipGeocode) continue // e.g. generateTrip.ts's flight cards — see the field's own comment
+      const column = trip.columns.find((item) => item.id === newPlace.columnId)
+      const destination = column ? destinationForColumn(trip, column) : trip.destination
+      const city = cityFromDestination(destination)
+      const region = regionFromDestination(destination)
       resolveNewPlaceCoords(newPlace, city, region).then((point) => {
         if (!point) return
         const target = places.value.find((item) => item.id === newPlace.id)
@@ -328,7 +320,7 @@ export const useTripsStore = defineStore('trips', () => {
     if (coverPhotoRefs?.[0]) trip.coverPhotoRef = coverPhotoRefs[0]
     trips.value.push(trip)
     places.value.push(...newPlaces)
-    geocodeNewPlaces(newPlaces, geocodeDestinationFor(trip))
+    geocodeNewPlaces(newPlaces, trip)
     return trip
   }
 
@@ -375,7 +367,7 @@ export const useTripsStore = defineStore('trips', () => {
     places.value.push(place)
     column.placeIds.push(place.id)
     recalcPlaceCount(trip)
-    geocodeNewPlaces([place], destination)
+    geocodeNewPlaces([place], trip)
 
     return place
   }
@@ -410,6 +402,12 @@ export const useTripsStore = defineStore('trips', () => {
     if (fromColumn) fromColumn.placeIds = fromColumn.placeIds.filter((id) => id !== placeId)
     toColumn.placeIds.push(placeId)
     place.columnId = columnId
+    // Keeps `address` in sync with whichever city's day this place now sits
+    // under — same convention addPlace/updatePlace already follow via
+    // destinationForColumn. On a multi-city trip, dragging a place from an
+    // Amsterdam day into a Brussels day without this would leave it labeled
+    // "阿姆斯特丹，荷蘭" while filed under a Brussels column.
+    place.address = destinationForColumn(trip, toColumn)
     recalcPlaceCount(trip)
     fillMissingTravelTimes(trip.id)
   }
@@ -466,8 +464,13 @@ export const useTripsStore = defineStore('trips', () => {
       // (the geocodeQuery branch) queries it as typed, with nothing appended.
       place.geocodeQuery = patch.name
       const trip = trips.value.find((item) => item.id === place.tripId)
-      const column = trip?.columns.find((item) => item.id === place.columnId)
-      if (trip && column) geocodeNewPlaces([place], destinationForColumn(trip, column))
+      // geocodeNewPlaces resolves the place's own column internally (falling
+      // back to trip.destination if place.columnId doesn't match any current
+      // column) — no need to look the column up here just to gate the call
+      // on it existing, which would otherwise skip this geocode entirely for
+      // a place whose columnId has gone stale (e.g. its day column was
+      // removed elsewhere) instead of degrading gracefully.
+      if (trip) geocodeNewPlaces([place], trip)
     }
   }
 

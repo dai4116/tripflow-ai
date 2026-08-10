@@ -1,5 +1,5 @@
 import type { CreateTripInput } from '../types'
-import { resolveCitySegments, targetCountForWindow, windowForFlightDay, windowForTransitDay } from './generateTrip.ts'
+import { resolveCitySegments, sameCity, segmentForDay, targetCountForWindow, windowForFlightDay, windowForTransitDay } from './generateTrip.ts'
 import type { CitySegment, DayWindow, PlaceSuggestion } from './generateTrip'
 
 // Orchestrates trip generation as many small, parallel per-day requests
@@ -24,19 +24,24 @@ import type { CitySegment, DayWindow, PlaceSuggestion } from './generateTrip'
 // rule, just relocated.
 //
 // Multi-destination trips (see CreateTripInput.cities) are orchestrated as
-// N independent single-city plans, one per resolveCitySegments() segment —
-// each segment gets its OWN zone-planning call (buildZonePlanPrompt's "every
-// day, all at once" theming only makes sense scoped to one city; a shared
-// call across cities would hand a day in Brussels a zone hint themed for
-// Amsterdam) and its own city-center geocode, run in parallel across
-// segments the same way per-day requests already run in parallel within a
-// segment. Every request still ultimately talks about exactly one city and
-// exactly one day, same contract api/generate-trip-day.ts already enforces —
-// multi-city didn't change what a single request means, only how many get
-// issued and with which (destination, day-within-that-city) pair. A
-// single-destination trip is the same one-segment case it always was
-// (resolveCitySegments collapses to one segment spanning every day), so this
-// file's behavior for it is unchanged.
+// one independent plan per REAL city — see sameCity/planCitySegments for
+// how a trip that revisits the same city more than
+// once (Tokyo → Kyoto → Tokyo) still gets exactly ONE zone-planning call
+// for "Tokyo" covering its combined day count, not one call per visit, so
+// Claude plans that city's whole day-by-day theme/area outline together
+// the same way it already does for an ordinary single-visit multi-day
+// city — no separate "don't repeat what the earlier visit already covered"
+// instruction needed, because there's no earlier visit from Claude's own
+// point of view: it's one coherent planning call either way. Different
+// cities' plans run in parallel — independent cities have nothing to wait
+// on each other for. Every per-day request still ultimately talks about
+// exactly one city and exactly one day, same contract
+// api/generate-trip-day.ts already enforces — multi-city didn't change what
+// a single request means, only how many get issued and with which
+// (destination, day-within-that-city) pair. A single-destination trip is
+// the same one-segment, one-group case it always was (resolveCitySegments
+// collapses to one segment spanning every day), so this file's behavior for
+// it is unchanged.
 
 // 5000ms margin over api/plan-trip-zones.ts's own maxDuration (20s) — the
 // day-request pair below reserves the same kind of buffer for the same
@@ -55,7 +60,7 @@ const DAY_REQUEST_TIMEOUT_MS = 35000
 const DAYS_PER_REQUEST = 1
 
 // Caps how many /api/generate-trip-day requests are in flight at once (and,
-// separately, how many /api/plan-trip-zones segment calls run in parallel —
+// separately, how many /api/plan-trip-zones GROUP calls run in parallel —
 // the two never overlap in time, so this one constant safely bounds both).
 // Unbounded parallelism here would fan out one Claude + Google Places call
 // per day simultaneously — for a 30-day trip that's a burst large enough to
@@ -68,11 +73,11 @@ const MAX_PARALLEL_REQUESTS = 4
 type ZoneHint = { day: number; zone: string; focus: string; assignedPreferences: string[] }
 type GeoPoint = { lat: number; lng: number }
 
-// The subset of CreateTripInput a single segment's zone-planning/day-request
-// bodies actually vary by — just the destination, since everything else
-// (travelStyle, additionalNotes, dates) is trip-wide. Kept separate from
-// CreateTripInput itself so a segment's own destination can't accidentally
-// get read from the wrong field somewhere in this file.
+// The subset of CreateTripInput a single group's zone-planning body actually
+// varies by — just the destination, since everything else (travelStyle,
+// additionalNotes, dates) is trip-wide. Kept separate from CreateTripInput
+// itself so a group's own destination can't accidentally get read from the
+// wrong field somewhere in this file.
 type ZonePlanContext = {
   destination: string
   travelStyle?: string[]
@@ -80,19 +85,35 @@ type ZonePlanContext = {
   additionalNotes?: string
 }
 
-// One city segment's resolved generation context — its own zone hints (day
-// numbers here are RELATIVE to the segment, 1..segment's own day count, same
-// as what was sent to plan them) and city center, planned once up front and
-// reused by every day-request for that segment (first pass AND backfill),
-// same as the single-segment case already reused one shared planZones()
-// result for its whole trip.
+// One segment's resolved generation context. `zones`/`cityCenter` are
+// planned once per CITY GROUP (see planCitySegments), not per segment — a
+// repeated city's every occurrence shares the exact same `zones` array
+// (by reference) and `cityCenter`, just starting its own group-relative day
+// numbering from a different groupStartDay. `groupDestination` is likewise
+// shared: the group's first occurrence's own destination text, used for
+// EVERY segment's day-requests (not `segment.destination`) — sameCity's
+// text fallback can merge two occurrences whose free-typed destination text
+// differs (same city, different wording/specificity, e.g. "東京，日本" vs a
+// free-typed "東京"), and every request for a group must describe the same
+// place the same way Claude was told about when planning its zones, or the
+// zone hints handed to a later day-request describe a place under a
+// different name than what that request's own prompt says. `segmentDays` is
+// this segment's own absolute day count (used by fetchAiPlaces'
+// failedSegment check, which cares about THIS segment's own requestable
+// days, not its group's combined total).
 type SegmentPlan = {
   segment: CitySegment
-  // segment.endDay - segment.startDay + 1, precomputed once here rather than
-  // recomputed independently at each of this file's two call sites (they'd
-  // drifted apart from CitySegment's own day-numbering convention
-  // separately before; this is now the one place that arithmetic happens).
+  groupDestination: string
   segmentDays: number
+  // This segment's own start day within its city GROUP's cumulative day
+  // count (1-indexed) — e.g. Tokyo visited 3 days then 2 days later in the
+  // trip has groupStartDay 1 for the first segment and 4 for the second,
+  // both against the SAME shared groupTotalDays=5 and the SAME shared 5-day
+  // zones array. (There's no groupEndDay field — every read site derives the
+  // end from groupStartDay + this segment's own day span instead, since
+  // nothing needs the end in isolation.)
+  groupStartDay: number
+  groupTotalDays: number
   zones: ZoneHint[]
   cityCenter: GeoPoint | null
 }
@@ -129,44 +150,63 @@ async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T)
   return results
 }
 
+// Total day count across a whole group of segments (a repeated city's every
+// visit combined) — the one place this arithmetic happens, shared by
+// preferencesForGroup and planCitySegments below rather than each doing its
+// own reduce() over the same shape (a prior version of this file already
+// hit this exact class of drift once for a single segment's own day count —
+// see SegmentPlan.segmentDays' own history).
+function groupDays(group: CitySegment[]): number {
+  return group.reduce((sum, s) => sum + (s.endDay - s.startDay + 1), 0)
+}
+
 // Distributes the user's full preference list across a multi-city trip's
-// segments, proportional to each segment's own day share, for zone-planning
-// ONLY — buildZonePlanPrompt's "assign every preference to at least one day"
-// instruction is sized against whatever totalDays it's given, so calling it
-// once per segment with the FULL preference list would force a short
-// segment (say, a 2-day city) to cram every preference the user picked (say,
-// 6) into just its own couple of days. day-generation requests (requestDay)
-// deliberately do NOT use this — they always get the full, untrimmed list,
-// since a day's own "include at least one food place" instruction and
-// context line should reflect the user's actual full selection regardless
-// of which segment that day belongs to.
+// CITY GROUPS (not raw segments — a repeated city's multiple visits share
+// one allocation, sized by their COMBINED day count, since they now plan as
+// one unified multi-day visit — see planCitySegments), proportional to each
+// group's own day share, for zone-planning ONLY — buildZonePlanPrompt's
+// "assign every preference to at least one day" instruction is sized
+// against whatever totalDays it's given, so calling it once per group with
+// the FULL preference list would force a short group (say, a 2-day city) to
+// cram every preference the user picked (say, 6) into just its own couple
+// of days. day-generation requests (requestDay) deliberately do NOT use
+// this — they always get the full, untrimmed list, since a day's own
+// "include at least one food place" instruction and context line should
+// reflect the user's actual full selection regardless of which group that
+// day belongs to.
 //
 // Doesn't special-case the food preference (unlike buildZonePlanPrompt's own
 // FOOD_PREFERENCE exclusion) — that instruction already filters it out of
 // the distribution requirement server-side regardless of what's sent here,
 // so there's nothing for this function to get wrong by not knowing about it.
-// Single-segment trips return the input unchanged — no split to make.
-export function preferencesForSegment(preferences: string[] | undefined, segment: CitySegment, segments: CitySegment[]): string[] | undefined {
-  if (!preferences || preferences.length === 0 || segments.length <= 1) return preferences
+// A single-group trip returns the input unchanged — no split to make.
+export function preferencesForGroup(preferences: string[] | undefined, group: CitySegment[], allGroups: CitySegment[][]): string[] | undefined {
+  if (!preferences || preferences.length === 0 || allGroups.length <= 1) return preferences
 
-  const totalDays = segments.at(-1)!.endDay
-  // Largest-remainder apportionment (the same method used for allocating
-  // legislative seats proportionally — Hamilton's method): each segment's
-  // ideal share is preferences.length * (its own day count / totalDays);
-  // every segment first gets floor(ideal), then whatever's left over is
-  // handed out one at a time to whichever segments had the largest
-  // fractional remainder, until every preference is assigned. An earlier
-  // version of this function instead mapped each preference's array index
-  // to an evenly-spread "day slot" and looked up which segment owned that
-  // day — simpler, but coarse enough that a short segment could round down
-  // to a full ZERO preferences even when there were technically enough to
-  // go around (confirmed regression: 2 preferences across a 3-day+2-day
-  // split gave the 2-day segment none at all, both landing on the 3-day
-  // segment's days). Largest-remainder guarantees every segment gets at
-  // least floor(ideal), which is >= 1 whenever preferences.length is at
-  // least segments.length.
-  const ideals = segments.map((candidate) => (preferences.length * (candidate.endDay - candidate.startDay + 1)) / totalDays)
-  const counts = ideals.map((ideal) => Math.floor(ideal))
+  const totalDays = allGroups.reduce((sum, candidate) => sum + groupDays(candidate), 0)
+
+  // Largest-remainder apportionment (Hamilton's method), with a minimum-1
+  // guarantee layered on top. Applied directly (no guarantee), this method
+  // does NOT actually ensure every group gets >= 1 just because
+  // preferences.length >= allGroups.length, despite that being the whole
+  // point of using it over a coarser "evenly-spread day slot" approach tried
+  // earlier — confirmed regression: a 1-day group alongside a 99-day group,
+  // with exactly 2 preferences for those 2 groups, floors the 1-day group's
+  // ideal share to 0 and it still loses the single leftover seat to the
+  // 99-day group's larger fractional remainder. So: whenever there ARE
+  // enough preferences to go around (preferences.length >= allGroups.length),
+  // every group is guaranteed exactly 1 up front, and only the LEFTOVER
+  // (preferences.length - allGroups.length) is apportioned by the same
+  // largest-remainder method on top of that floor — trading strict
+  // proportionality for "every city's zone planning gets touched by at
+  // least one preference," which is this function's actual purpose. Below
+  // that threshold, some groups legitimately get zero: there simply aren't
+  // enough preferences for every city to have its own.
+  const guaranteedEach = preferences.length >= allGroups.length ? 1 : 0
+  const toApportion = preferences.length - guaranteedEach * allGroups.length
+
+  const ideals = allGroups.map((candidate) => (toApportion * groupDays(candidate)) / totalDays)
+  const counts = ideals.map((ideal) => guaranteedEach + Math.floor(ideal))
   let remaining = preferences.length - counts.reduce((sum, count) => sum + count, 0)
   const byRemainderDesc = ideals
     .map((ideal, index) => ({ index, remainder: ideal - Math.floor(ideal) }))
@@ -184,21 +224,24 @@ export function preferencesForSegment(preferences: string[] | undefined, segment
     cursor += count
   }
 
-  // Matched by day range, not object reference (findIndex + ===) — segment
-  // is guaranteed to be one of `segments`' own elements by every current
-  // caller, but reference equality would silently return [] for a
-  // structurally-identical-but-reconstructed segment object with no error,
-  // a needless footgun for a check this cheap to make robust instead.
-  const matchIndex = segments.findIndex((candidate) => candidate.startDay === segment.startDay && candidate.endDay === segment.endDay)
+  // Matched by the group's own real-world city, not object reference —
+  // `group` is guaranteed to be one of `allGroups`' own elements by the one
+  // current caller (planCitySegments), but reference equality would
+  // silently return [] for a structurally-identical-but-reconstructed group
+  // with no error, a needless footgun for a check this cheap to make
+  // robust instead.
+  const matchIndex = allGroups.findIndex((candidate) => sameCity(candidate[0]!, group[0]!))
   return buckets[matchIndex] ?? []
 }
 
-// Stage 1 (per segment): plans ONE city's whole day-by-day theme/area
-// outline, and resolves that city's center once so every later per-day
-// request for it can reuse it instead of each geocoding it redundantly.
-// Best-effort and never throws — a failure here just means that segment's
-// day-requests proceed with no zone hints and no shared city center, same as
-// before this endpoint existed (and same as any OTHER segment's independent
+// Stage 1 (per CITY GROUP): plans one city's whole day-by-day theme/area
+// outline — covering every day that city gets across the WHOLE trip, even
+// if a revisit means those days aren't contiguous on the calendar — and
+// resolves that city's center once so every later per-day request for it
+// can reuse it instead of each geocoding it redundantly. Best-effort and
+// never throws — a failure here just means that group's day-requests
+// proceed with no zone hints and no shared city center, same as before this
+// endpoint existed (and same as any OTHER group's independent
 // success/failure — one city's zone-planning failing doesn't affect
 // another's).
 async function planZones(ctx: ZonePlanContext, totalDays: number): Promise<{ zones: ZoneHint[]; cityCenter: GeoPoint | null }> {
@@ -231,6 +274,65 @@ async function planZones(ctx: ZonePlanContext, totalDays: number): Promise<{ zon
   }
 }
 
+// Groups segments by real-world city (see sameCity), then plans
+// each group's zones + city center with exactly ONE /api/plan-trip-zones
+// call covering that city's COMBINED day count across every visit — a trip
+// revisiting Tokyo (3 days, then 2 more later) sends totalDays=5 for
+// "Tokyo", not two separate 3-day and 2-day calls. This is what lets
+// buildZonePlanPrompt's existing "plan all N days together, keep every
+// day's theme different" instruction (already proven for an ordinary
+// single-visit multi-day city) cover a revisited city too, with no separate
+// "don't repeat what an earlier call already picked" mechanism needed —
+// there IS no earlier call from Claude's point of view, just one coherent
+// city-wide plan. Groups for DIFFERENT cities still plan in parallel with
+// each other (bounded by MAX_PARALLEL_REQUESTS); a single-destination trip
+// is the one-segment, one-group case, reducing to exactly one planZones()
+// call, byte-for-byte the same request as before per-city planning existed.
+async function planCitySegments(input: CreateTripInput, segments: CitySegment[]): Promise<SegmentPlan[]> {
+  // sameCity is an OR-match (placeId when both sides have one, else text),
+  // not a value that can serve as a Map key — an array scan is the plain
+  // way to group by it. Segment counts are small (at most MAX_CITIES from
+  // CreateTripPage, currently 8), so the O(n^2) scan here is negligible.
+  const groups: CitySegment[][] = []
+  for (const segment of segments) {
+    const existingGroup = groups.find((group) => sameCity(group[0]!, segment))
+    if (existingGroup) existingGroup.push(segment)
+    else groups.push([segment])
+  }
+  const allGroups = groups
+
+  const plansByGroup = await mapWithConcurrency(allGroups, MAX_PARALLEL_REQUESTS, async (citySegments) => {
+    const groupTotalDays = groupDays(citySegments)
+    // Any one segment in the group describes the same real city as every
+    // other — the first is as good a representative as any for the
+    // destination text/context this group's single zone-planning call needs.
+    const representative = citySegments[0]!
+    const { zones, cityCenter } = await planZones(
+      {
+        destination: representative.destination,
+        travelStyle: input.travelStyle,
+        preferences: preferencesForGroup(input.preferences, citySegments, allGroups),
+        additionalNotes: input.additionalNotes,
+      },
+      groupTotalDays,
+    )
+
+    // Distributes the group's shared zones/cityCenter across each of its
+    // segments' own slice of the group's cumulative day range — citySegments
+    // is already in chronological (ascending startDay) order, since
+    // `segments` itself is and groups only ever append.
+    let cursor = 0
+    return citySegments.map((segment): SegmentPlan => {
+      const segmentDays = segment.endDay - segment.startDay + 1
+      const groupStartDay = cursor + 1
+      cursor += segmentDays
+      return { segment, groupDestination: representative.destination, segmentDays, groupStartDay, groupTotalDays, zones, cityCenter }
+    })
+  })
+
+  return plansByGroup.flat()
+}
+
 // One request for one day of one segment. Never throws — any failure
 // (network error, timeout, non-2xx, malformed body) resolves to an empty
 // array, same as that day simply not having any candidates yet; the caller
@@ -241,27 +343,29 @@ async function planZones(ctx: ZonePlanContext, totalDays: number): Promise<{ zon
 // ordinary per-day verification attrition instead of silently looking the
 // same as a short day.
 //
-// `day`/`totalDays` sent to the server are RELATIVE to the segment (e.g.
-// "day 2 of 2" for a 2-day city), not absolute trip day numbers — Claude
-// uses them to gauge how deep into THIS city's visit it is (buildDayPrompt's
-// "這是一趟共 X 天行程裡的第 Y 天" framing), which would be actively
-// misleading if it were told "day 5 of 7" for what's actually day 2 of a
-// fresh 2-day stop in a different city than where the trip started.
+// `day`/`cityTotalDays` sent to the server are relative to the CITY GROUP
+// (e.g. "day 4 of 5" for a Tokyo day that's actually the first day of its
+// SECOND visit, after an earlier 3-day stay), not absolute trip day numbers
+// — Claude uses them to gauge how deep into this city's overall
+// relationship with the traveler it is (buildDayPrompt's "這是一趟共 X 天
+// 行程裡的第 Y 天" framing), which is both more accurate (they really have
+// been to this city for 3 days already) and consistent with how zone
+// planning already treated this same day (see planCitySegments).
 // `absoluteDay`/`totalTripDays` are used ONLY to decide whether this
 // request is the one that gets arrivalTime/departureTime (those are real
-// clock times tied to the whole trip's actual first/last day, not
-// whichever city happens to be visited first/last) — every returned place
-// gets re-tagged from the segment-relative day the server force-corrected
-// it to (see api/generate-trip-day.ts) back to `absoluteDay` before
-// resolving, so callers merging this into a trip-wide place list never see
-// the relative numbering at all.
+// clock times tied to the whole trip's actual first/last day, not whichever
+// city happens to be visited first/last) — every returned place gets
+// re-tagged from the group-relative day the server force-corrected it to
+// (see api/generate-trip-day.ts) back to `absoluteDay` before resolving, so
+// callers merging this into a trip-wide place list never see the relative
+// numbering at all.
 type RequestDayParams = {
   input: CreateTripInput
   segmentDestination: string
   absoluteDay: number
   totalTripDays: number
   relativeDay: number
-  segmentDays: number
+  cityTotalDays: number
   dayWindow: DayWindow
   zones: ZoneHint[]
   cityCenter: GeoPoint | null
@@ -274,7 +378,7 @@ async function requestDay({
   absoluteDay,
   totalTripDays,
   relativeDay,
-  segmentDays,
+  cityTotalDays,
   dayWindow,
   zones,
   cityCenter,
@@ -291,7 +395,7 @@ async function requestDay({
         travelStyle: input.travelStyle,
         preferences: input.preferences,
         additionalNotes: input.additionalNotes,
-        totalDays: segmentDays,
+        totalDays: cityTotalDays,
         day: relativeDay,
         targetPlaceCount: targetCountForWindow(dayWindow),
         windowStart: dayWindow.start,
@@ -305,7 +409,7 @@ async function requestDay({
         // on top of dayWindow already being narrowed for this day (see
         // windowForFlightDay/windowForTransitDay). Gated on the ABSOLUTE day
         // — a flight only ever lands/departs on the whole trip's real first/
-        // last day, not a per-segment one.
+        // last day, not a per-city-group one.
         arrivalTime: absoluteDay === 1 ? input.arrivalTime : undefined,
         departureTime: absoluteDay === totalTripDays ? input.departureTime : undefined,
       }),
@@ -330,12 +434,23 @@ async function requestDay({
   }
 }
 
-// Which segment an absolute day number belongs to — same "day falls in this
-// segment's inclusive range" lookup generateTrip.ts's own cityIdForDay uses
-// (both ultimately trust resolveCitySegments' own defensive last-segment
-// extension, so this never fails to find one in practice).
+// Which plan an absolute day number belongs to — delegates the actual "day
+// falls in this segment's inclusive range" lookup (plus its largest-endDay
+// fallback) to generateTrip.ts's shared segmentForDay, then maps the
+// matched CitySegment back to the SegmentPlan wrapping it (by reference —
+// segmentForDay always returns one of the exact CitySegment objects handed
+// to it, never a copy, so `===` is reliable here). segmentForDay's fallback
+// choosing the largest endDay (NOT plans[plans.length - 1]) matters
+// specifically because `plans` is planCitySegments' own per-CITY grouping
+// flattened back out, so its array order follows first-occurrence-of-each-
+// city order, not calendar day order (a revisited city's later occurrence
+// can land earlier in `plans` than an unrelated city seen only once, in
+// between) — a last-array-element fallback would silently resolve to the
+// wrong segment for a day past every real range on a trip that revisits a
+// city.
 function planForDay(plans: SegmentPlan[], absoluteDay: number): SegmentPlan {
-  return plans.find((plan) => absoluteDay >= plan.segment.startDay && absoluteDay <= plan.segment.endDay) ?? plans[plans.length - 1]!
+  const segment = segmentForDay(plans.map((plan) => plan.segment), absoluteDay)
+  return plans.find((plan) => plan.segment === segment)!
 }
 
 // windowForDay resolves each day's own active-hours window rather than one
@@ -359,13 +474,19 @@ async function fetchDays(
   const requestableDays = absoluteDays.filter((day) => targetCountForWindow(windowForDay(day)) > 0)
   const results = await mapWithConcurrency(requestableDays, MAX_PARALLEL_REQUESTS, (absoluteDay) => {
     const plan = planForDay(plans, absoluteDay)
+    // This day's position within its own segment's absolute range, offset
+    // by that segment's own start within the GROUP's cumulative day count —
+    // e.g. absolute day 6, segment.startDay=6, groupStartDay=4 (this
+    // segment is the group's second occurrence, itself starting at group-
+    // relative day 4) => group-relative day 4 + (6-6) = 4.
+    const groupRelativeDay = plan.groupStartDay + (absoluteDay - plan.segment.startDay)
     return requestDay({
       input,
-      segmentDestination: plan.segment.destination,
+      segmentDestination: plan.groupDestination,
       absoluteDay,
       totalTripDays,
-      relativeDay: absoluteDay - plan.segment.startDay + 1,
-      segmentDays: plan.segmentDays,
+      relativeDay: groupRelativeDay,
+      cityTotalDays: plan.groupTotalDays,
       dayWindow: windowForDay(absoluteDay),
       zones: plan.zones,
       cityCenter: plan.cityCenter,
@@ -383,15 +504,17 @@ async function fetchDays(
 // and are kept as-is.
 //
 // A multi-city trip visiting the same real-world place from two different
-// segments (rare, but e.g. a landmark visible/listed from both a lakeside
-// city and its neighbor) still dedups correctly here — placeId identifies
-// the real-world location regardless of which segment's request found it.
-// A trip revisiting the same CITY twice (Tokyo → Kyoto → Tokyo) is a
-// different, unresolved problem: each Tokyo segment plans its zones
-// independently with no awareness of the other, so they can converge on
-// near-identical picks that this dedup then has to arbitrate between,
-// silently starving whichever segment's requests happened to lose the race
-// — tracked as a follow-up, not solved by this function.
+// cities (rare, but e.g. a landmark visible/listed from both a lakeside city
+// and its neighbor) still dedups correctly here — placeId identifies the
+// real-world location regardless of which city's request found it. A trip
+// revisiting the same CITY twice (Tokyo → Kyoto → Tokyo) no longer relies on
+// this function to arbitrate between two independently-converging zone
+// plans — planCitySegments plans that whole city as ONE coherent multi-day
+// visit up front (see its own comment), so there's no separate "earlier
+// occurrence" for a later day to collide with in the first place. This dedup
+// remains the backstop for whatever else might still coincide (verification
+// noise, a genuinely popular landmark two different day-generation calls
+// both independently reach for), same as it always was for any two days.
 export function dedupeByPlaceId(places: PlaceSuggestion[]): PlaceSuggestion[] {
   const seen = new Set<string>()
   return places.filter((place) => {
@@ -435,11 +558,11 @@ export function findExistingAnchor(places: PlaceSuggestion[], day: number): GeoP
 }
 
 // Talks to /api/plan-trip-zones + /api/generate-trip-day (Vercel serverless
-// functions calling Claude Sonnet + Google Places) — once per segment for
+// functions calling Claude Sonnet + Google Places) — once per CITY GROUP for
 // zone-planning, then once per (segment, day) for candidate generation. See
 // this file's top comment for how a multi-city trip fans out into
-// independent per-segment plans. Returns undefined — never throws — only
-// when the result is genuinely empty after both the initial pass and the one
+// independent per-city plans. Returns undefined — never throws — only when
+// the result is genuinely empty after both the initial pass and the one
 // backfill round below. trips.ts's createTrip() treats undefined as a hard
 // failure and shows a retry prompt instead of falling back to local template
 // data, so this function must not report success on a fully empty result.
@@ -449,25 +572,7 @@ export async function fetchAiPlaces(
   baseWindow: DayWindow,
 ): Promise<PlaceSuggestion[] | undefined> {
   const segments = resolveCitySegments(input, days)
-
-  // Every segment's zone-planning + city-center resolution runs in
-  // parallel — independent cities have nothing to wait on each other for.
-  // A single-destination trip is the one-segment case (see this file's top
-  // comment): this reduces to exactly one planZones() call, same as before
-  // per-city planning existed.
-  const plans: SegmentPlan[] = await mapWithConcurrency(segments, MAX_PARALLEL_REQUESTS, async (segment) => {
-    const segmentDays = segment.endDay - segment.startDay + 1
-    const { zones, cityCenter } = await planZones(
-      {
-        destination: segment.destination,
-        travelStyle: input.travelStyle,
-        preferences: preferencesForSegment(input.preferences, segment, segments),
-        additionalNotes: input.additionalNotes,
-      },
-      segmentDays,
-    )
-    return { segment, segmentDays, zones, cityCenter }
-  })
+  const plans = await planCitySegments(input, segments)
 
   // Day 1 / the last day get a narrower window when a known flight
   // arrival/departure shortens their usable hours, and a segment-transition
@@ -491,7 +596,7 @@ export async function fetchAiPlaces(
   // accepted, rather than independently anchoring on its own first hit.
   // Doesn't loop: a day still short after this stays short, same as the old
   // single-request design's "a short day is legitimate" philosophy for
-  // ordinary verification attrition. Reuses each day's segment's already-
+  // ordinary verification attrition. Reuses each day's group's already-
   // planned zones/cityCenter (via `plans`) rather than re-planning.
   const shortDays = daysNeedingBackfill(merged, days, windowForDay)
   if (shortDays.length > 0) {
@@ -499,25 +604,25 @@ export async function fetchAiPlaces(
     merged = dedupeByPlaceId([...merged, ...backfillPlaces])
   }
 
-  // A whole segment (city) with zero places despite having at least one day
-  // actually worth requesting means AI generation systematically failed for
-  // that specific destination — not just ordinary per-day verification
+  // A whole segment (day range) with zero places despite having at least one
+  // day actually worth requesting means AI generation systematically failed
+  // for that specific stretch — not just ordinary per-day verification
   // attrition, which the "a short day is legitimate" philosophy above
   // already tolerates for individual days within an otherwise-working
-  // segment. Without this, a trip where one city's zone-planning and every
-  // one of its day-requests all failed (while other cities succeeded) would
-  // still report success — merged.length > 0 from the OTHER segments alone
-  // — silently shipping a trip with an entire city's worth of days blank
-  // instead of surfacing the retry prompt createTrip() shows on failure. A
-  // segment whose every day legitimately has a zero-length window (fully
-  // consumed by a flight/transit narrowing, e.g. a 1-day stopover with no
-  // usable hours) is NOT a failure — there was nothing to request in the
-  // first place. For a single-segment (single-destination) trip this can
-  // only ever agree with the plain merged.length check below, since one
-  // segment spanning every day means "this segment has no places" and "the
-  // whole trip has no places" are the same statement.
+  // segment. Without this, a trip where one segment's day-requests all
+  // failed (while other segments succeeded) would still report success —
+  // merged.length > 0 from the OTHER segments alone — silently shipping a
+  // trip with part of it blank instead of surfacing the retry prompt
+  // createTrip() shows on failure. A segment whose every day legitimately
+  // has a zero-length window (fully consumed by a flight/transit narrowing,
+  // e.g. a 1-day stopover with no usable hours) is NOT a failure — there was
+  // nothing to request in the first place. For a single-segment
+  // (single-destination) trip this can only ever agree with the plain
+  // merged.length check below, since one segment spanning every day means
+  // "this segment has no places" and "the whole trip has no places" are the
+  // same statement.
   const failedSegment = plans.some((plan) => {
-    const segmentDayNumbers = Array.from({ length: plan.segment.endDay - plan.segment.startDay + 1 }, (_, i) => plan.segment.startDay + i)
+    const segmentDayNumbers = Array.from({ length: plan.segmentDays }, (_, i) => plan.segment.startDay + i)
     const hasRequestableDay = segmentDayNumbers.some((day) => targetCountForWindow(windowForDay(day)) > 0)
     if (!hasRequestableDay) return false
     return !merged.some((place) => typeof place.day === 'number' && place.day >= plan.segment.startDay && place.day <= plan.segment.endDay)

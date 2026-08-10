@@ -239,7 +239,7 @@ import BaseInput from '../components/ui/BaseInput.vue'
 import TimePickerSheet from '../components/ui/TimePickerSheet.vue'
 import type { IconName } from '../components/ui/icons'
 import DestinationAutocomplete from '../components/trips/DestinationAutocomplete.vue'
-import { formatDateRange, toDateInputValue } from '../data/generateTrip'
+import { cityFromDestination, formatDateRange, parseDateInputValue, toDateInputValue } from '../data/generateTrip'
 import { preferences, travelStyleHints, travelStyles } from '../data/mockPreferences'
 import { useTripsStore } from '../stores/trips'
 
@@ -324,7 +324,7 @@ const form = reactive({
   // Start date + each city's own day count is the source of truth (see
   // totalDays/computedEndDate below) — there's no separate end-date field to
   // keep in sync with it, unlike the old start/end range this form used to
-  // collect (see BaseDateRangeInput, no longer used here).
+  // collect via a date-range picker.
   cities: [makeCityRow()] as CityFormRow[],
   title: '',
   startDate: toDateInputValue(defaultStart),
@@ -491,17 +491,11 @@ const totalDays = computed(() => Math.min(MAX_TRIP_DAYS, form.cities.reduce((sum
 // like before this form existed (see finishGeneration below), so nothing
 // downstream needs to know "end date is derived" is even a concept.
 //
-// Built from form.startDate's numeric y/m/d parts, NOT `new Date(form.startDate)`
-// — the string constructor parses "YYYY-MM-DD" as UTC midnight, which in any
-// timezone west of UTC lands on the previous calendar day locally, so the
-// setDate() arithmetic below (which reads/writes local date fields) would
-// silently land one day short. Same pitfall toDateInputValue's own comment
-// warns about; DashboardPage.vue's daysUntil() sidesteps it the same way.
+// parseDateInputValue, not `new Date(form.startDate)` — see its own comment
+// for why the string constructor would silently land the setDate()
+// arithmetic below one day short in timezones west of UTC.
 const computedEndDate = computed(() => {
-  const [year, month, day] = form.startDate.split('-').map(Number)
-  if (!year || !month || !day) return form.startDate
-
-  const end = new Date(year, month - 1, day)
+  const end = parseDateInputValue(form.startDate)
   end.setDate(end.getDate() + totalDays.value - 1)
   return toDateInputValue(end)
 })
@@ -511,7 +505,7 @@ const dateSummary = computed(() => {
   return formatDateRange(form.startDate, computedEndDate.value)
 })
 
-const cityNames = computed(() => form.cities.map((city) => city.destination.split(/[,，]/)[0].trim()).filter(Boolean))
+const cityNames = computed(() => form.cities.map((city) => cityFromDestination(city.destination)).filter(Boolean))
 const cityLabel = computed(() => (cityNames.value.length > 0 ? cityNames.value.join('・') : '你的'))
 const generatedTripTitle = computed(() => (cityNames.value.length > 0 ? `${cityNames.value.join('・')}之旅` : ''))
 

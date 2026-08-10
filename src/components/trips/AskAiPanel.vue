@@ -414,7 +414,7 @@ function buildAiResponse(text: string): Omit<AiMessage, 'id' | 'role'> {
   // Honest "didn't understand" instead of a confident-sounding acknowledgement —
   // the old default text made every unmatched input (including off-topic
   // questions like weather) look handled when it wasn't.
-  return { text: '我不太確定你的意思，可以換個說法試試看嗎？像是「幫我在第2天推薦新景點」' }
+  return { text: '我不太確定你的意思，可以換個說法試試看嗎？' }
 }
 
 function buildColumnSummaries(): AskAiColumnSummary[] {

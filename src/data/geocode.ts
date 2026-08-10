@@ -23,6 +23,16 @@ function enqueue<T>(task: () => Promise<T>): Promise<T> {
   return run
 }
 
+// Test-only: this module's cache/queue are process-wide singletons, so a
+// test file with many geocode-triggering tests (trips.test.ts) otherwise
+// accumulates real, un-awaited queue backlog across tests, making "did this
+// specific call actually fire" unreliable to assert on for whichever test
+// happens to run late in the file. Not called by app code.
+export function resetGeocodeStateForTests(): void {
+  cache.clear()
+  queue = Promise.resolve()
+}
+
 async function fetchGeocode(query: string): Promise<GeoPoint | null> {
   const url = `${NOMINATIM_URL}?format=json&limit=1&q=${encodeURIComponent(query)}`
   const response = await fetch(url, { headers: { Accept: 'application/json' } })

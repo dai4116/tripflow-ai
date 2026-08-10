@@ -77,6 +77,7 @@ import TrailCoverArt from '../components/ui/TrailCoverArt.vue'
 import { useCoverPhotoUrl } from '../composables/useCoverPhotoUrl'
 import { useImageWithFallback } from '../composables/useImageWithFallback'
 import { exploreTemplates } from '../data/exploreTrips'
+import { parseDateInputValue } from '../data/generateTrip'
 import { useTripsStore } from '../stores/trips'
 import type { Trip } from '../types'
 
@@ -111,8 +112,7 @@ const greetingDescription = computed(() => {
 // UTC. Building the Date from its numeric parts instead always constructs
 // in local time, so there's no UTC/local mismatch to correct for.
 function daysUntil(dateStr: string): number {
-  const [year, month, day] = dateStr.split('-').map(Number)
-  const date = new Date(year, month - 1, day)
+  const date = parseDateInputValue(dateStr)
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   return Math.round((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
