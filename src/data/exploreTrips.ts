@@ -3,8 +3,10 @@ import type { ExploreTemplate, Place } from '../types'
 // Curated sample itineraries for the Explore page — independent of the
 // user's own trips/places in the store. copyTemplateTrip() in the trips
 // store clones these (with fresh ids) into the user's real trip list.
-// Each template runs 4-5 days with 3 places/day, matching a realistic
-// pace rather than a bare-minimum demo itinerary.
+// Each template keeps at least four named, mappable stops per day. This is
+// dense enough to feel useful while leaving room for transit and meals.
+export const MIN_EXPLORE_PLACES_PER_DAY = 4
+
 export const exploreTemplates: ExploreTemplate[] = [
   {
     id: 'kyoto-slow',
@@ -12,18 +14,18 @@ export const exploreTemplates: ExploreTemplate[] = [
     destination: '京都，日本',
     tagline: '穿梭百年古寺與竹林小徑，感受京都的四季風雅',
     days: 5,
-    placeCount: 15,
+    placeCount: 20,
     color: '#a8577a',
     imageGradient: 'linear-gradient(135deg, #2b2140, #a8577a 50%, #f0d9c6)',
     coverImage: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=1600&h=700&fit=crop&auto=format&q=75',
     preferences: ['廟宇', '建築', '街頭小吃'],
     pace: 'relaxed',
     columns: [
-      { id: 'day-1', title: '第1天', dayNumber: 1, placeIds: ['kyoto-kiyomizudera', 'kyoto-ninenzaka', 'kyoto-gion'] },
-      { id: 'day-2', title: '第2天', dayNumber: 2, placeIds: ['kyoto-fushimi-inari', 'kyoto-nishiki-market', 'kyoto-ramen-koji'] },
-      { id: 'day-3', title: '第3天', dayNumber: 3, placeIds: ['kyoto-arashiyama', 'kyoto-togetsukyo', 'kyoto-sagano-train'] },
-      { id: 'day-4', title: '第4天', dayNumber: 4, placeIds: ['kyoto-kinkakuji', 'kyoto-ryoanji', 'kyoto-gyoen'] },
-      { id: 'day-5', title: '第5天', dayNumber: 5, placeIds: ['kyoto-kifune-shrine', 'kyoto-kurama-dera', 'kyoto-station-shopping'] },
+      { id: 'day-1', title: '第1天', dayNumber: 1, placeIds: ['kyoto-kiyomizudera', 'kyoto-ninenzaka', 'kyoto-gion', 'kyoto-maruyama-park'] },
+      { id: 'day-2', title: '第2天', dayNumber: 2, placeIds: ['kyoto-fushimi-inari', 'kyoto-tofukuji', 'kyoto-toji', 'kyoto-tower'] },
+      { id: 'day-3', title: '第3天', dayNumber: 3, placeIds: ['kyoto-arashiyama', 'kyoto-tenryuji', 'kyoto-togetsukyo', 'kyoto-sagano-train'] },
+      { id: 'day-4', title: '第4天', dayNumber: 4, placeIds: ['kyoto-kinkakuji', 'kyoto-ryoanji', 'kyoto-ninnaji', 'kyoto-daitokuji'] },
+      { id: 'day-5', title: '第5天', dayNumber: 5, placeIds: ['kyoto-kifune-shrine', 'kyoto-kifune-okumiya', 'kyoto-kurama-dera', 'kyoto-yuki-shrine'] },
     ],
   },
   {
@@ -32,17 +34,17 @@ export const exploreTemplates: ExploreTemplate[] = [
     destination: '曼谷，泰國',
     tagline: '從金碧輝煌的大皇宮到熱鬧市集與道地小吃，一次體驗曼谷的多元魅力',
     days: 4,
-    placeCount: 12,
+    placeCount: 16,
     color: '#e0703a',
     imageGradient: 'linear-gradient(135deg, #3a1f1f, #e0703a 50%, #f7dfb0)',
     coverImage: 'https://images.unsplash.com/photo-1613672803979-a6edfc5a179b?w=1600&h=700&fit=crop&auto=format&q=75',
     preferences: ['在地美食', '街頭小吃', '夜生活'],
     pace: 'packed',
     columns: [
-      { id: 'day-1', title: '第1天', dayNumber: 1, placeIds: ['bkk-chatuchak', 'bkk-khaosan', 'bkk-siam-paragon'] },
-      { id: 'day-2', title: '第2天', dayNumber: 2, placeIds: ['bkk-grand-palace', 'bkk-wat-pho', 'bkk-river-cruise'] },
-      { id: 'day-3', title: '第3天', dayNumber: 3, placeIds: ['bkk-chinatown', 'bkk-ratchada-market', 'bkk-sky-bar'] },
-      { id: 'day-4', title: '第4天', dayNumber: 4, placeIds: ['bkk-damnoen-market', 'bkk-thai-massage', 'bkk-airport-shopping'] },
+      { id: 'day-1', title: '第1天', dayNumber: 1, placeIds: ['bkk-grand-palace', 'bkk-wat-pho', 'bkk-wat-arun', 'bkk-pak-khlong-talat'] },
+      { id: 'day-2', title: '第2天', dayNumber: 2, placeIds: ['bkk-jim-thompson-house', 'bkk-mbk-center', 'bkk-siam-paragon', 'bkk-erawan-shrine'] },
+      { id: 'day-3', title: '第3天', dayNumber: 3, placeIds: ['bkk-wat-traimit', 'bkk-chinatown', 'bkk-talat-noi', 'bkk-river-city'] },
+      { id: 'day-4', title: '第4天', dayNumber: 4, placeIds: ['bkk-wat-saket', 'bkk-loha-prasat', 'bkk-giant-swing', 'bkk-khaosan'] },
     ],
   },
   {
@@ -51,18 +53,18 @@ export const exploreTemplates: ExploreTemplate[] = [
     destination: '清邁，泰國',
     tagline: '在山城的悠閒步調裡，享受咖啡香與寺廟鐘聲',
     days: 5,
-    placeCount: 15,
+    placeCount: 20,
     color: '#4d9166',
     imageGradient: 'linear-gradient(135deg, #1e3a2e, #4d9166 50%, #eaf0c8)',
     coverImage: 'https://images.unsplash.com/photo-1528181304800-259b08848526?w=1600&h=700&fit=crop&auto=format&q=75',
     preferences: ['自然', '咖啡廳', '廟宇'],
     pace: 'relaxed',
     columns: [
-      { id: 'day-1', title: '第1天', dayNumber: 1, placeIds: ['cnx-wat-phra-singh', 'cnx-wat-chedi-luang', 'cnx-tha-phae-gate'] },
-      { id: 'day-2', title: '第2天', dayNumber: 2, placeIds: ['cnx-nimman-cafe', 'cnx-art-museum', 'cnx-one-nimman'] },
-      { id: 'day-3', title: '第3天', dayNumber: 3, placeIds: ['cnx-doi-suthep', 'cnx-bhubing-palace', 'cnx-hmong-village'] },
-      { id: 'day-4', title: '第4天', dayNumber: 4, placeIds: ['cnx-elephant-sanctuary', 'cnx-zipline', 'cnx-riverside-cafe'] },
-      { id: 'day-5', title: '第5天', dayNumber: 5, placeIds: ['cnx-sunday-market', 'cnx-old-city-walk', 'cnx-riverside-dinner'] },
+      { id: 'day-1', title: '第1天', dayNumber: 1, placeIds: ['cnx-wat-phra-singh', 'cnx-wat-chedi-luang', 'cnx-old-city-walk', 'cnx-tha-phae-gate'] },
+      { id: 'day-2', title: '第2天', dayNumber: 2, placeIds: ['cnx-nimman-cafe', 'cnx-art-museum', 'cnx-one-nimman', 'cnx-maya-lifestyle'] },
+      { id: 'day-3', title: '第3天', dayNumber: 3, placeIds: ['cnx-doi-suthep', 'cnx-bhubing-palace', 'cnx-hmong-village', 'cnx-doi-pui-viewpoint'] },
+      { id: 'day-4', title: '第4天', dayNumber: 4, placeIds: ['cnx-siam-insect-zoo', 'cnx-mae-sa-waterfall', 'cnx-queen-sirikit-botanic-garden', 'cnx-x-centre'] },
+      { id: 'day-5', title: '第5天', dayNumber: 5, placeIds: ['cnx-warorot-market', 'cnx-wat-ket-karam', 'cnx-iron-bridge', 'cnx-riverside-bar'] },
     ],
   },
   {
@@ -71,22 +73,22 @@ export const exploreTemplates: ExploreTemplate[] = [
     destination: '首爾，韓國',
     tagline: '從明洞美妝店逛到弘大夜生活，首爾潮流一次入手',
     days: 4,
-    placeCount: 12,
+    placeCount: 16,
     color: '#6f6fd6',
     imageGradient: 'linear-gradient(135deg, #241f3d, #6f6fd6 50%, #e9e3fb)',
     coverImage: 'https://images.unsplash.com/photo-1517154421773-0529f29ea451?w=1600&h=700&fit=crop&auto=format&q=75',
     preferences: ['購物', '在地美食', '夜生活'],
     pace: 'balanced',
     columns: [
-      { id: 'day-1', title: '第1天', dayNumber: 1, placeIds: ['seoul-myeongdong', 'seoul-namsan-tower', 'seoul-myeongdong-food'] },
-      { id: 'day-2', title: '第2天', dayNumber: 2, placeIds: ['seoul-gyeongbokgung', 'seoul-bukchon', 'seoul-hongdae'] },
-      { id: 'day-3', title: '第3天', dayNumber: 3, placeIds: ['seoul-ddp', 'seoul-gwangjang-market', 'seoul-itaewon'] },
-      { id: 'day-4', title: '第4天', dayNumber: 4, placeIds: ['seoul-lotte-tower', 'seoul-coex', 'seoul-airport-duty-free'] },
+      { id: 'day-1', title: '第1天', dayNumber: 1, placeIds: ['seoul-myeongdong', 'seoul-myeongdong-cathedral', 'seoul-myeongdong-food', 'seoul-namsan-tower'] },
+      { id: 'day-2', title: '第2天', dayNumber: 2, placeIds: ['seoul-gyeongbokgung', 'seoul-bukchon', 'seoul-changdeokgung', 'seoul-ikseondong'] },
+      { id: 'day-3', title: '第3天', dayNumber: 3, placeIds: ['seoul-ddp', 'seoul-gwangjang-market', 'seoul-dongdaemun-shopping-complex', 'seoul-heunginjimun'] },
+      { id: 'day-4', title: '第4天', dayNumber: 4, placeIds: ['seoul-lotte-tower', 'seoul-seokchon-lake', 'seoul-coex', 'seoul-bongeunsa'] },
     ],
   },
 ]
 
-export const explorePlaces: Place[] = [
+const legacyExplorePlaces: Place[] = [
   // 京都古都慢旅
   { id: 'kyoto-kiyomizudera', tripId: 'kyoto-slow', name: '清水寺', category: 'attraction', estimatedTime: 2, address: '京都・東山區', lat: 34.9949, lng: 135.7850, description: '木造舞台懸空而建，可以俯瞰整個京都市區的景色', columnId: 'day-1', photoRef: 'places/ChIJB_vchdMIAWARujTEUIZlr2I/photos/AWCwydi8RFJVn7XDCRfnahzaKEv_0bbDE5tw81ir3iwmaDUHk2Ivh6WHTThQGQpd4qeaveGEiX-OerxXdkEdg9RHxDCZs5GKs19inwsf5uzRkJ_H1RNwpc2kdkaAzHjmCwrqkdSGX2JlvoGhxLe8EYKhNywzc6C3pS13JCb7Mx1WYLWuirwE755lddVSHoQejDyGWdnTbBvLl_3_YgKgTz9eTbrsK3tKAn8yDfOyCucER3rxE234tsZGNgVbDt_Jf7pe3dqgT5ay-_rzD5JnTk-ZVqQ51tp3S9MwOSMybr24gctPk9aHD7gndpYF_owy92440F5Q_m2UJoQFLZs2IfAr0dwlV0U5Swp43_P3zJZdyJ1sk4ZIV50D2J3CoIUs8hRkYmkmKY7bwyzu2XsWFsPL-ZMiWSFSCEz7F1dMlSnTOKAsKkZP8tg_gCYoORIv2Q' },
   { id: 'kyoto-ninenzaka', tripId: 'kyoto-slow', name: '二寧坂・三寧坂', category: 'shopping', estimatedTime: 1.5, address: '京都・東山區', lat: 34.9959, lng: 135.7808, description: '石板坡道兩旁是傳統町屋改建的甜點與雜貨小店', columnId: 'day-1', photoRef: 'places/ChIJlwyrGNAIAWARNb5hUHdZruY/photos/AWCwydhsrvRRH56ONya-ahI0JWtEqAKloeAifUsy5z3EAMUW4zk8tR6IQ5AQngYA46Oq-sd5hiGQl3I2rKszXBWmU3yejLdObOt7Q5bhjy-cq4a-1NQld8hdyJiex9MFwe0NAQhE3-i3IZ28H1ehyb9RNlDZfL07i3DOU0ng9ceSTt0TSm4cYEJb90Yp-UozTMYh4fBVm4Yr42lNujHlSx0zlBp4RaM1yMcrd1n7USvGhfvetgcLdeCUaoORNY6T6cKiOmb7GDN28OeF5AdCBD44f6mzoGxzW4umiH5s8vZj4iwwN1a6_urgIpSGQnwKsvOOqLF3dpAWqnHbBdgU_xUWRCmgkEG4LCNHBdkTJaDQOdp2pTHy1wkFRxH6OcfKk5O0pzFpHhCKWxQ7wKfn3IpEoP1Aa6ugwqwKwFjQ6_jEAVyBsWJu' },
@@ -148,6 +150,115 @@ export const explorePlaces: Place[] = [
   { id: 'seoul-lotte-tower', tripId: 'seoul-shopping', name: '樂天世界塔', category: 'attraction', estimatedTime: 2, address: '首爾・松坡區', lat: 37.5125, lng: 127.1025, description: '韓國最高建築，觀景台可以360度俯瞰首爾全景', columnId: 'day-4', photoRef: 'places/ChIJW2ZfkQqlfDUR4vz9Xs0Q66s/photos/AWCwydjRZR2wCbQ46uiiJG5QhTZMZP1Yadsfu7Pkad6ayGBvHJdn8H9fSc5ZiHbf9UARsLuE3nnp8ISYNUYpgPIfIes9NRW3LiGd8rc2VV5ruED2u-9cWEIFxs53DIaF44aaUKF867M9e2TSAVRTAFR4-NF4JtHA3fqsK8gm3BxHkslpRmhZkJclQKeS6kjGT1ULhMEKb2V3M-AzWx6RmCX_Eq9SWqGDDwCSGftdj1wh56hJbRpBnwGxnKmZ9xdl7qOaFr2kdW03C4VjdFQ7xqmLR_fhYu196yYu1Ktv7vnZH4n4extcJpuffZF6DoOB6c2OOU7gZIqWdkmpWeh-Y46iUVsWNa_YdZkGhHAFXtyb6gZa-DBVAP5VvBedWT8LgD343Tlo3Kkiu5IkBRrH_vA7qKbpmO1mkEVY14j_XH1Y9VDhUVEe-hRQaWD0LdcxgXty' },
   { id: 'seoul-coex', tripId: 'seoul-shopping', name: '江南COEX商場', category: 'shopping', estimatedTime: 2, address: '首爾・江南區', lat: 37.5115, lng: 127.0590, description: '巨型地下購物城，星空圖書館也是熱門拍照打卡點', columnId: 'day-4', photoRef: 'places/ChIJIRVdC6pFezUR02aa2I7i57A/photos/AWCwydga5PtWUlGkIeiFB4KYaaoPVhoDxB345a9T1Kfm55Gm7Oqq65J8JBnCICRiz10UudL0A22iZFNdkgL9PP6_mHf8aeO4QVsUoSh6J_7zrnO59QARsBmf_Sp3wTwjMPnUcIM5E1myJCrWoqAPrxd8l9tsqC6GoW4-hyhp1mZTVgstqCBOmzPY9EeBHERdMnNo8z0DuLJr8xLvoarjG_DCi8R4Cu7q_VXsImi7m7_RzFRB4McOYO4Kc-ozuN8PF2v-eLM5DrwhewkAVLzpjglY9uquJSXc9cdFeMpKG7MIuT8BU8kP2KwXrJ1SGFdvMoDyJWFHpgj-M1bIX9OmIwXNRC0paUnCGOtTsQxvu92hgh5Gjl6Hvr88k0bDMNT__sgkF5vCLhu92PliZxYvsIJPUQC_UX-3OGU267j03T7UscY4IlI' },
   { id: 'seoul-airport-duty-free', tripId: 'seoul-shopping', name: '仁川機場免稅店', category: 'shopping', estimatedTime: 1.5, address: '首爾・仁川機場', lat: 37.4602, lng: 126.4407, description: '離境前最後補貨美妝與伴手禮，品牌選擇齊全', columnId: 'day-4', photoRef: 'places/ChIJR2AY64OaezURv33EraaMv7I/photos/AWCwydhkQb_JLoM2aarptxWcaTIISkOBwraCTLuhZ4PL6fl92NQf77v3eVG6Ox3KE19r7kPSiFaxnQm56eqm0Ov-MHdAfsssf41KV4YHqZDeFsXaEFHw4OJBsYl4GhYYGRj_CifIOe3cro3wNteOGIGELrbt4Jl7DLyo7JNYBE_4zdLPVtKWrTKnD3H5Q_vg-ogG_zX1T7RscaaF3SSd5UiP87GDnaVLgjT1zsg5o3Z3DM5vpHiu8sGmYE5yXZluI3f4XPmPHTCCxe6r-0Y-T9dhf-KkXfGr7Vrkpn3aSxlV_sTLh0b8E-sEcOWv11G3D7VyKFri3PfKry8gxno3BMHD3d_I25EgP5Z5HNQGDoyzDhVBg4sPo49L1HHuvsL6pL-bSGfHa2zf_K0AI2cS4OhehyaNbuYV9o1APBbpf-PWTYvkIQ' },
+]
+
+const excludedLegacyPlaceIds = new Set([
+  'kyoto-nishiki-market',
+  'kyoto-ramen-koji',
+  'kyoto-gyoen',
+  'kyoto-station-shopping',
+  'bkk-chatuchak',
+  'bkk-river-cruise',
+  'bkk-ratchada-market',
+  'bkk-sky-bar',
+  'bkk-damnoen-market',
+  'bkk-thai-massage',
+  'bkk-airport-shopping',
+  'cnx-elephant-sanctuary',
+  'cnx-zipline',
+  'cnx-riverside-cafe',
+  'cnx-sunday-market',
+  'cnx-riverside-dinner',
+  'seoul-hongdae',
+  'seoul-itaewon',
+  'seoul-airport-duty-free',
+])
+
+const explorePlaceOverrides: Record<string, Partial<Place>> = {
+  'bkk-grand-palace': { columnId: 'day-1' },
+  'bkk-wat-pho': { columnId: 'day-1' },
+  'bkk-siam-paragon': { columnId: 'day-2' },
+  'bkk-khaosan': { columnId: 'day-4' },
+  'cnx-old-city-walk': { columnId: 'day-1' },
+  'cnx-nimman-cafe': {
+    name: 'Ristr8to Original',
+    address: '清邁・寧曼路',
+    lat: 18.8006,
+    lng: 98.9682,
+    description: '以拉花與單品咖啡聞名的寧曼路咖啡館，可作為這區散步的第一站',
+    photoRef: undefined,
+  },
+  'cnx-art-museum': {
+    name: '清邁大學藝術中心',
+    description: '清邁大學校園內的當代藝術空間，展覽內容會隨檔期更換',
+  },
+  'cnx-one-nimman': {
+    name: 'One Nimman 文創商場',
+    description: '蘭納風格建築裡集結設計選物、甜點與餐廳，適合接著在寧曼區慢逛',
+  },
+  'cnx-doi-suthep': {
+    name: '帕塔朵伊素帖寺（雙龍寺）',
+    description: '素帖山上的金色佛塔寺院，可從觀景平台俯瞰清邁市區',
+  },
+  'cnx-hmong-village': {
+    name: '朵伊普伊苗族村（Hmong Doi Pui Village）',
+    description: '素帖山上的苗族聚落，可認識山地文化並選購手工藝品',
+  },
+  'seoul-myeongdong-food': {
+    name: '明洞餃子（明洞總店）',
+    address: '首爾・明洞',
+    lat: 37.5627,
+    lng: 126.9857,
+    description: '明洞知名老店，以刀切麵與蒸餃為招牌，適合安排在購物行程中用餐',
+    photoRef: undefined,
+  },
+}
+
+const additionalExplorePlaces: Place[] = [
+  { id: 'kyoto-maruyama-park', tripId: 'kyoto-slow', name: '圓山公園', category: 'attraction', estimatedTime: 1, address: '京都・東山區', lat: 35.0034, lng: 135.7809, description: '位於八坂神社與祇園一帶的城市公園，適合在古寺巡禮之間散步休息', columnId: 'day-1' },
+  { id: 'kyoto-tofukuji', tripId: 'kyoto-slow', name: '東福寺', category: 'attraction', estimatedTime: 1.5, address: '京都・東福寺', lat: 34.9766, lng: 135.7726, description: '以通天橋與禪寺庭園聞名，和伏見稻荷大社可安排在同一天走訪', columnId: 'day-2' },
+  { id: 'kyoto-toji', tripId: 'kyoto-slow', name: '東寺', category: 'attraction', estimatedTime: 1.5, address: '京都・南區', lat: 34.9803, lng: 135.7473, description: '擁有日本最高五重塔的世界遺產寺院，從京都車站前往很方便', columnId: 'day-2' },
+  { id: 'kyoto-tower', tripId: 'kyoto-slow', name: '京都塔', category: 'attraction', estimatedTime: 1, address: '京都・京都車站', lat: 34.9875, lng: 135.7596, description: '京都車站正對面的觀景塔，可在傍晚俯瞰城市與群山輪廓', columnId: 'day-2' },
+  { id: 'kyoto-tenryuji', tripId: 'kyoto-slow', name: '天龍寺', category: 'attraction', estimatedTime: 1.5, address: '京都・嵐山', lat: 35.0153, lng: 135.6737, description: '嵐山竹林旁的世界遺產禪寺，曹源池庭園借景嵐山而建', columnId: 'day-3' },
+  { id: 'kyoto-ninnaji', tripId: 'kyoto-slow', name: '仁和寺', category: 'attraction', estimatedTime: 1.5, address: '京都・右京區', lat: 35.0345, lng: 135.713, description: '御室櫻與古御所建築聞名的世界遺產寺院，鄰近龍安寺', columnId: 'day-4' },
+  { id: 'kyoto-daitokuji', tripId: 'kyoto-slow', name: '大德寺', category: 'attraction', estimatedTime: 1.5, address: '京都・北區', lat: 35.0438, lng: 135.7461, description: '由多座禪寺塔頭組成的大寺院，適合以安靜的步調欣賞庭園與建築', columnId: 'day-4' },
+  { id: 'kyoto-kifune-okumiya', tripId: 'kyoto-slow', name: '貴船神社奧宮', category: 'attraction', estimatedTime: 1, address: '京都・貴船', lat: 35.1246, lng: 135.7663, description: '沿著貴船川往上游可抵達的神社奧宮，環境比本宮更加幽靜', columnId: 'day-5' },
+  { id: 'kyoto-yuki-shrine', tripId: 'kyoto-slow', name: '由岐神社', category: 'attraction', estimatedTime: 1, address: '京都・鞍馬', lat: 35.118, lng: 135.7645, description: '位於鞍馬寺參道上的古老神社，以高大的杉木與火祭聞名', columnId: 'day-5' },
+  { id: 'bkk-wat-arun', tripId: 'bangkok-food', name: '黎明寺（鄭王廟）', category: 'attraction', estimatedTime: 1.5, address: '曼谷・曼谷艾縣', lat: 13.7437, lng: 100.4889, description: '湄南河西岸的地標寺廟，可搭渡船從大皇宮一帶前往', columnId: 'day-1' },
+  { id: 'bkk-pak-khlong-talat', tripId: 'bangkok-food', name: '帕克隆花市（Pak Khlong Talat）', category: 'shopping', estimatedTime: 1, address: '曼谷・帕那空區', lat: 13.742, lng: 100.4963, description: '曼谷老城區的花卉市場，傍晚前後可看到鮮花與供品攤位最熱鬧的一面', columnId: 'day-1' },
+  { id: 'bkk-jim-thompson-house', tripId: 'bangkok-food', name: '金湯普森故居博物館', category: 'attraction', estimatedTime: 1.5, address: '曼谷・巴吞旺區', lat: 13.7496, lng: 100.5281, description: '由泰絲業者收藏的傳統柚木屋群，展示東南亞藝術與泰國建築細節', columnId: 'day-2' },
+  { id: 'bkk-mbk-center', tripId: 'bangkok-food', name: 'MBK Center 購物中心', category: 'shopping', estimatedTime: 2, address: '曼谷・巴吞旺區', lat: 13.7466, lng: 100.5297, description: '與暹羅商圈相連的大型購物中心，適合採買服飾、3C 與平價伴手禮', columnId: 'day-2' },
+  { id: 'bkk-erawan-shrine', tripId: 'bangkok-food', name: '四面佛', category: 'attraction', estimatedTime: 1, address: '曼谷・拉差丹利', lat: 13.7443, lng: 100.5403, description: '位於市中心商圈旁的著名祈福地點，可和暹羅區購物安排在同一段行程', columnId: 'day-2' },
+  { id: 'bkk-wat-traimit', tripId: 'bangkok-food', name: '金佛寺', category: 'attraction', estimatedTime: 1, address: '曼谷・三攀他旺區', lat: 13.7365, lng: 100.513, description: '曼谷中國城入口附近的寺廟，供奉世界知名的巨型金佛', columnId: 'day-3' },
+  { id: 'bkk-talat-noi', tripId: 'bangkok-food', name: 'Talat Noi 老街', category: 'attraction', estimatedTime: 1.5, address: '曼谷・三攀他旺區', lat: 13.7349, lng: 100.5133, description: '中國城南側的老社區，以百年建築、街頭藝術與特色咖啡店聞名', columnId: 'day-3' },
+  { id: 'bkk-river-city', tripId: 'bangkok-food', name: 'River City Bangkok 藝術商場', category: 'shopping', estimatedTime: 1.5, address: '曼谷・挽叻區', lat: 13.7274, lng: 100.513, description: '湄南河畔的藝術與古董商場，可作為中國城行程的河岸收尾', columnId: 'day-3' },
+  { id: 'bkk-wat-saket', tripId: 'bangkok-food', name: '金山寺（Wat Saket）', category: 'attraction', estimatedTime: 1.5, address: '曼谷・帕那空區', lat: 13.7513, lng: 100.5091, description: '登上人造山丘可望見老城區屋頂與寺廟，是曼谷經典制高點', columnId: 'day-4' },
+  { id: 'bkk-loha-prasat', tripId: 'bangkok-food', name: '羅哈巴薩寺（Loha Prasat）', category: 'attraction', estimatedTime: 1, address: '曼谷・帕那空區', lat: 13.7544, lng: 100.505, description: '拉查那達蘭寺內的多尖塔金屬城堡，距離金山寺很近', columnId: 'day-4' },
+  { id: 'bkk-giant-swing', tripId: 'bangkok-food', name: '大鞦韆（Sao Chingcha）', category: 'attraction', estimatedTime: 1, address: '曼谷・帕那空區', lat: 13.7519, lng: 100.4998, description: '老城區紅色地標，周邊可順遊市政廳與寺廟街區', columnId: 'day-4' },
+  { id: 'cnx-maya-lifestyle', tripId: 'chiangmai-retreat', name: 'MAYA Lifestyle Shopping Center', category: 'shopping', estimatedTime: 1.5, address: '清邁・寧曼路', lat: 18.8001, lng: 98.9671, description: '寧曼路入口的大型商場，頂樓可俯瞰市區，室內也適合避開午後陣雨', columnId: 'day-2' },
+  { id: 'cnx-doi-pui-viewpoint', tripId: 'chiangmai-retreat', name: '朵伊普伊觀景台（Doi Pui Viewpoint）', category: 'attraction', estimatedTime: 1, address: '清邁・素帖山', lat: 18.8332, lng: 98.8928, description: '素帖山上眺望清邁盆地的停靠點，可與雙龍寺和苗族村串成山區路線', columnId: 'day-3' },
+  { id: 'cnx-siam-insect-zoo', tripId: 'chiangmai-retreat', name: 'Siam Insect Zoo', category: 'attraction', estimatedTime: 1.5, address: '清邁・湄林', lat: 18.9424, lng: 98.9371, description: '以昆蟲與蝴蝶展示聞名的小型自然博物館，位於湄林山區路線上', columnId: 'day-4' },
+  { id: 'cnx-mae-sa-waterfall', tripId: 'chiangmai-retreat', name: '湄沙瀑布', category: 'attraction', estimatedTime: 1.5, address: '清邁・湄林', lat: 18.899, lng: 98.9473, description: '多層次山林瀑布，可依體力選擇短程步道與觀景點', columnId: 'day-4' },
+  { id: 'cnx-queen-sirikit-botanic-garden', tripId: 'chiangmai-retreat', name: '詩麗吉王后植物園', category: 'attraction', estimatedTime: 2.5, address: '清邁・湄林', lat: 18.8948, lng: 98.8639, description: '山谷中的大型植物園，溫室與樹冠步道適合留出充裕時間慢慢走', columnId: 'day-4' },
+  { id: 'cnx-x-centre', tripId: 'chiangmai-retreat', name: 'X Centre Chiang Mai', category: 'attraction', estimatedTime: 1.5, address: '清邁・湄林', lat: 18.9412, lng: 98.9417, description: '提供越野車與高空活動的戶外體驗中心，可依旅伴偏好選擇參加項目', columnId: 'day-4' },
+  { id: 'cnx-warorot-market', tripId: 'chiangmai-retreat', name: '瓦洛洛市場（Kad Luang）', category: 'shopping', estimatedTime: 1.5, address: '清邁・瓦洛洛市場', lat: 18.7904, lng: 99.0002, description: '清邁老牌室內市場，適合採買北泰零食、香料與日常雜貨', columnId: 'day-5' },
+  { id: 'cnx-wat-ket-karam', tripId: 'chiangmai-retreat', name: '瓦格德噶蘭寺（Wat Ket Karam）', category: 'attraction', estimatedTime: 1, address: '清邁・瓦格德', lat: 18.7905, lng: 99.0039, description: '平河東岸的寧靜寺院，保留清邁河畔社區的慢生活氛圍', columnId: 'day-5' },
+  { id: 'cnx-iron-bridge', tripId: 'chiangmai-retreat', name: '鐵橋（Khua Lek）', category: 'attraction', estimatedTime: 1, address: '清邁・平河', lat: 18.7859, lng: 99.0021, description: '橫跨平河的歷史橋梁，是散步前往河畔餐廳途中清楚可定位的地標', columnId: 'day-5' },
+  { id: 'cnx-riverside-bar', tripId: 'chiangmai-retreat', name: 'The Riverside Bar & Restaurant', category: 'food', estimatedTime: 2, address: '清邁・平河', lat: 18.795, lng: 99.005, description: '平河畔的老字號餐廳與現場音樂場地，可作為最後一晚的具體晚餐選擇', columnId: 'day-5' },
+  { id: 'seoul-myeongdong-cathedral', tripId: 'seoul-shopping', name: '明洞聖堂', category: 'attraction', estimatedTime: 1, address: '首爾・明洞', lat: 37.5631, lng: 126.9875, description: '韓國具代表性的哥德式天主教堂，距離明洞購物街步行可達', columnId: 'day-1' },
+  { id: 'seoul-changdeokgung', tripId: 'seoul-shopping', name: '昌德宮', category: 'attraction', estimatedTime: 2, address: '首爾・鐘路區', lat: 37.5794, lng: 126.991, description: '朝鮮王朝宮殿之一，以後苑與保存完整的建築格局聞名', columnId: 'day-2' },
+  { id: 'seoul-ikseondong', tripId: 'seoul-shopping', name: '益善洞韓屋村', category: 'shopping', estimatedTime: 1.5, address: '首爾・鐘路區', lat: 37.572, lng: 126.9896, description: '改造韓屋裡聚集咖啡館、甜點店與設計小店的巷弄街區', columnId: 'day-2' },
+  { id: 'seoul-dongdaemun-shopping-complex', tripId: 'seoul-shopping', name: '東大門綜合市場', category: 'shopping', estimatedTime: 1.5, address: '首爾・東大門', lat: 37.5701, lng: 127.0073, description: '以布料、服飾材料與批發零售聞名的大型市場，鄰近東大門設計廣場', columnId: 'day-3' },
+  { id: 'seoul-heunginjimun', tripId: 'seoul-shopping', name: '興仁之門（東大門）', category: 'attraction', estimatedTime: 1, address: '首爾・東大門', lat: 37.571, lng: 127.0097, description: '首爾城郭八大門之一，是東大門商圈中最具歷史感的地標', columnId: 'day-3' },
+  { id: 'seoul-seokchon-lake', tripId: 'seoul-shopping', name: '石村湖', category: 'attraction', estimatedTime: 1.5, address: '首爾・松坡區', lat: 37.5079, lng: 127.1, description: '環繞樂天世界塔的湖畔步道，可在購物與登塔之間安排散步', columnId: 'day-4' },
+  { id: 'seoul-bongeunsa', tripId: 'seoul-shopping', name: '奉恩寺', category: 'attraction', estimatedTime: 1, address: '首爾・江南區', lat: 37.514, lng: 127.057, description: 'COEX 商場對面的古寺，現代江南街景與寺院建築形成鮮明對比', columnId: 'day-4' },
+]
+
+export const explorePlaces: Place[] = [
+  ...legacyExplorePlaces
+    .filter((place) => !excludedLegacyPlaceIds.has(place.id))
+    .map((place) => ({ ...place, ...explorePlaceOverrides[place.id] })),
+  ...additionalExplorePlaces,
 ]
 
 export function explorePlacesForTemplate(templateId: string): Place[] {
