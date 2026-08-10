@@ -186,7 +186,7 @@
         <span class="generating__badge">
           <AppIcon name="sparkle" :size="22" />
         </span>
-        <h2 class="generating__title">正在為你打造 {{ cityLabel }} 行程</h2>
+        <h2 class="generating__title">正在為你打造行程</h2>
         <p class="generating__subtitle">{{ progressSubtitle }}</p>
 
         <ol class="generating__stages">
