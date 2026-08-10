@@ -215,17 +215,16 @@ export type CreateTripInput = {
   departureTime?: string
   // Present only when CreateTripPage.vue's form has more than one
   // destination row — every entry, including the first (whose fields are
-  // duplicated onto this type's own destination/destinationPlaceId/
-  // destinationLat/destinationLng above, since the AI generation pipeline
-  // — aiTripClient.ts/plan-trip-zones.ts/generate-trip-day.ts — doesn't know
-  // how to split a request per city segment yet and needs ONE real
-  // destination string to search against; see that pipeline's own trip-
-  // generation-per-day-requests design for why per-day requests are actually
-  // well-suited to eventually reading this instead). generateTrip.ts uses
-  // this to label the trip and tag each day column with the city it belongs
-  // to (see TripColumn.cityId) — until the generation pipeline is updated to
-  // match, every day's AI-suggested places still come from the first city
-  // only, regardless of how many cities are listed here.
+  // ALSO duplicated onto this type's own destination/destinationPlaceId/
+  // destinationLat/destinationLng above, kept as a stand-in for any caller
+  // that still only wants "the" destination, e.g. resolveDestinationPlace's
+  // free-typed-destination geocode fallback in stores/trips.ts). The AI
+  // generation pipeline (aiTripClient.ts, resolveCitySegments in
+  // generateTrip.ts) DOES split into one independent plan per segment here —
+  // each city gets its own zone-planning call and its own per-day requests,
+  // not just the first. generateTrip.ts also uses this to label the trip,
+  // tag each day column with the city it belongs to (see TripColumn.cityId),
+  // and stamp each place's address with its own city (not the first one).
   cities?: {
     destination: string
     destinationPlaceId?: string

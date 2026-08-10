@@ -11,9 +11,11 @@ import {
   generateTrip,
   paceForTravelStyles,
   regionFromDestination,
+  resolveCitySegments,
   resolveEstimatedTime,
   targetCountForWindow,
   windowForFlightDay,
+  windowForTransitDay,
   type PlaceSuggestion,
 } from './generateTrip.ts'
 
@@ -150,6 +152,101 @@ test('windowForFlightDay does not wrap past midnight for a very late arrival or 
   assert.deepEqual(windowForFlightDay(base, 1, 3, { arrivalTime: '23:00' }), { start: base.start, end: base.start })
   assert.deepEqual(windowForFlightDay(base, 3, 3, { departureTime: '09:00' }), { start: base.start, end: base.start })
   assert.deepEqual(windowForFlightDay(base, 3, 3, { departureTime: '01:00' }), { start: base.start, end: base.start })
+})
+
+// resolveCitySegments always sets destinationPlaceId/Lat/Lng (even when
+// undefined) since it spreads every CreateTripInput/city field through —
+// assert.deepEqual (strict) treats a present-but-undefined key as different
+// from an absent one, so expected fixtures below spell them out too.
+test('resolveCitySegments collapses to one all-days segment when cities is absent, using input.destination', () => {
+  const input = baseInput({ destination: '京都，日本' })
+  assert.deepEqual(resolveCitySegments(input, 5), [
+    { destination: '京都，日本', destinationPlaceId: undefined, destinationLat: undefined, destinationLng: undefined, startDay: 1, endDay: 5 },
+  ])
+})
+
+test('resolveCitySegments collapses to one all-days segment for a single-entry cities array too', () => {
+  const input = baseInput({ destination: '京都，日本', cities: [{ destination: '京都，日本', days: 5 }] })
+  assert.deepEqual(resolveCitySegments(input, 5), [
+    { destination: '京都，日本', destinationPlaceId: undefined, destinationLat: undefined, destinationLng: undefined, startDay: 1, endDay: 5 },
+  ])
+})
+
+test('resolveCitySegments splits cumulative day counts into absolute, inclusive day ranges', () => {
+  const input = baseInput({
+    cities: [
+      { destination: '阿姆斯特丹，荷蘭', days: 3 },
+      { destination: '布魯塞爾，比利時', days: 2 },
+    ],
+  })
+  assert.deepEqual(resolveCitySegments(input, 5), [
+    { destination: '阿姆斯特丹，荷蘭', destinationPlaceId: undefined, destinationLat: undefined, destinationLng: undefined, startDay: 1, endDay: 3 },
+    { destination: '布魯塞爾，比利時', destinationPlaceId: undefined, destinationLat: undefined, destinationLng: undefined, startDay: 4, endDay: 5 },
+  ])
+})
+
+test('resolveCitySegments defensively extends the last segment when city day counts undershoot totalDays', () => {
+  const input = baseInput({
+    cities: [
+      { destination: 'A', days: 2 },
+      { destination: 'B', days: 1 },
+    ],
+  })
+  // Sums to 3, but called with totalDays=5 (shouldn't happen from
+  // CreateTripPage.vue's own form, but this function doesn't trust that).
+  const segments = resolveCitySegments(input, 5)
+  assert.equal(segments.at(-1)!.endDay, 5)
+})
+
+test('windowForTransitDay narrows the end of a segment\'s last day and the start of the next segment\'s first day', () => {
+  const base = dayWindowForPace('packed') // 08:00-21:00
+  const segments = resolveCitySegments(baseInput({ cities: [{ destination: 'A', days: 3 }, { destination: 'B', days: 2 }] }), 5)
+  // Day 3: A's last day (segment 1 of 2, not the trip's own last day) — end trimmed.
+  assert.deepEqual(windowForTransitDay(base, 3, segments), { start: '08:00', end: '19:30' })
+  // Day 4: B's first day (not the trip's own day 1) — start trimmed.
+  assert.deepEqual(windowForTransitDay(base, 4, segments), { start: '09:30', end: '21:00' })
+})
+
+test('windowForTransitDay leaves the trip\'s actual first/last day and every mid-segment day untouched', () => {
+  const base = dayWindowForPace('packed')
+  const segments = resolveCitySegments(baseInput({ cities: [{ destination: 'A', days: 3 }, { destination: 'B', days: 2 }] }), 5)
+  // Day 1 is segment A's start, but also the WHOLE TRIP's day 1 — that's
+  // windowForFlightDay's job (a real flight), not a transit guess.
+  assert.deepEqual(windowForTransitDay(base, 1, segments), base)
+  // Day 5 is segment B's end, but also the trip's actual last day.
+  assert.deepEqual(windowForTransitDay(base, 5, segments), base)
+  // Day 2 is a mid-segment day (neither A's start nor A's end).
+  assert.deepEqual(windowForTransitDay(base, 2, segments), base)
+})
+
+test('windowForTransitDay is a no-op for a single-segment (single-destination) trip', () => {
+  const base = dayWindowForPace('packed')
+  const segments = resolveCitySegments(baseInput({ destination: '京都，日本' }), 5)
+  for (let day = 1; day <= 5; day++) {
+    assert.deepEqual(windowForTransitDay(base, day, segments), base)
+  }
+})
+
+test('windowForTransitDay leaves a 1-day boundary segment\'s trip-first/trip-last day completely untouched (regression: used to also narrow the opposite side, risking a zero-length window when combined with a flight time)', () => {
+  const base = dayWindowForPace('packed')
+  // A 1-day FIRST segment: day 1 is simultaneously that segment's own start
+  // AND end.
+  const firstSegmentIsOneDay = resolveCitySegments(baseInput({ cities: [{ destination: 'A', days: 1 }, { destination: 'B', days: 4 }] }), 5)
+  assert.deepEqual(windowForTransitDay(base, 1, firstSegmentIsOneDay), base)
+  // A 1-day LAST segment: the trip's final day is simultaneously that
+  // segment's own start AND end.
+  const lastSegmentIsOneDay = resolveCitySegments(baseInput({ cities: [{ destination: 'A', days: 4 }, { destination: 'B', days: 1 }] }), 5)
+  assert.deepEqual(windowForTransitDay(base, 5, lastSegmentIsOneDay), base)
+})
+
+test('windowForTransitDay narrows BOTH ends of a genuine 1-day MIDDLE segment (a real same-day arrival-and-departure stopover, not a bug)', () => {
+  const base = dayWindowForPace('packed') // 08:00-21:00
+  const segments = resolveCitySegments(
+    baseInput({ cities: [{ destination: 'A', days: 2 }, { destination: 'B', days: 1 }, { destination: 'C', days: 2 }] }),
+    5,
+  )
+  // Day 3 is B's whole 1-day visit — neither the trip's first nor last day.
+  assert.deepEqual(windowForTransitDay(base, 3, segments), { start: '09:30', end: '19:30' })
 })
 
 test('cityFromDestination / regionFromDestination split on the first comma', () => {
@@ -418,6 +515,26 @@ test('generateTrip assigns each column a cityId from input.cities\' cumulative d
     trip.columns.map((column) => column.cityId),
     [amsterdam!.id, amsterdam!.id, amsterdam!.id, brussels!.id, brussels!.id],
   )
+})
+
+test('generateTrip stamps each place\'s address with its OWN city\'s destination, not the trip-wide combined display string', () => {
+  const input = baseInput({
+    destination: '阿姆斯特丹，荷蘭',
+    startDate: '2024-03-01',
+    endDate: '2024-03-05',
+    cities: [
+      { destination: '阿姆斯特丹，荷蘭', days: 3 },
+      { destination: '布魯塞爾，比利時', days: 2 },
+    ],
+  })
+  const aiPlaces: PlaceSuggestion[] = [
+    { day: 2, name: 'AmsterdamPlace', category: 'attraction', description: 'd' },
+    { day: 4, name: 'BrusselsPlace', category: 'attraction', description: 'd' },
+  ]
+  const { places } = generateTrip(input, [], aiPlaces)
+
+  assert.equal(places.find((p) => p.name === 'AmsterdamPlace')!.address, '阿姆斯特丹，荷蘭')
+  assert.equal(places.find((p) => p.name === 'BrusselsPlace')!.address, '布魯塞爾，比利時')
 })
 
 test('generateTrip joins every city name into trip.destination once there is more than one, but keeps the plain single-city string for just one', () => {

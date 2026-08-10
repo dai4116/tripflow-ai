@@ -111,6 +111,54 @@ export function windowForFlightDay(
   return { start: minutesToHHMM(startMinutes), end: minutesToHHMM(endMinutes) }
 }
 
+// Rough, fixed buffer for inter-city travel on a multi-destination trip's
+// segment-transition days — not real routing/distance-based transit time
+// (that would need actual travel-time lookups between city centers, a much
+// bigger feature); just enough so a day partly spent on a train/flight
+// between cities isn't promised a full day's worth of places. Reuses
+// AIRPORT_BUFFER_MIN's own value rather than a separate magic number — both
+// exist to answer the same question ("how much slop for a known real-world
+// transit event"), just for different events.
+const TRANSIT_BUFFER_MIN = AIRPORT_BUFFER_MIN
+
+// Narrows a day's window when that day is the first or last day of a city
+// segment WITHIN a multi-destination trip (see resolveCitySegments) — the
+// day a segment ends gets its end trimmed (packing up, heading to the next
+// city), the day a segment starts gets its start trimmed (arriving,
+// settling in). The trip's own absolute first/last day is excluded
+// entirely up front, regardless of which segment(s) it also happens to
+// bound — already handled by windowForFlightDay's own flight-arrival/
+// departure narrowing (a real known time), not a transit guess. This can't
+// be done with two separate per-check exclusions (only excluding day 1 from
+// the "segment start" check, and totalDays from the "segment end" check) —
+// a 1-day FIRST segment makes day 1 simultaneously ITS OWN start AND end, so
+// excluding it from only the start check still left the end check free to
+// fire and narrow the opposite side, and symmetrically for a 1-day LAST
+// segment on the trip's final day (confirmed regression: a 1-day first city
+// with a late flight arrival could have both ends narrowed down to a
+// zero-length window, silently skipping that city's whole first day of
+// requested places — see this function's own test for the exact scenario).
+// A genuine 1-day MIDDLE segment (neither the trip's first nor last day)
+// still correctly gets both ends narrowed — that's a real same-day
+// arrival-and-departure stopover, not a bug.
+export function windowForTransitDay(baseWindow: DayWindow, dayNumber: number, segments: CitySegment[]): DayWindow {
+  const totalDays = segments.at(-1)!.endDay
+  if (dayNumber === 1 || dayNumber === totalDays) return baseWindow
+
+  const isSegmentStart = segments.some((segment) => segment.startDay === dayNumber)
+  const isSegmentEnd = segments.some((segment) => segment.endDay === dayNumber)
+  if (!isSegmentStart && !isSegmentEnd) return baseWindow
+
+  const startMinutes = isSegmentStart
+    ? clockTimeToMinutes(baseWindow.start) + TRANSIT_BUFFER_MIN
+    : clockTimeToMinutes(baseWindow.start)
+  const endMinutes = isSegmentEnd ? clockTimeToMinutes(baseWindow.end) - TRANSIT_BUFFER_MIN : clockTimeToMinutes(baseWindow.end)
+
+  // Same "skip this day" convention as windowForFlightDay's identical guard.
+  if (endMinutes <= startMinutes) return { start: baseWindow.start, end: baseWindow.start }
+  return { start: minutesToHHMM(startMinutes), end: minutesToHHMM(endMinutes) }
+}
+
 // Assumed minutes per stop (typical duration + a travel allowance), used
 // only to size a SOFT candidate-count guide sent to the AI prompt — the real
 // per-day place count falls out of the duration-budget walk in the columns
@@ -250,6 +298,76 @@ export function cityFromDestination(destination: string): string {
 export function regionFromDestination(destination: string): string {
   const [, ...rest] = destination.split(/[,，]/)
   return rest.join(',').trim()
+}
+
+// One city's own slice of the trip's day numbering — startDay/endDay are
+// absolute (1..totalDays against the WHOLE trip), inclusive on both ends,
+// matching TripColumn.dayNumber's own convention.
+export type CitySegment = {
+  destination: string
+  destinationPlaceId?: string
+  destinationLat?: number
+  destinationLng?: number
+  startDay: number
+  endDay: number
+}
+
+// The single source of truth for "which city does day N belong to" — used
+// by this file's own cityIdForDay (see generateTrip below) AND by
+// aiTripClient.ts's per-city generation orchestration. Two independent
+// implementations of this same cumulative-day-count walk already drifted out
+// of sync once (a 1-entry input.cities array was handled inconsistently
+// between what this file's cityIdForDay did and what its own doc comment
+// promised — see this function's git history), so this is now the only place
+// it's computed.
+//
+// Always returns at least one segment, even when input.cities is
+// absent/has a single entry — that "one real destination" case collapses to
+// one segment spanning every day, at input.destination itself (not
+// input.cities[0], which may differ in edge cases like a stale/unresolved
+// single-entry array) — callers that only care about "is this genuinely
+// multi-city" should check input.cities' own length, not this array's.
+export function resolveCitySegments(
+  input: Pick<CreateTripInput, 'destination' | 'destinationPlaceId' | 'destinationLat' | 'destinationLng' | 'cities'>,
+  totalDays: number,
+): CitySegment[] {
+  if (!input.cities || input.cities.length <= 1) {
+    return [
+      {
+        destination: input.destination,
+        destinationPlaceId: input.destinationPlaceId,
+        destinationLat: input.destinationLat,
+        destinationLng: input.destinationLng,
+        startDay: 1,
+        endDay: totalDays,
+      },
+    ]
+  }
+
+  const segments: CitySegment[] = []
+  let cursor = 0
+  for (const city of input.cities) {
+    const startDay = cursor + 1
+    cursor += city.days
+    segments.push({
+      destination: city.destination,
+      destinationPlaceId: city.destinationPlaceId,
+      destinationLat: city.destinationLat,
+      destinationLng: city.destinationLng,
+      startDay,
+      endDay: cursor,
+    })
+  }
+
+  // Defensive only — CreateTripPage.vue derives the trip's end date from this
+  // same sum, so this should never actually fire from the app's own form.
+  // Extends the last segment to cover through totalDays rather than leaving
+  // a gap of days no segment claims, so every day 1..totalDays always
+  // resolves to SOME city.
+  const last = segments.at(-1)!
+  if (last.endDay < totalDays) last.endDay = totalDays
+
+  return segments
 }
 
 function slugify(text: string): string {
@@ -464,36 +582,47 @@ export function generateTrip(
   const displayDestination = cities ? cities.map((entry) => cityFromDestination(entry.destination)).join('・') : input.destination
   const city = cityFromDestination(displayDestination)
 
-  // Which city a day belongs to, derived once from input.cities' own
-  // per-city day counts (cumulative) rather than stored per-day —
-  // CreateTripPage.vue guarantees those counts sum to `days` (the trip's
-  // derived end date comes from that same sum), so this always lands on a
-  // real city for every day 1..days once cities is actually present. Reads
-  // `cities`, not `input.cities`, as the presence check — a 1-entry
-  // `input.cities` already collapsed `cities` to undefined above, and that's
-  // exactly the case this must also treat as "no cities," so there's a
-  // single source of truth for the collapse instead of two conditions that
-  // could drift apart.
+  // Which city a day belongs to — built from the same resolveCitySegments
+  // this file exports for aiTripClient.ts's own per-city generation
+  // orchestration, so there's exactly one implementation of "cumulative
+  // day-count -> city" for the whole app. `segments` is computed
+  // unconditionally (harmless — it collapses to one no-op segment when
+  // `cities` is undefined) so this and aiTripClient.ts can never disagree on
+  // which real trip this represents. `cities`, not `input.cities`, gates
+  // whether cityIdForDay does anything: a 1-entry `input.cities` already
+  // collapsed `cities` to undefined above, and resolveCitySegments' own
+  // 1-entry/absent path also collapses to one all-days segment — both
+  // deliberately treat that case as "no cities," so this stays consistent
+  // with `cities` without a second condition to keep in sync.
+  const segments = resolveCitySegments(input, days)
   function cityIdForDay(dayNumber: number): string | undefined {
     if (!cities) return undefined
-    let cursor = 0
-    for (let i = 0; i < input.cities!.length; i++) {
-      cursor += input.cities![i]!.days
-      if (dayNumber <= cursor) return cities[i]?.id
-    }
-    return cities.at(-1)?.id
+    const index = segments.findIndex((segment) => dayNumber >= segment.startDay && dayNumber <= segment.endDay)
+    return cities[index === -1 ? cities.length - 1 : index]?.id
   }
 
   const places: Place[] = []
 
-  function addPlace(suggestion: PlaceSuggestion, columnId: string): Place {
+  // Which city's destination string a day's places should show as their
+  // `address` — for a multi-city trip this is the ACTUAL city that day
+  // belongs to (segments), not input.destination (which for a multi-city
+  // trip is only the first city, kept there purely as the AI generation
+  // pipeline's stand-in — see CreateTripInput.cities' own comment). Falls
+  // back to input.destination when a day somehow resolves to no segment,
+  // same defensive fallback resolveCitySegments itself already guarantees
+  // shouldn't be reachable.
+  function destinationForDay(dayNumber: number): string {
+    return segments.find((segment) => dayNumber >= segment.startDay && dayNumber <= segment.endDay)?.destination ?? input.destination
+  }
+
+  function addPlace(suggestion: PlaceSuggestion, columnId: string, destination: string): Place {
     const place: Place = {
       id: nanoid(8),
       tripId,
       name: suggestion.name,
       category: suggestion.category,
       estimatedTime: resolveEstimatedTime(suggestion.category, suggestion.estimatedTimeHours),
-      address: input.destination,
+      address: destination,
       // Coordinates come from the suggestion when it was verified server-side
       // against Google Places (the normal path — the place is pinned on the
       // map immediately). They're 0,0 only on the no-Google-key interim path,
@@ -526,14 +655,14 @@ export function generateTrip(
   // the departure card's buffered arrivalTime is what the cascade's existing
   // overlap check compares later cards against, surfacing a "won't make the
   // flight" warning for free.
-  function addFlightPlace(name: string, description: string, arrivalTime: string, estimatedTime: number, columnId: string): Place {
+  function addFlightPlace(name: string, description: string, arrivalTime: string, estimatedTime: number, columnId: string, destination: string): Place {
     const place: Place = {
       id: nanoid(8),
       tripId,
       name,
       category: 'transport',
       estimatedTime,
-      address: input.destination,
+      address: destination,
       lat: 0,
       lng: 0,
       description,
@@ -563,17 +692,22 @@ export function generateTrip(
   const columns: TripColumn[] = Array.from({ length: days }, (_, index) => {
     const dayNumber = index + 1
     const columnId = `day-${dayNumber}`
+    const dayDestination = destinationForDay(dayNumber)
     const dayPlaces = orderDayPlaces(suggestionsByDay.get(dayNumber) ?? [])
     // Day 1 / the last day get a narrower window than resolvedWindow when a
-    // flight arrival/departure shortens their usable hours — see
-    // windowForFlightDay. Every other day is untouched.
-    const dayWindow = windowForFlightDay(resolvedWindow, dayNumber, days, input)
+    // flight arrival/departure shortens their usable hours (windowForFlightDay);
+    // a multi-city trip's segment-transition days get a similar narrowing for
+    // inter-city travel time (windowForTransitDay) — mutually exclusive by
+    // construction (see windowForTransitDay's own comment), so composing both
+    // never double-narrows the same day. Every other day is untouched by
+    // either.
+    const dayWindow = windowForTransitDay(windowForFlightDay(resolvedWindow, dayNumber, days, input), dayNumber, segments)
     // Which of this day's places actually get used — driven by the window's
     // real duration budget, not a flat per-day count — see
     // selectPlacesForWindow. Days are still built ONLY from real (AI +
     // server-verified) suggestions; a day just ends whenever its own
     // suggestions or its time budget runs out, whichever comes first.
-    const placeIds = selectPlacesForWindow(dayPlaces, dayWindow).map((suggestion) => addPlace(suggestion, columnId).id)
+    const placeIds = selectPlacesForWindow(dayPlaces, dayWindow).map((suggestion) => addPlace(suggestion, columnId, dayDestination).id)
 
     // Prepend/append a real flight card rather than writing an invisible
     // per-day schedule override — unshift/push happen outside orderDayPlaces
@@ -587,6 +721,7 @@ export function generateTrip(
         input.arrivalTime,
         AIRPORT_BUFFER_MIN / 60,
         columnId,
+        dayDestination,
       )
       placeIds.unshift(arrivalPlace.id)
     }
@@ -597,6 +732,7 @@ export function generateTrip(
         addMinutes(input.departureTime, -AIRPORT_BUFFER_MIN),
         AIRPORT_BUFFER_MIN / 60,
         columnId,
+        dayDestination,
       )
       placeIds.push(departurePlace.id)
     }

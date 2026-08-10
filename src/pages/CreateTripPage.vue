@@ -587,7 +587,7 @@ async function generateTrip() {
   try {
     for (const city of form.cities) {
       if (!city.destination.trim()) {
-        destinationError.value = '請先告訴我們你要去哪裡。'
+        destinationError.value = '請輸入你想去哪裡'
         destinationErrorKey.value = city.key
         cityInputRefs.get(city.key)?.focus()
         return
@@ -690,11 +690,13 @@ async function finishGeneration() {
   try {
     const firstCity = form.cities[0]!
     const trip = await tripsStore.createTrip({
-      // The AI generation pipeline (aiTripClient.ts and below) doesn't split
-      // a request per city segment yet — it needs ONE real destination to
-      // search against, so that's always the first city, same as the single-
-      // destination path this form used to be exclusively. See cities below
-      // and CreateTripInput.cities' own comment.
+      // The top-level destination/destinationPlaceId/Lat/Lng fields always
+      // carry the FIRST city — a stand-in for any caller that only wants
+      // "the" destination (see CreateTripInput.cities' own comment). The
+      // real per-city generation happens via `cities` below: the AI
+      // generation pipeline (aiTripClient.ts's resolveCitySegments-driven
+      // per-segment planning) reads each city's own destination from there,
+      // not just this one.
       destination: firstCity.destination.trim(),
       destinationPlaceId: firstCity.destinationPlaceId,
       destinationLat: firstCity.destinationLat,

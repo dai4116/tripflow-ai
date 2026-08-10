@@ -8,8 +8,9 @@ if (typeof (globalThis as { window?: unknown }).window === 'undefined') {
 import assert from 'node:assert/strict'
 import test, { type TestContext } from 'node:test'
 
+import type { CitySegment } from './generateTrip.ts'
 import type { CreateTripInput } from '../types/index.ts'
-import { dedupeByPlaceId, daysNeedingBackfill, fetchAiPlaces, findExistingAnchor } from './aiTripClient.ts'
+import { dedupeByPlaceId, daysNeedingBackfill, fetchAiPlaces, findExistingAnchor, preferencesForSegment } from './aiTripClient.ts'
 import type { PlaceSuggestion } from './generateTrip.ts'
 
 // A generic non-zero-length placeholder window, for tests that don't care
@@ -70,6 +71,27 @@ test('findExistingAnchor returns the first coordinate-bearing place for a day, o
   ]
   assert.deepEqual(findExistingAnchor(places, 1), { lat: 1, lng: 2 })
   assert.equal(findExistingAnchor(places, 3), null)
+})
+
+test('preferencesForSegment returns the input unchanged for a single-segment (single-destination) trip', () => {
+  const segments: CitySegment[] = [{ destination: '京都，日本', startDay: 1, endDay: 5 }]
+  const preferences = ['必吃美食', '逛街購物', '自然秘境']
+  assert.equal(preferencesForSegment(preferences, segments[0]!, segments), preferences)
+})
+
+test('preferencesForSegment distributes preferences across segments proportional to each segment\'s day share', () => {
+  const segments: CitySegment[] = [
+    { destination: 'A', startDay: 1, endDay: 3 },
+    { destination: 'B', startDay: 4, endDay: 5 },
+  ]
+  const preferences = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6']
+  const forA = preferencesForSegment(preferences, segments[0]!, segments)
+  const forB = preferencesForSegment(preferences, segments[1]!, segments)
+  // Every preference goes to exactly one segment, none dropped or duplicated.
+  assert.deepEqual([...forA!, ...forB!].sort(), [...preferences].sort())
+  // The 3-day segment gets a larger (or equal) share than the 2-day one.
+  assert.ok(forA!.length >= forB!.length, `expected A's share (${forA!.length}) >= B's (${forB!.length})`)
+  assert.ok(forB!.length > 0, 'expected B to get at least one preference, not be starved entirely')
 })
 
 // Shared fetch dispatcher for the fetchAiPlaces integration tests below —
@@ -209,4 +231,95 @@ test('fetchAiPlaces sends a short day\'s existing accepted place as existingAnch
   await fetchAiPlaces(baseInput(), 1, TARGET_2_WINDOW)
   assert.equal(backfillBodies.length, 1)
   assert.deepEqual(backfillBodies[0]!.existingAnchor, { lat: 25.03, lng: 121.56 })
+})
+
+test('fetchAiPlaces fans a multi-city trip out into one independent, correctly-scoped request per (city, its own relative day)', async (t) => {
+  type ZoneBody = { destination: string; totalDays: number }
+  type DayBody = { destination: string; day: number; totalDays: number; zones: { zone: string }[]; cityCenter: unknown }
+  const zoneBodies: ZoneBody[] = []
+  const dayBodies: DayBody[] = []
+  // Wide enough that windowForTransitDay's 90-minute segment-boundary
+  // narrowing (see generateTrip.ts) never collapses a transition day's
+  // window to zero — this test is about request routing, not that.
+  const WIDE_WINDOW = { start: '08:00', end: '20:00' }
+
+  mockFetch(t, {
+    zones: (body) => {
+      const b = body as ZoneBody
+      zoneBodies.push(b)
+      const label = b.destination === '阿姆斯特丹，荷蘭' ? 'AmsZone' : 'BruZone'
+      return new Response(
+        JSON.stringify({
+          zones: Array.from({ length: b.totalDays }, (_, i) => ({ day: i + 1, zone: `${label}${i + 1}`, focus: 'f', assignedPreferences: [] })),
+          cityCenter: b.destination === '阿姆斯特丹，荷蘭' ? { lat: 52.37, lng: 4.9 } : { lat: 50.85, lng: 4.35 },
+        }),
+        { status: 200 },
+      )
+    },
+    day: (body) => {
+      dayBodies.push(body as DayBody)
+      // 8 places (>= any real targetPlaceCount, capped at 7 — see
+      // generateTrip.ts's own "never exceeds the hard max" test) so no day
+      // ever comes up short and triggers a second (backfill) round — this
+      // test is about first-pass request routing, not backfill.
+      const places = Array.from({ length: 8 }, (_, i) => dayPlace(body.day, `${body.destination}-${body.day}-${i}`))
+      return new Response(JSON.stringify({ places }), { status: 200 })
+    },
+  })
+
+  const input = baseInput({
+    destination: '阿姆斯特丹，荷蘭',
+    cities: [
+      { destination: '阿姆斯特丹，荷蘭', days: 3 },
+      { destination: '布魯塞爾，比利時', days: 2 },
+    ],
+  })
+  const result = await fetchAiPlaces(input, 5, WIDE_WINDOW)
+
+  // Zone planning ran once per city, each scoped to ONLY that city's own day
+  // count (3, 2) — not the whole trip's 5.
+  assert.deepEqual(
+    zoneBodies.map((b) => `${b.destination}:${b.totalDays}`).sort(),
+    ['阿姆斯特丹，荷蘭:3', '布魯塞爾，比利時:2'].sort(),
+  )
+
+  const amsBodies = dayBodies.filter((b) => b.destination === '阿姆斯特丹，荷蘭').sort((a, b) => a.day - b.day)
+  const bruBodies = dayBodies.filter((b) => b.destination === '布魯塞爾，比利時').sort((a, b) => a.day - b.day)
+  assert.equal(dayBodies.length, 5)
+  assert.equal(amsBodies.length, 3)
+  assert.equal(bruBodies.length, 2)
+
+  // day/totalDays sent to the server are RELATIVE to each city, not the
+  // trip's absolute day numbers — Amsterdam's 3 days are tagged 1/2/3 of 3,
+  // Brussels' 2 days are tagged 1/2 of 2 (not, say, 4/5 of 5).
+  assert.deepEqual(amsBodies.map((b) => [b.day, b.totalDays]), [
+    [1, 3],
+    [2, 3],
+    [3, 3],
+  ])
+  assert.deepEqual(bruBodies.map((b) => [b.day, b.totalDays]), [
+    [1, 2],
+    [2, 2],
+  ])
+
+  // Each city's requests only ever see its OWN zone hints — this is the bug
+  // per-segment planning exists to prevent: two cities' zone hints share the
+  // same day numbering (both start at 1), so a shared/merged zones array
+  // would let Brussels' day 1 pick up Amsterdam's day-1 theme.
+  for (const b of amsBodies) assert.ok(b.zones.every((z) => z.zone.startsWith('AmsZone')))
+  for (const b of bruBodies) assert.ok(b.zones.every((z) => z.zone.startsWith('BruZone')))
+
+  // Each city's requests get THAT city's own geocoded center, not a shared
+  // one for the whole trip.
+  assert.deepEqual(amsBodies[0]!.cityCenter, { lat: 52.37, lng: 4.9 })
+  assert.deepEqual(bruBodies[0]!.cityCenter, { lat: 50.85, lng: 4.35 })
+
+  // The returned places are re-tagged back to ABSOLUTE trip day numbers
+  // (1..5) before merging — the relative numbering the server actually saw
+  // never leaks into the result.
+  assert.deepEqual([...new Set(result?.map((p) => p.day))].sort((a, b) => (a ?? 0) - (b ?? 0)), [1, 2, 3, 4, 5])
+  // Day 4/5 (Brussels' relative days 1/2) resolved from real Brussels
+  // requests, not misrouted to Amsterdam or some other segment.
+  assert.ok(result?.filter((p) => p.day === 4).every((p) => p.placeId?.startsWith('布魯塞爾，比利時-1-')))
+  assert.ok(result?.filter((p) => p.day === 5).every((p) => p.placeId?.startsWith('布魯塞爾，比利時-2-')))
 })

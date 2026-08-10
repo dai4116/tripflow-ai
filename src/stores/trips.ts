@@ -16,7 +16,7 @@ import { geocodePlace, geocodeRawQuery } from '../data/geocode.ts'
 import { geocodeDestination } from '../data/geocodeDestinationClient.ts'
 import { fetchTravelTime, straightLineDistanceKm } from '../data/routing.ts'
 import { fetchTripCoverPhotoRefs } from '../data/tripCoverPhotosClient.ts'
-import type { CreateTripInput, Place, PlaceCategory, Trip, TravelMode } from '../types'
+import type { CreateTripInput, Place, PlaceCategory, Trip, TravelMode, TripColumn } from '../types'
 
 function hasCoords(place: Place): boolean {
   return place.lat !== 0 || place.lng !== 0
@@ -137,12 +137,25 @@ export const useTripsStore = defineStore('trips', () => {
   // geocodePlace) instead of a real, matchable "City, Country" — the same
   // failure mode as concatenating unrelated-language strings into one query.
   // The first city's own destination string is always well-formed, so it
-  // stands in here — same "AI pipeline only knows the first city" stand-in
-  // this whole stage uses for actual place generation (see
-  // CreateTripInput.cities' own comment); a place's true per-column city
-  // isn't threaded through yet.
+  // stands in here — used ONLY where there's no single column to resolve the
+  // real one from (createTrip()'s initial batch, which can span every
+  // column/city at once). Anywhere a specific column IS known, use
+  // destinationForColumn below instead — that's the actually-correct city,
+  // not just a stand-in.
   function geocodeDestinationFor(trip: Trip): string {
     return trip.cities?.[0]?.destination ?? trip.destination
+  }
+
+  // The real city a SPECIFIC column belongs to, via its cityId (see
+  // TripColumn.cityId) — falls back to trip.destination when cityId/cities
+  // are unset (every single-destination trip), same untouched value as
+  // before per-city destinations existed. Used by addPlace/updatePlace so a
+  // manually-added or renamed place on, say, a Brussels-day column gets
+  // "布魯塞爾，比利時" as its address/geocode context, not Amsterdam's (if
+  // it were the first city) or the joined "阿姆斯特丹・布魯塞爾" display
+  // string (neither of which describes where the place actually is).
+  function destinationForColumn(trip: Trip, column: TripColumn): string {
+    return trip.cities?.find((city) => city.id === column.cityId)?.destination ?? trip.destination
   }
 
   // Places generated through createTrip are now verified server-side against
@@ -341,13 +354,14 @@ export const useTripsStore = defineStore('trips', () => {
       if (existing) return existing
     }
 
+    const destination = destinationForColumn(trip, column)
     const place: Place = {
       id: nanoid(8),
       tripId: input.tripId,
       name: input.name,
       category: input.category,
       estimatedTime: resolveEstimatedTime(input.category),
-      address: trip.destination,
+      address: destination,
       lat: input.lat ?? 0,
       lng: input.lng ?? 0,
       description: input.description,
@@ -361,7 +375,7 @@ export const useTripsStore = defineStore('trips', () => {
     places.value.push(place)
     column.placeIds.push(place.id)
     recalcPlaceCount(trip)
-    geocodeNewPlaces([place], geocodeDestinationFor(trip))
+    geocodeNewPlaces([place], destination)
 
     return place
   }
@@ -452,7 +466,8 @@ export const useTripsStore = defineStore('trips', () => {
       // (the geocodeQuery branch) queries it as typed, with nothing appended.
       place.geocodeQuery = patch.name
       const trip = trips.value.find((item) => item.id === place.tripId)
-      if (trip) geocodeNewPlaces([place], geocodeDestinationFor(trip))
+      const column = trip?.columns.find((item) => item.id === place.columnId)
+      if (trip && column) geocodeNewPlaces([place], destinationForColumn(trip, column))
     }
   }
 

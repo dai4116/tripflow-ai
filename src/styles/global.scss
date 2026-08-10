@@ -601,6 +601,11 @@ h3 {
   border-color: $color-danger;
 }
 
+.base-field--error .base-field__control:focus-within {
+  border-color: $color-danger;
+  box-shadow: 0 0 0 3px rgba($color-danger, 0.16);
+}
+
 .base-field__error {
   color: $color-danger;
   font-weight: 650;

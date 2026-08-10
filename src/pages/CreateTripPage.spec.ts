@@ -66,7 +66,7 @@ describe('CreateTripPage', () => {
 
     await wrapper.find('form').trigger('submit')
 
-    expect(wrapper.text()).toContain('請先告訴我們你要去哪裡')
+    expect(wrapper.text()).toContain('請輸入你想去哪裡')
     expect(wrapper.find('form').exists()).toBe(true) // still on the form, not generating
     expect(globalThis.fetch).not.toHaveBeenCalled()
   })
