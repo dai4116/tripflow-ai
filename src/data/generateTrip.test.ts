@@ -484,6 +484,14 @@ test('generateTrip carries the resolved trip metadata through', () => {
   assert.equal(places.length, 0)
 })
 
+test('generateTrip uses a custom title when given and falls back to the destination title when blank', () => {
+  const custom = generateTrip(baseInput({ title: '  2024 京都賞櫻  ' }), [], []).trip
+  const blank = generateTrip(baseInput({ title: '   ' }), [], []).trip
+
+  assert.equal(custom.title, '2024 京都賞櫻')
+  assert.equal(blank.title, '京都之旅')
+})
+
 test('generateTrip leaves cities and every column.cityId undefined when input.cities is absent — the untouched single-destination path', () => {
   const input = baseInput({ destination: '京都，日本', startDate: '2024-03-01', endDate: '2024-03-03' })
   const { trip } = generateTrip(input, [], [])

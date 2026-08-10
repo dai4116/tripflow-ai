@@ -232,9 +232,9 @@
 
           <div class="place-drawer__content">
             <template v-if="!isEditingPlace">
-              <button type="button" class="place-drawer__nav-button" @click="openGoogleMapsNav">
+              <button type="button" class="place-drawer__nav-button" @click="openGoogleMapsPlace">
                 <AppIcon name="compass" :size="14" />
-                Google map 導航
+                在 Google Maps 查看
               </button>
 
               <p class="place-drawer__description">{{ drawerPlace.description }}</p>
@@ -503,7 +503,7 @@ import { useConfirmDialog } from '../composables/useConfirmDialog'
 import { useIsMobile } from '../composables/useIsMobile'
 import { usePlacePhoto } from '../composables/usePlacePhoto'
 import { cityFromDestination, computeTripDays, dayWindowForPace, formatDateRange, toDateInputValue } from '../data/generateTrip'
-import { googleMapsDirectionsUrl } from '../data/googleMapsUrl'
+import { googleMapsPlaceUrl } from '../data/googleMapsUrl'
 import type { GeoPoint } from '../data/placesSearchClient'
 import {
   addMinutes,
@@ -1205,9 +1205,9 @@ function viewOnMap() {
   closeDrawer()
 }
 
-function openGoogleMapsNav() {
+function openGoogleMapsPlace() {
   if (!drawerPlace.value) return
-  window.open(googleMapsDirectionsUrl(drawerPlace.value), '_blank', 'noopener,noreferrer')
+  window.open(googleMapsPlaceUrl(drawerPlace.value), '_blank', 'noopener,noreferrer')
 }
 
 function getPlaceDay(columnId: string) {

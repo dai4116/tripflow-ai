@@ -742,7 +742,7 @@ export function generateTrip(
 
   const trip: Trip = {
     id: tripId,
-    title: `${city}之旅`,
+    title: input.title?.trim() || `${city}之旅`,
     destination: displayDestination,
     days,
     placeCount: places.length,

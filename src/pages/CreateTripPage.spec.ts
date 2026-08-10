@@ -3,6 +3,7 @@ import { createPinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMemoryHistory, createRouter, type Router } from 'vue-router'
 import CreateTripPage from './CreateTripPage.vue'
+import { useTripsStore } from '../stores/trips'
 
 const Stub = { template: '<div />' }
 
@@ -40,10 +41,11 @@ function makeRouter(): Router {
 
 async function mountPage() {
   const router = makeRouter()
+  const pinia = createPinia()
   router.push({ name: 'create-trip' })
   await router.isReady()
-  const wrapper = mount(CreateTripPage, { global: { plugins: [createPinia(), router] } })
-  return { wrapper, router }
+  const wrapper = mount(CreateTripPage, { global: { plugins: [pinia, router] } })
+  return { wrapper, router, pinia }
 }
 
 function stubFetch(handler?: (url: string, init: RequestInit) => Response) {
@@ -193,6 +195,29 @@ describe('CreateTripPage', () => {
 
     expect(router.currentRoute.value.name).toBe('trip-board')
     expect(typeof router.currentRoute.value.params.tripId).toBe('string')
+  })
+
+  it('persists a trimmed custom trip title', async () => {
+    stubFetch((url, init) => {
+      if (url.includes('plan-trip-zones')) return new Response(JSON.stringify({ zones: [], cityCenter: null }), { status: 200 })
+      if (url.includes('generate-trip-day')) {
+        const body = JSON.parse(init.body as string) as { day: number }
+        return new Response(
+          JSON.stringify({ places: [{ day: body.day, name: '清水寺', category: 'attraction', description: 'd', placeId: `g${body.day}`, lat: 35, lng: 135 }] }),
+          { status: 200 },
+        )
+      }
+      return new Response('', { status: 500 })
+    })
+    const { wrapper, router, pinia } = await mountPage()
+    await wrapper.find('input[role="combobox"]').setValue('京都，日本')
+    await wrapper.find('input[placeholder="例如：東京賞櫻之旅"]').setValue('  2024 京都賞櫻  ')
+
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    const tripId = String(router.currentRoute.value.params.tripId)
+    expect(useTripsStore(pinia).getTripById(tripId)?.title).toBe('2024 京都賞櫻')
   })
 
   it('shows a retry UI on generation failure, and 返回修改 goes back to the form', async () => {

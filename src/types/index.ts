@@ -180,6 +180,9 @@ export type Place = {
 
 export type CreateTripInput = {
   destination: string
+  // Optional user-provided label. Falls back to a destination-derived title
+  // when absent, so all existing callers retain their current title format.
+  title?: string
   // See Trip's identical fields — threaded straight through from
   // CreateTripPage.vue's DestinationAutocomplete selection, unset when the
   // user just typed free text.

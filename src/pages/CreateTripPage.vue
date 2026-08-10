@@ -62,6 +62,12 @@
             新增城市
           </button>
         </div>
+
+        <BaseInput
+          v-model="form.title"
+          label="行程名稱（選填）"
+          placeholder="例如：東京賞櫻之旅"
+        />
       </BaseCard>
 
       <BaseCard class="form-card">
@@ -71,7 +77,7 @@
 
         <label class="flight-toggle">
           <span class="flight-toggle__copy">
-            <span class="flight-toggle__title"><AppIcon name="plane" :size="14" />我知道航班時間</span>
+            <span class="flight-toggle__title"><AppIcon name="plane" :size="14" />我知道航班時間（選填）</span>
             <span class="flight-toggle__hint">讓 AI 排得更準</span>
           </span>
           <span class="flight-toggle__switch" :class="{ 'flight-toggle__switch--on': knowsFlightTimes }">
@@ -82,7 +88,7 @@
 
         <div v-if="knowsFlightTimes" class="flight-time-fields">
           <div class="flight-time-field">
-            <span class="flight-time-field__label">抵達時間（選填）</span>
+            <span class="flight-time-field__label">抵達時間</span>
             <button
               ref="arrivalTimeButtonRef"
               type="button"
@@ -94,7 +100,7 @@
             </button>
           </div>
           <div class="flight-time-field">
-            <span class="flight-time-field__label">離境時間（選填）</span>
+            <span class="flight-time-field__label">離境時間</span>
             <button
               ref="departureTimeButtonRef"
               type="button"
@@ -320,6 +326,7 @@ const form = reactive({
   // keep in sync with it, unlike the old start/end range this form used to
   // collect (see BaseDateRangeInput, no longer used here).
   cities: [makeCityRow()] as CityFormRow[],
+  title: '',
   startDate: toDateInputValue(defaultStart),
   additionalNotes: '',
   arrivalTime: undefined as string | undefined,
@@ -504,10 +511,10 @@ const dateSummary = computed(() => {
   return formatDateRange(form.startDate, computedEndDate.value)
 })
 
-const cityLabel = computed(() => {
-  const names = form.cities.map((city) => city.destination.split(/[,，]/)[0].trim()).filter(Boolean)
-  return names.length > 0 ? names.join('・') : '你的'
-})
+const cityNames = computed(() => form.cities.map((city) => city.destination.split(/[,，]/)[0].trim()).filter(Boolean))
+const cityLabel = computed(() => (cityNames.value.length > 0 ? cityNames.value.join('・') : '你的'))
+const generatedTripTitle = computed(() => (cityNames.value.length > 0 ? `${cityNames.value.join('・')}之旅` : ''))
+
 // Live caption under the style picker — a punchy 4-character label doesn't
 // say what it actually changes about the itinerary, and hover tooltips (the
 // button's title attribute) don't work on touch, which is most of this app's
@@ -701,6 +708,7 @@ async function finishGeneration() {
       destinationPlaceId: firstCity.destinationPlaceId,
       destinationLat: firstCity.destinationLat,
       destinationLng: firstCity.destinationLng,
+      title: form.title.trim() || generatedTripTitle.value,
       startDate: form.startDate,
       endDate: computedEndDate.value,
       travelStyle: selectedTravelStyles.value,

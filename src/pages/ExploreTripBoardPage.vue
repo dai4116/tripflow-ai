@@ -127,9 +127,9 @@
           </div>
 
           <div class="place-drawer__content">
-            <button type="button" class="place-drawer__nav-button" @click="openGoogleMapsNav">
+            <button type="button" class="place-drawer__nav-button" @click="openGoogleMapsPlace">
               <AppIcon name="compass" :size="14" />
-              Google map 導航
+              在 Google Maps 顯示
             </button>
 
             <p class="place-drawer__description">{{ drawerPlace.description }}</p>
@@ -178,7 +178,7 @@ import { useIsMobile } from '../composables/useIsMobile'
 import { usePlacePhoto } from '../composables/usePlacePhoto'
 import { explorePlacesForTemplate, exploreTemplates } from '../data/exploreTrips'
 import { dayWindowForPace } from '../data/generateTrip'
-import { googleMapsDirectionsUrl } from '../data/googleMapsUrl'
+import { googleMapsPlaceUrl } from '../data/googleMapsUrl'
 import { useTripsStore } from '../stores/trips'
 
 const route = useRoute()
@@ -307,9 +307,9 @@ function viewOnMap() {
   closeDrawer()
 }
 
-function openGoogleMapsNav() {
+function openGoogleMapsPlace() {
   if (!drawerPlace.value) return
-  window.open(googleMapsDirectionsUrl(drawerPlace.value), '_blank', 'noopener,noreferrer')
+  window.open(googleMapsPlaceUrl(drawerPlace.value), '_blank', 'noopener,noreferrer')
 }
 
 function getPlaceDay(columnId: string) {
