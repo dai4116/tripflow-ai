@@ -3,7 +3,7 @@ import { defineComponent, h, ref } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import * as placesAutocompleteClient from '../../data/placesAutocompleteClient'
-import type { ResolvedDestination } from '../../data/placesAutocompleteClient'
+import type { DestinationSuggestion, ResolvedDestination } from '../../data/placesAutocompleteClient'
 import DestinationAutocomplete from './DestinationAutocomplete.vue'
 
 // A tiny real v-model host, since the component reads props.modelValue itself
@@ -53,6 +53,27 @@ describe('DestinationAutocomplete', () => {
     await vi.advanceTimersByTimeAsync(400)
     expect(spy).toHaveBeenCalledTimes(1)
     expect(spy.mock.calls[0]![0]).toBe('東京')
+  })
+
+  it('shows a loading indicator only when a search takes longer than 200ms', async () => {
+    let resolveSearch!: (suggestions: DestinationSuggestion[] | undefined) => void
+    vi.spyOn(placesAutocompleteClient, 'autocompleteDestination').mockImplementation(
+      () => new Promise((resolve) => {
+        resolveSearch = resolve
+      }),
+    )
+    const { wrapper } = mountHost('')
+
+    await wrapper.find('input').setValue('東京')
+    await vi.advanceTimersByTimeAsync(199)
+    expect(wrapper.find('.destination-autocomplete__loading').exists()).toBe(false)
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(wrapper.find('.destination-autocomplete__loading').exists()).toBe(true)
+
+    resolveSearch([{ placeId: 'pA', mainText: '東京', secondaryText: '日本' }])
+    await flushPromises()
+    expect(wrapper.find('.destination-autocomplete__loading').exists()).toBe(false)
   })
 
   it('picking a suggestion composes the label, clears any prior selection immediately, then resolves coordinates', async () => {

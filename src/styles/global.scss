@@ -618,6 +618,16 @@ h3 {
   position: relative;
 }
 
+.destination-autocomplete__loading {
+  flex: 0 0 14px;
+  width: 14px;
+  height: 14px;
+  border: 2px solid $color-primary;
+  border-right-color: transparent;
+  border-radius: $radius-pill;
+  animation: spin 700ms linear infinite;
+}
+
 .destination-autocomplete__suggestions {
   position: absolute;
   top: calc(100% + 6px);

@@ -97,9 +97,9 @@ const greetingTitle = computed(() => {
   return `${greeting}，柏翰！👋`
 })
 const greetingDescription = computed(() => {
-  if (trips.value.length === 0) return '開始規劃你的第一趟旅程吧。'
+  if (trips.value.length === 0) return '開始規劃你的第一趟旅程吧'
 
-  return `有 ${trips.value.length} 個行程進行中。`
+  return `有 ${trips.value.length} 個行程進行中`
 })
 
 // Whole-day difference, ignoring time-of-day, so "today" still counts as 0

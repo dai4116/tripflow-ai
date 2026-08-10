@@ -213,7 +213,7 @@
           <AppIcon name="alert" :size="22" />
         </span>
         <h2 class="generating__title">行程生成失敗</h2>
-        <p class="generating__subtitle">AI 暫時無法使用，請稍後再試一次。</p>
+        <p class="generating__subtitle">AI 暫時無法使用，請稍後再試一次</p>
 
         <div class="generating__actions">
           <BaseButton @click="retryGeneration">
@@ -602,7 +602,7 @@ async function generateTrip() {
     }
 
     if (!form.startDate) {
-      dateRangeError.value = '請選擇出發日期。'
+      dateRangeError.value = '請選擇出發日期'
       return
     }
 
@@ -619,7 +619,7 @@ async function generateTrip() {
       const ref = cityInputRefs.get(city.key)
       const resolved = (await ref?.resolvePending()) ?? true
       if (!resolved) {
-        destinationError.value = '請從清單中選擇一個目的地。'
+        destinationError.value = '請從清單中選擇一個目的地'
         destinationErrorKey.value = city.key
         ref?.focus()
         return

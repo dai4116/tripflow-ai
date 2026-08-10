@@ -107,7 +107,7 @@
 
     <section class="landing-cta">
       <h2>準備好迎接下一場旅程了嗎？</h2>
-      <p>讓 AI 幫你把時間花在旅行上，不是排行程上。</p>
+      <p>讓 AI 幫你把時間花在旅行上，不是排行程上</p>
       <BaseButton :to="{ name: 'trip-create' }" variant="accent">免費開始規劃</BaseButton>
     </section>
 
@@ -121,7 +121,7 @@
         <a href="#terms">服務條款</a>
         <a href="#contact">聯絡我們</a>
       </nav>
-      <small>© {{ currentYear }} TripFlow AI. 保留所有權利。</small>
+      <small>© {{ currentYear }} TripFlow AI. 保留所有權利</small>
     </footer>
   </div>
 </template>

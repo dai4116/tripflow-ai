@@ -10,7 +10,7 @@ export const places: Place[] = [
     address: '東京・淺草',
     lat: 35.7148,
     lng: 139.7967,
-    description: '東京最古老的佛教寺廟，擁有標誌性的雷門與仲見世商店街。',
+    description: '東京最古老的佛教寺廟，擁有標誌性的雷門與仲見世商店街',
     columnId: 'day-1',
   },
   {
@@ -22,7 +22,7 @@ export const places: Place[] = [
     address: '東京・澀谷',
     lat: 35.6595,
     lng: 139.7005,
-    description: '全世界最繁忙的行人穿越道——搭配附近的屋頂景觀最對味。',
+    description: '全世界最繁忙的行人穿越道——搭配附近的屋頂景觀最對味',
     columnId: 'day-2',
   },
   {
@@ -34,7 +34,7 @@ export const places: Place[] = [
     address: '東京・中央區',
     lat: 35.6655,
     lng: 139.7707,
-    description: '一早穿梭在新鮮海鮮攤與小吃店之間的美食巡禮。',
+    description: '一早穿梭在新鮮海鮮攤與小吃店之間的美食巡禮',
     columnId: 'day-1',
   },
   {
@@ -46,7 +46,7 @@ export const places: Place[] = [
     address: '東京・台東區',
     lat: 35.7156,
     lng: 139.7745,
-    description: '寬敞的公園，池塘周圍聚集了博物館與神社，很好安排。',
+    description: '寬敞的公園，池塘周圍聚集了博物館與神社，很好安排',
     columnId: 'day-1',
   },
   {
@@ -58,7 +58,7 @@ export const places: Place[] = [
     address: '東京・淺草',
     lat: 35.712,
     lng: 139.798,
-    description: '沿著隅田川的傳統街道、工藝品店與在地小吃。',
+    description: '沿著隅田川的傳統街道、工藝品店與在地小吃',
     columnId: 'day-1',
   },
   {
@@ -70,7 +70,7 @@ export const places: Place[] = [
     address: '東京・澀谷',
     lat: 35.6764,
     lng: 139.6993,
-    description: '市中心裡的森林神社境內，是前往原宿前的靜謐開場。',
+    description: '市中心裡的森林神社境內，是前往原宿前的靜謐開場',
     columnId: 'day-2',
   },
   {
@@ -82,7 +82,7 @@ export const places: Place[] = [
     address: '東京・原宿',
     lat: 35.6702,
     lng: 139.7027,
-    description: '竹下通的流行時尚、可麗餅攤，以及巷弄裡的古著店。',
+    description: '竹下通的流行時尚、可麗餅攤，以及巷弄裡的古著店',
     columnId: 'day-2',
   },
   {
@@ -94,7 +94,7 @@ export const places: Place[] = [
     address: '東京・新宿',
     lat: 35.6852,
     lng: 139.7101,
-    description: '融合日式、英式與法式風格的庭園景觀——晚餐前的放鬆時光。',
+    description: '融合日式、英式與法式風格的庭園景觀——晚餐前的放鬆時光',
     columnId: 'day-2',
   },
   {
@@ -106,7 +106,7 @@ export const places: Place[] = [
     address: '東京・千代田區',
     lat: 35.6984,
     lng: 139.773,
-    description: '電器、動漫周邊與復古遊戲店，全都擠在這個小巧的街區裡。',
+    description: '電器、動漫周邊與復古遊戲店，全都擠在這個小巧的街區裡',
     columnId: 'day-3',
   },
   {
@@ -118,7 +118,7 @@ export const places: Place[] = [
     address: '東京・台場',
     lat: 35.6259,
     lng: 139.7755,
-    description: '傍晚可欣賞彩虹大橋與灣岸天際線。',
+    description: '傍晚可欣賞彩虹大橋與灣岸天際線',
     columnId: 'day-3',
   },
   {
@@ -130,7 +130,7 @@ export const places: Place[] = [
     address: '羽田機場',
     lat: 35.5494,
     lng: 139.7798,
-    description: '航班資訊已確認——15:40 降落羽田機場，接著搭利木津巴士前往新宿。',
+    description: '航班資訊已確認——15:40 降落羽田機場，接著搭利木津巴士前往新宿',
     columnId: 'day-1',
   },
   {
@@ -142,7 +142,7 @@ export const places: Place[] = [
     address: '東京・新宿',
     lat: 35.6938,
     lng: 139.7034,
-    description: '東京柏悅酒店，新宿——電影《愛情，不用翻譯》的取景地，擁有絕美天際線景觀。',
+    description: '東京柏悅酒店，新宿——電影《愛情，不用翻譯》的取景地，擁有絕美天際線景觀',
     columnId: 'day-1',
   },
 ]

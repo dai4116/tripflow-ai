@@ -50,7 +50,7 @@
 
         <div v-if="pickerOpen" class="trip-settings-modal__picker">
           <p v-if="pickerLoading" class="trip-settings-modal__picker-empty">載入中…</p>
-          <p v-else-if="pickerFailed" class="trip-settings-modal__picker-empty">照片載入失敗，請稍後再試。</p>
+          <p v-else-if="pickerFailed" class="trip-settings-modal__picker-empty">照片載入失敗，請稍後再試</p>
           <p v-else-if="photoRefs.length === 0" class="trip-settings-modal__picker-empty">
             找不到這個目的地的照片
           </p>
@@ -246,18 +246,18 @@ function close() {
 function handleSave() {
   const trimmedTitle = title.value.trim()
   if (!trimmedTitle) {
-    titleError.value = '請輸入行程名稱。'
+    titleError.value = '請輸入行程名稱'
     titleInputRef.value?.focus()
     return
   }
 
   if (!startDate.value || !endDate.value) {
-    dateRangeError.value = '請選擇旅遊日期。'
+    dateRangeError.value = '請選擇旅遊日期'
     return
   }
 
   if (new Date(endDate.value).getTime() <= new Date(startDate.value).getTime()) {
-    dateRangeError.value = '結束日期必須晚於開始日期。'
+    dateRangeError.value = '結束日期必須晚於開始日期'
     return
   }
 

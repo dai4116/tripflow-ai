@@ -52,7 +52,7 @@
           輸入地點名稱開始搜尋<br>或選一個分類看附近熱門地點
         </p>
         <p v-else-if="isLoading" class="add-place-modal__empty">搜尋中…</p>
-        <p v-else-if="searchFailed" class="add-place-modal__empty">搜尋發生問題，請稍後再試。</p>
+        <p v-else-if="searchFailed" class="add-place-modal__empty">搜尋發生問題，請稍後再試</p>
         <template v-else>
           <button
             v-for="result in results"
@@ -85,7 +85,7 @@
           </button>
 
           <p v-if="hasSearched && results.length === 0" class="add-place-modal__empty">
-            沒有符合的地點，換個關鍵字或分類試試。
+            沒有符合的地點，換個關鍵字或分類試試
           </p>
         </template>
       </div>

@@ -11,12 +11,19 @@
         :aria-expanded="isOpen"
         :aria-controls="listboxId"
         :aria-activedescendant="activeOptionId"
+        :aria-busy="isSearching || undefined"
         autocomplete="off"
         :placeholder="placeholder"
         :value="modelValue"
         @input="onInput"
         @keydown="onKeydown"
         @blur="onBlur"
+      />
+      <span
+        v-if="isSearching"
+        class="destination-autocomplete__loading"
+        role="status"
+        aria-label="正在搜尋目的地"
       />
       <ul v-if="isOpen" :id="listboxId" class="destination-autocomplete__suggestions" role="listbox">
         <li
@@ -82,7 +89,9 @@ const emit = defineEmits<{
 // this being short: it flushes this timer and awaits one real search, so a
 // large value here would make a submit-time flush noticeably laggy.
 const DEBOUNCE_MS = 150
+const LOADING_INDICATOR_DELAY_MS = 200
 let debounceTimer: number | undefined
+let loadingTimer: number | undefined
 let activeController: AbortController | null = null
 // Separate from activeController above — that one only ever tracks the
 // debounced autocomplete *search*; this tracks the terminal Place Details
@@ -107,6 +116,7 @@ const rootEl = ref<HTMLLabelElement | null>(null)
 const fieldEl = ref<HTMLInputElement | null>(null)
 const suggestions = ref<DestinationSuggestion[]>([])
 const isOpen = ref(false)
+const isSearching = ref(false)
 const highlightedIndex = ref(-1)
 // Bundles every debounced keystroke request plus the terminal Details call
 // into one Google-billed session; regenerated once that session closes (a
@@ -125,29 +135,50 @@ const activeOptionId = computed(() =>
   highlightedIndex.value >= 0 ? `${listboxId}-option-${highlightedIndex.value}` : undefined,
 )
 
+function stopSearchLoading() {
+  window.clearTimeout(loadingTimer)
+  loadingTimer = undefined
+  isSearching.value = false
+}
+
+function startSearchLoading() {
+  stopSearchLoading()
+  loadingTimer = window.setTimeout(() => {
+    loadingTimer = undefined
+    isSearching.value = true
+  }, LOADING_INDICATOR_DELAY_MS)
+}
+
 async function runSearch() {
   const query = props.modelValue.trim()
   activeController?.abort()
   const controller = new AbortController()
   activeController = controller
 
-  const results = await autocompleteDestination(query, sessionToken.value, controller.signal)
-  if (controller.signal.aborted) return
+  try {
+    const results = await autocompleteDestination(query, sessionToken.value, controller.signal)
+    if (controller.signal.aborted) return
 
-  // undefined = the call failed outright (no route locally, key unset,
-  // network error) — leave the dropdown closed with no error UI. This field
-  // is an optional augmentation, not the primary way to fill it in, so a
-  // silent degrade back to plain typing is the right behavior, not a visible
-  // error message (see api/place-photo.ts's fallback-to-gradient for the
-  // same "optional enhancement, never blocks the user" philosophy).
-  if (results === undefined) {
-    suggestions.value = []
-    isOpen.value = false
-    return
+    // undefined = the call failed outright (no route locally, key unset,
+    // network error) — leave the dropdown closed with no error UI. This field
+    // is an optional augmentation, not the primary way to fill it in, so a
+    // silent degrade back to plain typing is the right behavior, not a visible
+    // error message (see api/place-photo.ts's fallback-to-gradient for the
+    // same "optional enhancement, never blocks the user" philosophy).
+    if (results === undefined) {
+      suggestions.value = []
+      isOpen.value = false
+      return
+    }
+    suggestions.value = results
+    highlightedIndex.value = -1
+    isOpen.value = results.length > 0
+  } finally {
+    if (activeController === controller) {
+      activeController = null
+      stopSearchLoading()
+    }
   }
-  suggestions.value = results
-  highlightedIndex.value = -1
-  isOpen.value = results.length > 0
 }
 
 // Handles every side effect of the field's text changing for a real reason
@@ -170,6 +201,8 @@ function handleValueChange(value: string) {
 
   window.clearTimeout(debounceTimer)
   activeController?.abort()
+  activeController = null
+  stopSearchLoading()
 
   if (!value.trim()) {
     suggestions.value = []
@@ -178,6 +211,7 @@ function handleValueChange(value: string) {
     sessionToken.value = crypto.randomUUID()
     return
   }
+  startSearchLoading()
   debounceTimer = window.setTimeout(runSearch, DEBOUNCE_MS)
 }
 
@@ -198,6 +232,8 @@ async function selectSuggestion(suggestion: DestinationSuggestion) {
 
   window.clearTimeout(debounceTimer)
   activeController?.abort()
+  activeController = null
+  stopSearchLoading()
   suggestions.value = []
   isOpen.value = false
   highlightedIndex.value = -1
@@ -279,11 +315,14 @@ function onKeydown(event: KeyboardEvent) {
 function onBlur() {
   window.clearTimeout(debounceTimer)
   activeController?.abort()
+  activeController = null
+  stopSearchLoading()
   isOpen.value = false
 }
 
 onBeforeUnmount(() => {
   window.clearTimeout(debounceTimer)
+  stopSearchLoading()
   activeController?.abort()
   activeDetailsController?.abort()
 })

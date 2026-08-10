@@ -1044,7 +1044,7 @@ function onSaveTripSettings(payload: TripSettingsSavePayload) {
   if (placeIdsToRemove.size > 0) {
     openConfirm({
       title: '縮短行程天數？',
-      message: `新的日期範圍少了 ${dropped.length} 天，這幾天裡的 ${placeIdsToRemove.size} 個地點會一併刪除，刪除後無法復原喔。`,
+      message: `新的日期範圍少了 ${dropped.length} 天，這幾天裡的 ${placeIdsToRemove.size} 個地點會一併刪除，刪除後無法復原喔`,
       confirmLabel: '確定縮短',
       danger: true,
       onConfirm: applyShrink,
@@ -1060,7 +1060,7 @@ function removeDrawerPlace() {
 
   openConfirm({
     title: `移除「${place.name}」？`,
-    message: '這個地點會從行程中移除，移除後無法復原喔。',
+    message: '這個地點會從行程中移除，移除後無法復原喔',
     confirmLabel: '移除',
     danger: true,
     onConfirm: () => {
