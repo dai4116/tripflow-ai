@@ -137,6 +137,11 @@ export type Place = {
   lat: number
   lng: number
   description: string
+  // AI-suggested "best time to visit" slot — see PlaceSuggestion in
+  // generateTrip.ts for how it's assigned. Drives AskAiPanel.vue's
+  // computeRouteOrder bucketing so a night-market-type place can't get
+  // chained into a morning slot just because it's geographically nearest.
+  timeOfDay?: 'morning' | 'afternoon' | 'evening' | 'anytime'
   // English/local-language name used for the initial geocode lookup instead
   // of `name` (which is Traditional Chinese by design) — see PlaceSuggestion
   // in generateTrip.ts. Only set for AI-suggested places.

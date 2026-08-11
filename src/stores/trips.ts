@@ -55,6 +55,9 @@ export type NewPlaceInput = {
   // Google Places id — when present, addPlace rejects a duplicate add of the
   // same real-world place already anywhere in the trip (see addPlace).
   placeId?: string
+  // Set when the place comes from AskAiPanel.vue's suggest_places result —
+  // see Place.timeOfDay. Absent for AddPlaceModal.vue's manual search adds.
+  timeOfDay?: Place['timeOfDay']
 }
 
 export const useTripsStore = defineStore('trips', () => {
@@ -362,6 +365,7 @@ export const useTripsStore = defineStore('trips', () => {
       columnId: input.columnId,
       photoRef: input.photoRef,
       placeId: input.placeId,
+      timeOfDay: input.timeOfDay,
     }
 
     places.value.push(place)

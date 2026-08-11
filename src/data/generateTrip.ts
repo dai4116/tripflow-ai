@@ -485,33 +485,38 @@ function distanceKm(a: GeoPoint, b: GeoPoint): number {
 }
 
 // 'anytime' shares 'afternoon''s weight — no strong timing opinion reads as
-// flexible middle-of-day filler, not as its own separate slot.
-const TIME_BUCKET_WEIGHT: Record<string, number> = { morning: 0, afternoon: 1, anytime: 1, evening: 2 }
+// flexible middle-of-day filler, not as its own separate slot. Exported so
+// AskAiPanel.vue's post-edit route reorder can bucket the same way instead
+// of drifting out of sync with a second copy of these weights.
+export const TIME_BUCKET_WEIGHT: Record<string, number> = { morning: 0, afternoon: 1, anytime: 1, evening: 2 }
 
-// Orders a day's places into a same-day-sensible sequence instead of
-// whatever order they happened to survive AI generation + verification in.
-// Two passes: group by time-of-day bucket first (morning before afternoon
-// before evening) — this has to come first because computeArrivalTimes
-// (placeSchedule.ts) turns display order directly into clock times starting
-// at 08:00, so a night-market-type place landing early in the array would
-// show an absurd morning arrival time. Within each bucket, chain by nearest
-// neighbor (greedy, not true shortest-path — overkill for the 3-5 stops a
-// day actually has) so the route itself doesn't zigzag. Places missing
-// coordinates (the no-Google-key fallback path) just keep their relative
-// order within their bucket, since there's nothing to measure distance from.
-function orderDayPlaces(suggestions: PlaceSuggestion[]): PlaceSuggestion[] {
-  if (suggestions.length <= 1) return suggestions
-
-  const buckets = new Map<number, PlaceSuggestion[]>()
-  for (const suggestion of suggestions) {
-    const weight = TIME_BUCKET_WEIGHT[suggestion.timeOfDay ?? 'anytime'] ?? TIME_BUCKET_WEIGHT.afternoon!
-    const bucket = buckets.get(weight) ?? []
-    bucket.push(suggestion)
-    buckets.set(weight, bucket)
+// Buckets items by an ascending ordinal weight (time-of-day, typically —
+// see TIME_BUCKET_WEIGHT), then within each bucket chains them by greedy
+// nearest neighbor (not true shortest-path — overkill for the handful of
+// stops a day actually has), starting each bucket from wherever the
+// previous bucket's chain left off. `hasCoords` lets a caller skip items
+// with no real position from the distance race entirely — they still get
+// placed (via the `nextIndex` default of 0), just in their original
+// relative order within the bucket, since there's nothing to measure them
+// against. Shared by generateTrip.ts's generation-time day ordering and
+// AskAiPanel.vue's post-edit "依路線排序" so the two don't drift apart —
+// they differ only in which distance metric and coordinate guarantee they
+// pass in.
+export function orderByTimeBucket<T>(
+  items: T[],
+  weightOf: (item: T) => number,
+  distance: (from: T, to: T) => number,
+  hasCoords: (item: T) => boolean = () => true,
+): T[] {
+  const buckets = new Map<number, T[]>()
+  for (const item of items) {
+    const bucket = buckets.get(weightOf(item)) ?? []
+    bucket.push(item)
+    buckets.set(weightOf(item), bucket)
   }
 
-  const ordered: PlaceSuggestion[] = []
-  let current: GeoPoint | null = null
+  const ordered: T[] = []
+  let current: T | null = null
   for (const weight of [...buckets.keys()].sort((a, b) => a - b)) {
     const remaining = buckets.get(weight)!
     while (remaining.length > 0) {
@@ -521,19 +526,36 @@ function orderDayPlaces(suggestions: PlaceSuggestion[]): PlaceSuggestion[] {
         for (let i = 0; i < remaining.length; i++) {
           const candidate = remaining[i]!
           if (!hasCoords(candidate)) continue
-          const distance = distanceKm(current, candidate)
-          if (distance < bestDistance) {
-            bestDistance = distance
+          const dist = distance(current, candidate)
+          if (dist < bestDistance) {
+            bestDistance = dist
             nextIndex = i
           }
         }
       }
       const [next] = remaining.splice(nextIndex, 1)
       ordered.push(next!)
-      if (hasCoords(next!)) current = { lat: next!.lat, lng: next!.lng }
+      if (hasCoords(next!)) current = next!
     }
   }
   return ordered
+}
+
+// Orders a day's places into a same-day-sensible sequence instead of
+// whatever order they happened to survive AI generation + verification in.
+// Time-of-day has to be sorted first because computeArrivalTimes
+// (placeSchedule.ts) turns display order directly into clock times starting
+// at 08:00, so a night-market-type place landing early in the array would
+// show an absurd morning arrival time.
+function orderDayPlaces(suggestions: PlaceSuggestion[]): PlaceSuggestion[] {
+  if (suggestions.length <= 1) return suggestions
+
+  return orderByTimeBucket(
+    suggestions,
+    (suggestion) => TIME_BUCKET_WEIGHT[suggestion.timeOfDay ?? 'anytime'] ?? TIME_BUCKET_WEIGHT.afternoon!,
+    (from, to) => distanceKm(from as GeoPoint, to as GeoPoint),
+    hasCoords,
+  )
 }
 
 // A flat assumed gap between consecutive stops (typical short transit/buffer
@@ -688,6 +710,7 @@ export function generateTrip(
       columnId,
       photoRef: suggestion.photoRef,
       placeId: suggestion.placeId,
+      timeOfDay: suggestion.timeOfDay,
     }
     places.push(place)
     return place

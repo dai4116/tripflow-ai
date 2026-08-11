@@ -18,6 +18,7 @@ type VercelLikeResponse = {
 }
 
 const PLACE_CATEGORIES = ['food', 'attraction', 'shopping', 'stay', 'transport', 'other'] as const
+const TIME_OF_DAY_OPTIONS = ['morning', 'afternoon', 'evening', 'anytime'] as const
 
 // Each tool carries its own `message` field — a Traditional Chinese
 // confirmation sentence — so the whole exchange (decide + explain) happens
@@ -70,8 +71,9 @@ const TOOLS: Anthropic.Tool[] = [
               geocodeQuery: { type: 'string' },
               geocodeQueryAlt: { type: 'string' },
               description: { type: 'string' },
+              timeOfDay: { type: 'string', enum: TIME_OF_DAY_OPTIONS },
             },
-            required: ['category', 'name', 'geocodeQuery', 'description'],
+            required: ['category', 'name', 'geocodeQuery', 'description', 'timeOfDay'],
             additionalProperties: false,
           },
         },
@@ -81,6 +83,25 @@ const TOOLS: Anthropic.Tool[] = [
         // phrasing happens to mention them (it was inconsistent).
       },
       required: ['columnId', 'places'],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
+  {
+    name: 'reorder_day',
+    description:
+      '把某一天「所有」地點依地理位置重新排序，讓當天路線比較順、不繞路。使用者要求整天重新排序時使用，說法可能是按路線排、順路一點、一鍵排序、幫我整理路線、重新排一次等；只是要搬動單一地點到別天，請用 move_place。',
+    input_schema: {
+      type: 'object',
+      properties: {
+        columnId: { type: 'string', description: '要重新排序的那一天的 column ID（從提供的行程資料中選擇）' },
+        // No `message` field — same reasoning as suggest_places. The actual
+        // reordering is computed client-side from real lat/lng (see
+        // AskAiPanel.vue's computeRouteOrder), not guessed by the model, so
+        // the confirmation sentence is built there too instead of trusting
+        // Claude to describe a route it never actually computed.
+      },
+      required: ['columnId'],
       additionalProperties: false,
     },
     strict: true,
@@ -118,8 +139,10 @@ function buildPrompt(message: string, destination: string, columns: ColumnSummar
     '',
     `使用者的訊息：「${message}」`,
     '',
-    '請根據使用者的意圖，判斷是否該呼叫其中一個工具（move_place / remove_place / suggest_places）。',
+    '請根據使用者的意圖，判斷是否該呼叫其中一個工具（move_place / remove_place / suggest_places / reorder_day）。',
+    'reorder_day 只適用於使用者要求「整天」重新排序、按路線排、順路一點的情境，包括各種不同說法，例如「一鍵排序」「幫我整理路線」「順序亂了幫我排一下」「重新排一次」等——只要意思是整天重排就算；如果只是要搬動某一個特定地點到別天，請用 move_place。',
     'suggest_places 建議的地點名稱優先使用繁體中文慣用名稱，不要同時附上英文原文或重複的括號翻譯（例如寫「洽圖洽週末市場」，不要寫「Chatuchak Weekend Market（洽圖洽週末市場）」）。若沒有通行的繁體中文名稱，或外文是官方品牌名稱，請保留官方名稱；分店、分校、校區等必要辨識資訊可用繁體中文括號註明（例如「Wall Street English（信義分校）」）。',
+    'suggest_places 每個地點另外要填 timeOfDay 欄位，標示這個地點通常/最適合什麼時段前往：morning（適合上午，例如市場、日出景點）、afternoon（適合下午，沒有明顯時段限制的多數景點也可以用這個）、evening（只適合晚上或傍晚以後，例如夜市、酒吧、夜景、只供應晚餐的餐廳）、anytime（真的完全不受時段限制，例如大型商場、一般博物館）。請依你對這個地點的實際了解判斷，不要每個都填同一個值敷衍。',
     'suggest_places 每個地點另外提供 geocodeQuery 欄位：這是給地圖服務（OpenStreetMap）查詢定位用的完整字串，不會顯示給使用者。格式必須是「地點官方名稱, 城市, 國家」，三段全部使用同一種語言，而且優先使用當地官方語言（地圖資料庫幾乎都是用當地語言登記，翻成英文常常查不到或誤配到不相關的地方）；只有目的地本身是英語系國家，或這個地點是國際連鎖品牌慣用英文名稱時，才用英文。絕對不要中文和其他語言混用在同一個 geocodeQuery 裡。只有目的地本身是華語地區時，才整段使用中文。',
     '如果不確定正式登記名稱，額外提供 geocodeQueryAlt 欄位（格式同 geocodeQuery，但用更簡短通用的說法），作為查詢失敗時的備援；有把握的話可以不用提供。若地點名稱本身把城市名黏在前面（例如「부산영화체험박물관」），這種寫法常常查不到，geocodeQueryAlt 請把城市名從地點名稱裡拿掉、只留給城市欄位。',
     'suggest_places 只推薦你有信心真實存在的景點，不要為了湊數量而生造出聽起來像正式機構、但你不確定是否存在的名稱。不確定某個細分機構是否存在時，請改推薦你比較有把握的知名地標，或更廣義但確實存在的地點。',

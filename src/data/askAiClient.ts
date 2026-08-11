@@ -20,6 +20,11 @@ export type AskAiResult =
   // `places` on the client (see AskAiPanel.vue) instead of trusting the
   // model to consistently name them in free-form text.
   | { type: 'suggest_places'; columnId: string; places: PlaceSuggestion[] }
+  // No `message` — same reasoning as suggest_places above: the client
+  // computes the actual reorder from real lat/lng and builds its own
+  // confirmation text (see AskAiPanel.vue's routeReplyMessage) instead of
+  // trusting Claude to describe a route it never computed.
+  | { type: 'reorder_day'; columnId: string }
   | { type: 'text'; text: string }
 
 // Talks to /api/ask-ai (a Vercel serverless function using Claude tool use
@@ -62,6 +67,9 @@ export async function fetchAskAiResult(
     }
     if (data.name === 'suggest_places' && typeof input.columnId === 'string' && Array.isArray(input.places)) {
       return { type: 'suggest_places', columnId: input.columnId, places: input.places as PlaceSuggestion[] }
+    }
+    if (data.name === 'reorder_day' && typeof input.columnId === 'string') {
+      return { type: 'reorder_day', columnId: input.columnId }
     }
 
     return undefined

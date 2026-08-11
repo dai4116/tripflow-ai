@@ -125,6 +125,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { useIsMobile } from '../../composables/useIsMobile'
 import type { AskAiColumnSummary, AskAiResult } from '../../data/askAiClient'
 import { fetchAskAiResult } from '../../data/askAiClient'
+import { orderByTimeBucket, TIME_BUCKET_WEIGHT } from '../../data/generateTrip'
 import type { PlaceSuggestion } from '../../data/generateTrip'
 import { useTripsStore } from '../../stores/trips'
 import type { Place, TripColumn } from '../../types'
@@ -228,8 +229,10 @@ function rebalanceMessage(suggestion: { place: Place; fromColumn: TripColumn; to
 // Route ordering is deterministic geography, not something worth asking a
 // language model to guess at from place names — so unlike the other two
 // suggestion kinds, this never goes through sendMessage()/the real AI call.
-// It's computed straight from each place's lat/lng with a nearest-neighbor
-// heuristic, anchored at the day's current first stop.
+// It's computed straight from each place's lat/lng with a time-bucketed
+// nearest-neighbor heuristic (see orderByTimeBucket) — the chain starts at
+// the first place in the day's earliest non-empty timeOfDay bucket, not
+// necessarily whichever place is currently first on the board.
 type RouteOrderResult =
   | { status: 'insufficient' }
   | { status: 'optimal' }
@@ -255,28 +258,19 @@ function computeRouteOrder(column: TripColumn): RouteOrderResult {
   const flexible = places.filter((place) => !isRouteAnchor(place))
   if (flexible.length < 2) return { status: 'optimal' }
 
-  const remaining = new Set(flexible)
-  const start = flexible[0]!
-  remaining.delete(start)
-  const ordered = [start]
-  let current = start
-
-  while (remaining.size > 0) {
-    let nearest: Place | undefined
-    let nearestDistance = Infinity
-    for (const candidate of remaining) {
-      const dLat = current.lat - candidate.lat
-      const dLng = current.lng - candidate.lng
-      const distance = dLat * dLat + dLng * dLng
-      if (distance < nearestDistance) {
-        nearestDistance = distance
-        nearest = candidate
-      }
-    }
-    ordered.push(nearest!)
-    remaining.delete(nearest!)
-    current = nearest!
-  }
+  // Bucket by timeOfDay first (via the same helper/weights generateTrip.ts's
+  // orderDayPlaces uses) so a night-market-type place can't get chained
+  // into a morning slot just because it happens to be geographically
+  // nearest — only places that share a bucket race each other on distance.
+  // Squared-distance (not Haversine) is plenty for comparing which of a
+  // handful of same-city candidates is closer; coordinates are guaranteed
+  // real here (the 'insufficient' guard above already ruled out 0,0), so
+  // hasCoords is left at its always-true default.
+  const ordered = orderByTimeBucket(
+    flexible,
+    (place) => TIME_BUCKET_WEIGHT[place.timeOfDay ?? 'anytime'] ?? TIME_BUCKET_WEIGHT.afternoon!,
+    (from, to) => (from.lat - to.lat) ** 2 + (from.lng - to.lng) ** 2,
+  )
 
   // Anchors keep their original index; the reordered flexible places fill
   // in the remaining slots in order.
@@ -346,6 +340,7 @@ function applyIntent(intent: AiIntent) {
         description: place.description,
         geocodeQuery: place.geocodeQuery,
         geocodeQueryAlt: place.geocodeQueryAlt,
+        timeOfDay: place.timeOfDay,
       })
     }
     emit('applied', intent.columnId)
@@ -446,6 +441,16 @@ function messageFromAskAiResult(result: AskAiResult): Omit<AiMessage, 'id' | 'ro
       actions: suggestionActions(),
       intent: { type: 'remove', placeId: result.placeId },
     }
+  }
+
+  if (result.type === 'reorder_day') {
+    // Same client-computed heuristic as the "依路線排序" suggestion chip
+    // (sendRouteRequest) — reused here so a typed-out request ("幫我把第三
+    // 天順序按路線排一下") gets the same real answer instead of Claude
+    // declining because none of its other tools fit "reorder a whole day".
+    const targetColumn = activeTrip.value?.columns.find((item) => item.id === result.columnId)
+    if (!targetColumn) return { text: '這個行程沒有找到那一天。' }
+    return routeReplyMessage(targetColumn, computeRouteOrder(targetColumn))
   }
 
   // The confirmation sentence is built entirely here, not from a Claude-
