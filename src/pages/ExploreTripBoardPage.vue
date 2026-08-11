@@ -309,7 +309,12 @@ function viewOnMap() {
 
 function openGoogleMapsPlace() {
   if (!drawerPlace.value) return
-  window.open(googleMapsPlaceUrl(drawerPlace.value), '_blank', 'noopener,noreferrer')
+  const url = googleMapsPlaceUrl(drawerPlace.value)
+  if (isMobile.value) {
+    window.location.href = url
+  } else {
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
 }
 
 function getPlaceDay(columnId: string) {
