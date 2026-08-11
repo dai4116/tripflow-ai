@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict'
 import { afterEach, beforeEach, mock, test } from 'node:test'
-import { CLIENT_HARD_MAX_PLACES_PER_DAY } from './_lib/tripGen.ts'
 
-type StreamResult = { content: { type: string; text?: string }[] }
+type StreamResult = {
+  content: { type: string; text?: string }[]
+  usage: { cache_read_input_tokens: number | null; cache_creation_input_tokens: number | null }
+}
 let currentStream: () => { finalMessage: () => Promise<StreamResult> } = () => {
   throw new Error('currentStream not configured for this test')
 }
@@ -35,7 +37,16 @@ function fakeRes() {
 }
 
 function textStream(payload: unknown) {
-  return () => ({ finalMessage: async () => ({ content: [{ type: 'text', text: JSON.stringify(payload) }] }) })
+  return () => ({
+    finalMessage: async () => ({
+      content: [{ type: 'text', text: JSON.stringify(payload) }],
+      // The real SDK always returns usage on a successful response — this
+      // mock fills it in so the handler's cache-hit log line (see
+      // generate-trip-day.ts) doesn't crash on a field real responses always
+      // have. Values here are arbitrary; no test asserts on them.
+      usage: { cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+    }),
+  })
 }
 
 type Candidate = { day: number; category: string; name: string; geocodeQuery: string; description: string; estimatedTimeHours: number }
@@ -162,12 +173,14 @@ test('with a Google key: verifies, dedups same-place candidates, and keeps every
   assert.deepEqual(body.places.map((p) => p.placeId), ['google-1', 'google-2', 'google-3'])
 })
 
-test('the accept ceiling never exceeds CLIENT_HARD_MAX_PLACES_PER_DAY, even for a packed-pace targetPlaceCount whose own +buffer would exceed it', async (t) => {
+test('the accept ceiling is targetPlaceCount + PER_DAY_BUFFER with no further clamp, even for a packed-pace targetPlaceCount past the client-side hard max', async (t) => {
   process.env.GOOGLE_PLACES_API_KEY = 'test-key'
-  // targetPlaceCount(10) + PER_DAY_BUFFER(2) = 12, well past
-  // CLIENT_HARD_MAX_PLACES_PER_DAY(7) — the client's own duration-budget
-  // walk never keeps more than 7 for one day, so the server shouldn't ship
-  // more than that many fully-verified candidates only to have them discarded.
+  // targetPlaceCount(10) + PER_DAY_BUFFER(2) = 12, past the client's own
+  // HARD_MAX_PLACES_PER_DAY(7) — no longer clamped down to 7 here (see
+  // overAskCountFor's own comment: the old clamp zeroed out exactly the
+  // buffer packed-pace days need most, forcing an avoidable backfill round
+  // on any ordinary verification attrition). The client's own duration-
+  // budget walk in generateTrip.ts still does the real trim downstream.
   const names = Array.from({ length: 12 }, (_, i) => `P${i}`)
   currentStream = textStream({ places: names.map((name) => candidate(name, 2, name)) })
   t.mock.method(globalThis, 'fetch', async (_url: string, init: RequestInit) => {
@@ -181,7 +194,51 @@ test('the accept ceiling never exceeds CLIENT_HARD_MAX_PLACES_PER_DAY, even for 
   await handler(fakeReq({ body: { ...BASE_BODY, targetPlaceCount: 10 } }), res)
   assert.equal(res.statusCode, 200)
   const body = res.body as { places: unknown[] }
-  assert.equal(body.places.length, CLIENT_HARD_MAX_PLACES_PER_DAY)
+  assert.equal(body.places.length, 12)
+})
+
+test('photo fetches are limited to the first targetPlaceCount accepted places, leaving the PER_DAY_BUFFER backups without a photoRef', async (t) => {
+  process.env.GOOGLE_PLACES_API_KEY = 'test-key'
+  // targetPlaceCount=2, PER_DAY_BUFFER=2 -> overAskCount=4. All 4 verify to
+  // the same coordinates (so none are dropped by the geographic-anchor
+  // filter), isolating the photo-fetch trim as the only thing that can
+  // leave a later candidate without a photoRef.
+  // Query strings distinct from any other test's in this file — placesVerify.ts's
+  // module-level cache Map persists across tests in the same process, so
+  // reusing another test's exact query string would silently return that
+  // test's stale cached result instead of hitting this test's own mock.
+  currentStream = textStream({
+    places: [
+      candidate('A', 2, 'photo-trim-query-a'),
+      candidate('B', 2, 'photo-trim-query-b'),
+      candidate('C', 2, 'photo-trim-query-c'),
+      candidate('D', 2, 'photo-trim-query-d'),
+    ],
+  })
+  t.mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+    if (init?.method === 'GET') {
+      // getPlaceCoverPhotos — placeId is the last URL segment.
+      const placeId = decodeURIComponent(url.split('/places/')[1]!)
+      return new Response(JSON.stringify({ photos: [{ name: `photo-for-${placeId}` }] }), { status: 200 })
+    }
+    const { textQuery } = JSON.parse(init!.body as string) as { textQuery: string }
+    return new Response(
+      JSON.stringify({ places: [{ id: `google-${textQuery}`, displayName: { text: textQuery }, location: { latitude: 35, longitude: 135 } }] }),
+      { status: 200 },
+    )
+  })
+  const res = fakeRes()
+  await handler(fakeReq({ body: { ...BASE_BODY, targetPlaceCount: 2 } }), res)
+  assert.equal(res.statusCode, 200)
+  const body = res.body as { places: { photoRef?: string }[] }
+  assert.equal(body.places.length, 4)
+  // Confidence order (A, B, C, D) is preserved through dedup/anchor
+  // filtering — A and B (the first targetPlaceCount=2) get a photoRef; C
+  // and D (the PER_DAY_BUFFER backups) don't.
+  assert.deepEqual(
+    body.places.map((p) => Boolean(p.photoRef)),
+    [true, true, false, false],
+  )
 })
 
 test('the first accepted candidate becomes the day anchor when no existingAnchor is given, dropping far-away later candidates', async (t) => {

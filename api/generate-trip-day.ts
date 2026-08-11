@@ -3,6 +3,7 @@ import { stripBilingualName } from './_lib/placeName.js'
 import { distanceKm, geocodeCityCenter, getPlaceCoverPhotos, verifyPlace, type GeoPoint } from './_lib/placesVerify.js'
 import {
   buildDayPrompt,
+  buildDaySystemPrompt,
   mapWithConcurrency,
   overAskCountFor,
   PLACE_SCHEMA,
@@ -15,6 +16,13 @@ import {
   type VercelLikeResponse,
   type ZoneHint,
 } from './_lib/tripGen.js'
+
+// Computed once at module scope, not per-request — buildDaySystemPrompt()
+// takes no arguments and its output never changes, so building it fresh on
+// every invocation would be pure waste. Sent as a cached `system` block (see
+// its own comment) so this exact text is billed once per cache window
+// instead of once per day-request.
+const DAY_SYSTEM_PROMPT = buildDaySystemPrompt()
 
 // Generates + verifies candidates for exactly ONE day, chosen by the caller
 // (see DAYS_PER_REQUEST in src/data/aiTripClient.ts). This replaced the old
@@ -147,6 +155,14 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
         max_tokens: 8000,
         thinking: { type: 'disabled' },
         output_config: { format: { type: 'json_schema', schema: PLACE_SCHEMA } },
+        // Cached — see DAY_SYSTEM_PROMPT/buildDaySystemPrompt's own comment.
+        // Render order is tools -> system -> messages, and prompt caching is
+        // a prefix match, so this has to stay ahead of (and byte-identical
+        // across) every request for the breakpoint to ever be read instead
+        // of rewritten. Only one breakpoint needed: everything here is
+        // static, so there's nothing later in `system` that would need its
+        // own marker.
+        system: [{ type: 'text', text: DAY_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
         messages: [
           {
             role: 'user',
@@ -184,7 +200,17 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
         console.error(`[generate-trip-day] day ${day}: dropped a candidate with an unusable name field`, error)
       }
     }
-    console.log(`[generate-trip-day] day ${day}: ${aiPlaces.length} candidates, ${Date.now() - handlerStart}ms elapsed`)
+    // cache_read_input_tokens > 0 confirms the system-prompt cache breakpoint
+    // above is actually being hit in production, not just correctly
+    // configured — see buildDaySystemPrompt's own comment for why this
+    // exists. cache_creation_input_tokens is expected to be nonzero on
+    // whichever request in a cache window happens to run first (it pays the
+    // one-time write); a sustained run of zero cache_read across many
+    // requests, with no corresponding cache_creation, is the sign of a
+    // silent invalidator, not proof the feature isn't working.
+    console.log(
+      `[generate-trip-day] day ${day}: ${aiPlaces.length} candidates, ${Date.now() - handlerStart}ms elapsed, cache read/write tokens: ${response.usage.cache_read_input_tokens ?? 0}/${response.usage.cache_creation_input_tokens ?? 0}`,
+    )
 
     const googleKey = process.env.GOOGLE_PLACES_API_KEY
     if (!googleKey) {
@@ -249,7 +275,8 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
     // A loose sanity ceiling, not an exact cap — the precise trim against
     // this day's real duration budget happens client-side in
     // generateTrip.ts once every candidate's estimatedTimeHours is known.
-    // See overAskCountFor's own comment for why it's already clamped.
+    // See overAskCountFor's own comment for why it's sized targetPlaceCount +
+    // PER_DAY_BUFFER with no further clamp.
     const MAX_ACCEPTED_PER_DAY = overAskCountFor(targetPlaceCount!)
     let anchor: GeoPoint | null = existingAnchor ?? null
     const accepted: typeof deduped = []
@@ -284,7 +311,22 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
     // on record, or whose fetch fails, is left with no photoRef — already a
     // normal, well-handled case (see Place.photoRef in src/types/index.ts),
     // so this is best-effort and never fails the whole request.
-    const withPhotos = await mapWithConcurrency(accepted, VERIFY_CONCURRENCY, async (place) => {
+    //
+    // Only fetched for the first targetPlaceCount of `accepted` (in the AI's
+    // own confidence order, preserved through dedup/anchor-filtering above),
+    // not the full over-asked+buffered list — targetPlaceCount is the soft
+    // target the client's duration-budget walk actually aims to fill (see
+    // its own comment in generateTrip.ts), while the PER_DAY_BUFFER
+    // candidates beyond it exist purely as backup against verification loss
+    // (see overAskCountFor's own comment) and, on a day with little or no
+    // attrition, usually don't survive that walk's trim. Paying Enterprise-
+    // tier pricing (see getPlaceCoverPhotos' own comment) for a photo on
+    // backup candidates that are more often discarded than kept is exactly
+    // the over-ask buffer's cost leaking into a step it was never meant to
+    // reach. A backup candidate that DOES survive the trim just has no
+    // photoRef — the same well-handled case as any other photo-fetch miss.
+    const photoEligible = accepted.slice(0, targetPlaceCount!)
+    const withPhotosForEligible = await mapWithConcurrency(photoEligible, VERIFY_CONCURRENCY, async (place) => {
       try {
         const photos = await getPlaceCoverPhotos(googleKey, place.placeId, controller.signal)
         return { ...place, photoRef: photos[0] ?? place.photoRef }
@@ -292,6 +334,7 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
         return place
       }
     })
+    const withPhotos = [...withPhotosForEligible, ...accepted.slice(targetPlaceCount!)]
 
     console.log(`[generate-trip-day] done: ${Date.now() - handlerStart}ms elapsed, day ${day}, returning ${withPhotos.length} places`)
     res.status(200).json({ places: withPhotos })

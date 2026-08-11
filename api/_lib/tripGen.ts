@@ -120,25 +120,28 @@ export function styleFlavorLines(travelStyle: string[] | undefined): string {
 // ceiling is sized against this same constant so the two stay coordinated.
 export const PER_DAY_BUFFER = 2
 
-// Mirrors src/data/generateTrip.ts's HARD_MAX_PLACES_PER_DAY — the client's
-// duration-budget walk never keeps more than this many places for one day
-// regardless of how many verified candidates it received. Declared before
-// overAskCountFor so that function can clamp against it directly (see its
-// own comment). Duplicated here rather than imported: api/ and src/ are
-// independent deployable units (see e.g. PLACE_CATEGORIES/STYLE_FLAVOR above).
-export const CLIENT_HARD_MAX_PLACES_PER_DAY = 7
-
 // The one place this "+ PER_DAY_BUFFER" arithmetic is computed, so
 // buildDayPrompt's prompt copy and generate-trip-day.ts's server-side accept
-// ceiling can't independently drift out of sync with each other. Clamped at
-// CLIENT_HARD_MAX_PLACES_PER_DAY: a packed day's targetPlaceCount (up to 7)
-// plus PER_DAY_BUFFER would otherwise ask the model for candidates that could
-// never be used anyway (each one costing real output tokens on top of a
-// Google Places verification call), since the client-side duration-budget
-// walk never keeps more than CLIENT_HARD_MAX_PLACES_PER_DAY places for one
-// day regardless of how many verified candidates it receives.
+// ceiling can't independently drift out of sync with each other.
+//
+// Deliberately NOT clamped against the client's own HARD_MAX_PLACES_PER_DAY
+// (7, see generateTrip.ts) — an earlier version of this function was, on the
+// reasoning that "the client-side duration walk never keeps more than 7
+// places anyway, so asking for more just wastes output tokens." That
+// backfires exactly on the days that need the buffer most: a packed-pace
+// day's targetPlaceCount is already at 7 (its own max), so the old clamp
+// pinned overAskCount right back down to 7 too — zero actual buffer. Losing
+// even ONE candidate to ordinary Google Places verification attrition
+// (unfindable name, wrong-city distance check, this day's own
+// geographic-anchor filter in generate-trip-day.ts) then dropped the day
+// below its target and triggered aiTripClient.ts's backfill round — a whole
+// second Claude call plus another overAskCount worth of Google verification
+// calls, just to recover the one place that was lost. The extra output
+// tokens on a few more candidates (this function's worst case is 12, since
+// targetPlaceCount is validated to at most 10) cost far less than one
+// avoidable backfill round.
 export function overAskCountFor(targetPlaceCount: number): number {
-  return Math.min(targetPlaceCount + PER_DAY_BUFFER, CLIENT_HARD_MAX_PLACES_PER_DAY)
+  return targetPlaceCount + PER_DAY_BUFFER
 }
 
 // The one interest-preference option (see src/data/mockPreferences.ts's
@@ -274,12 +277,42 @@ export function buildZonePlanPrompt(ctx: TripContext, totalDays: number): string
     .join('\n')
 }
 
+// The output-format rules below (categories/name/description, timeOfDay,
+// estimatedTimeHours, naming conventions, geocodeQuery/geocodeQueryAlt, the
+// "only recommend places you're confident are real" rule) are byte-identical
+// on EVERY generate-trip-day request — nothing here depends on ctx, day, or
+// pace. Split out from buildDayPrompt so generate-trip-day.ts can send this
+// as a `system` block with `cache_control: { type: 'ephemeral' }` instead of
+// folding it into the per-request user message: since every day-request
+// across every trip shares this exact text, the first request in a cache
+// window pays the ~1.25x write premium and every other one within the TTL
+// (including this same trip's own other days, requested in parallel/soon
+// after) reads it at ~10% of normal input-token cost instead of repaying
+// full price for the same ~2000 characters of rules every single time.
+// Never varies, so it takes no parameters.
+export function buildDaySystemPrompt(): string {
+  return [
+    '每個景點包含分類、名稱、一句簡短描述（繁體中文）。',
+    '另外每個景點都要填 timeOfDay 欄位，標示這個地點通常/最適合什麼時段前往：morning（適合上午，例如市場、日出景點）、afternoon（適合下午，沒有明顯時段限制的多數景點也可以用這個）、evening（只適合晚上或傍晚以後，例如夜市、酒吧、夜景、只供應晚餐的餐廳）、anytime（真的完全不受時段限制，例如大型商場、一般博物館）。請依你對這個地點的實際了解判斷，不要每個都填同一個值敷衍——這個欄位會直接影響行程排序與顯示時間。',
+    `每個景點也請填 estimatedTimeHours 欄位——一般遊客實際會在這個地點停留的時數（可以有小數，例如 1.5），只算停留時間本身，不用算進交通時間，且不會低於 1 小時。請依地點的實際性質估算，不要每個都填同一個數字：一餐飯約 1-2 小時；大型主題樂園、超大型展館可以到 4 小時以上；其餘大多數地點（地標、博物館、公園、商圈、老街）都落在 1-3 小時之間，實際多少取決於這個地點本身的規模，以及會玩得多深入——例如淺草寺，如果只是拍雷門大燈籠、入本堂參拜、走馬看花，約 1 小時就夠；但如果會逛仲見世商店街、吃傳統小吃、抽籤買御守，就要抓 2-3 小時。請同時參考這位旅客的旅遊風格與興趣偏好（見上方）判斷這趟通常會怎麼玩：「精準規劃」這類重效率、行程緊湊的風格，同一個地點通常抓比較短；「自在慢旅」這類不趕行程、重視細看慢逛的風格，或「在地體驗」「必吃美食」這類偏好，同一個地點可以抓比較長。`,
+    '名稱優先使用繁體中文慣用名稱，不要同時附上英文原文或重複的括號翻譯（例如寫「洽圖洽週末市場」，不要寫「Chatuchak Weekend Market（洽圖洽週末市場）」）。若沒有通行的繁體中文名稱，或外文是官方品牌名稱，請保留官方名稱；分店、分校、校區等必要辨識資訊可用繁體中文括號註明（例如「Wall Street English（信義分校）」）。',
+    '另外提供 geocodeQuery 欄位：這是給地圖服務（OpenStreetMap）查詢定位用的完整字串，不會顯示給使用者。格式必須是「地點官方名稱, 城市, 國家」，三段全部使用同一種語言，而且優先使用當地官方語言（地圖資料庫幾乎都是用當地語言登記地點名稱，翻成英文常常查不到、或誤配到完全不相關的地方）；只有目的地本身是英語系國家，或這個地點是國際連鎖品牌、慣用英文名稱時，才用英文。絕對不要中文和其他語言混用在同一個 geocodeQuery 裡。例如目的地是義大利佛羅倫斯，應填寫「Galleria degli Uffizi, Firenze, Italia」（義大利文），不要翻成「Uffizi Gallery, Florence, Italy」；目的地是韓國釜山，應填寫「부산시립미술관, 부산, 대한민국」（韓文），不要翻成「Busan Museum of Art, Busan, South Korea」。只有目的地本身是華語地區時，才整段使用中文（例如「九份老街, 新北市, 台灣」）。',
+    '如果不確定這個地點在地圖服務上的正式登記名稱（例如是複合式建築、市場、商圈，官方全名可能跟通俗說法不同），請額外提供 geocodeQueryAlt 欄位，格式同 geocodeQuery，但改用更簡短、更通用的常見說法（例如 geocodeQuery 是「Mercato Centrale di San Lorenzo, Firenze, Italia」，geocodeQueryAlt 可以是「Mercato Centrale, Firenze, Italia」），作為查詢失敗時的備援；有把握的話可以不用提供這個欄位。另一種常見狀況是地點名稱本身已經把城市名黏在前面（例如「부산영화체험박물관」），這種寫法常常查不到，這時 geocodeQueryAlt 請把城市名從地點名稱裡拿掉、只留給城市那個欄位（例如寫成「영화체험박물관, 부산, 대한민국」）。',
+    '請「只」推薦你有把握真實存在、地圖上找得到的『具體、明確』地點。兩種常見錯誤都要避免：一是模糊的類別式名稱（例如「清水在地小吃」「中信市場美食」這種不是特定店家/地標的名稱）；二是為了湊類型或數量，生造出聽起來像正式機構、但你不確定是否存在的名稱（例如自己組合出一個「XX博物館」）。不確定某個細分機構是否存在時，請改推薦你比較有把握的知名地標，或是更廣義但確實存在的地點（例如某商圈、某條老街），不要用一個可能不存在的專有名稱硬湊。',
+  ].join('\n')
+}
+
 // Builds the prompt for a single request's single day (see the no-batching
 // rationale in aiTripClient.ts — every request covers exactly one day, which
 // is what lets the caller force-correct the AI's day tag with certainty).
 // zoneHint carries whatever stage-1 theme label is available for this day;
 // missing (stage 1 failed, or didn't cover this day) just produces no zone
-// line, same as the old best-effort fallback.
+// line, same as the old best-effort fallback. Paired with
+// buildDaySystemPrompt (sent separately as a cached `system` block) — this
+// function covers only what actually varies request to request, so it stays
+// out of the way of that block's cache_control breakpoint (prefix-matched
+// caching means anything AFTER the cached content still has to be identical
+// to hit, but content before/separate from it doesn't need to be).
 export function buildDayPrompt(
   ctx: TripContext,
   day: number,
@@ -345,13 +378,6 @@ export function buildDayPrompt(
     wantsMealSlots
       ? '這天的候選景點裡，請至少包含一個美食類地點（分類 food，適合當午餐或晚餐皆可），其餘搭配景點、購物、住宿等不同類型——不用強求午餐、晚餐都各自安排一個，一天有一個吃的就好，把名額留給這天的其他主題/偏好。'
       : '這趟行程沒有特別要求美食類地點，請完全依旅遊風格與興趣偏好決定這天的地點類型組成，不用刻意安排美食地點——如果某個地點剛好符合風格或偏好、恰好是美食類也可以，但不要為了湊「每天都要有吃的」而特地加入。',
-    '每個景點包含分類、名稱、一句簡短描述（繁體中文）。',
-    '另外每個景點都要填 timeOfDay 欄位，標示這個地點通常/最適合什麼時段前往：morning（適合上午，例如市場、日出景點）、afternoon（適合下午，沒有明顯時段限制的多數景點也可以用這個）、evening（只適合晚上或傍晚以後，例如夜市、酒吧、夜景、只供應晚餐的餐廳）、anytime（真的完全不受時段限制，例如大型商場、一般博物館）。請依你對這個地點的實際了解判斷，不要每個都填同一個值敷衍——這個欄位會直接影響行程排序與顯示時間。',
-    `每個景點也請填 estimatedTimeHours 欄位——一般遊客實際會在這個地點停留的時數（可以有小數，例如 1.5），只算停留時間本身，不用算進交通時間，且不會低於 1 小時。請依地點的實際性質估算，不要每個都填同一個數字：一餐飯約 1-2 小時；大型主題樂園、超大型展館可以到 4 小時以上；其餘大多數地點（地標、博物館、公園、商圈、老街）都落在 1-3 小時之間，實際多少取決於這個地點本身的規模，以及會玩得多深入——例如淺草寺，如果只是拍雷門大燈籠、入本堂參拜、走馬看花，約 1 小時就夠；但如果會逛仲見世商店街、吃傳統小吃、抽籤買御守，就要抓 2-3 小時。請同時參考這位旅客的旅遊風格與興趣偏好（見上方）判斷這趟通常會怎麼玩：「精準規劃」這類重效率、行程緊湊的風格，同一個地點通常抓比較短；「自在慢旅」這類不趕行程、重視細看慢逛的風格，或「在地體驗」「必吃美食」這類偏好，同一個地點可以抓比較長。`,
-    '名稱優先使用繁體中文慣用名稱，不要同時附上英文原文或重複的括號翻譯（例如寫「洽圖洽週末市場」，不要寫「Chatuchak Weekend Market（洽圖洽週末市場）」）。若沒有通行的繁體中文名稱，或外文是官方品牌名稱，請保留官方名稱；分店、分校、校區等必要辨識資訊可用繁體中文括號註明（例如「Wall Street English（信義分校）」）。',
-    '另外提供 geocodeQuery 欄位：這是給地圖服務（OpenStreetMap）查詢定位用的完整字串，不會顯示給使用者。格式必須是「地點官方名稱, 城市, 國家」，三段全部使用同一種語言，而且優先使用當地官方語言（地圖資料庫幾乎都是用當地語言登記地點名稱，翻成英文常常查不到、或誤配到完全不相關的地方）；只有目的地本身是英語系國家，或這個地點是國際連鎖品牌、慣用英文名稱時，才用英文。絕對不要中文和其他語言混用在同一個 geocodeQuery 裡。例如目的地是義大利佛羅倫斯，應填寫「Galleria degli Uffizi, Firenze, Italia」（義大利文），不要翻成「Uffizi Gallery, Florence, Italy」；目的地是韓國釜山，應填寫「부산시립미술관, 부산, 대한민국」（韓文），不要翻成「Busan Museum of Art, Busan, South Korea」。只有目的地本身是華語地區時，才整段使用中文（例如「九份老街, 新北市, 台灣」）。',
-    '如果不確定這個地點在地圖服務上的正式登記名稱（例如是複合式建築、市場、商圈，官方全名可能跟通俗說法不同），請額外提供 geocodeQueryAlt 欄位，格式同 geocodeQuery，但改用更簡短、更通用的常見說法（例如 geocodeQuery 是「Mercato Centrale di San Lorenzo, Firenze, Italia」，geocodeQueryAlt 可以是「Mercato Centrale, Firenze, Italia」），作為查詢失敗時的備援；有把握的話可以不用提供這個欄位。另一種常見狀況是地點名稱本身已經把城市名黏在前面（例如「부산영화체험박물관」），這種寫法常常查不到，這時 geocodeQueryAlt 請把城市名從地點名稱裡拿掉、只留給城市那個欄位（例如寫成「영화체험박물관, 부산, 대한민국」）。',
-    '請「只」推薦你有把握真實存在、地圖上找得到的『具體、明確』地點。兩種常見錯誤都要避免：一是模糊的類別式名稱（例如「清水在地小吃」「中信市場美食」這種不是特定店家/地標的名稱）；二是為了湊類型或數量，生造出聽起來像正式機構、但你不確定是否存在的名稱（例如自己組合出一個「XX博物館」）。不確定某個細分機構是否存在時，請改推薦你比較有把握的知名地標，或是更廣義但確實存在的地點（例如某商圈、某條老街），不要用一個可能不存在的專有名稱硬湊。',
   ]
     .filter(Boolean)
     .join('\n')
