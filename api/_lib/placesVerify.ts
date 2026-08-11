@@ -14,12 +14,19 @@
 //
 // Billing: the field mask requests places.location (a Pro-tier field), so
 // each call is a "Text Search Pro" SKU — 5,000 free requests/month, then
-// $32/1000. Callers that also want a cover photo (verifyPlace) opt into
-// places.photos, which bumps THAT call to the pricier Enterprise tier — see
-// includePhotos below. geocodeCityCenter never sets it, since it only reads
-// lat/lng and would otherwise pay Enterprise pricing for a photo it discards.
-// The module-level cache below reuses results within a warm serverless
-// instance to keep billable calls down.
+// $32/1000. places.photos (only requested when includePhotos is set) bumps
+// THAT call to the pricier Enterprise tier — see includePhotos below.
+// verifyPlace deliberately does NOT set it: it runs once per AI-suggested
+// candidate (up to ~7/day, most of which get discarded by the caller's own
+// duration-budget trim), so requesting a photo for every one of them would
+// pay Enterprise pricing — and its shrunken 1,000/month free quota — for
+// photos most candidates never end up needing. Callers that DO want a photo
+// fetch it afterward, only for places that actually survive to the final
+// itinerary (see getPlaceCoverPhotos, reused for this in
+// api/generate-trip-day.ts). geocodeCityCenter never sets it either, since it
+// only reads lat/lng and would otherwise pay Enterprise pricing for a photo
+// it discards. The module-level cache below reuses results within a warm
+// serverless instance to keep billable calls down.
 
 const TEXT_SEARCH_URL = 'https://places.googleapis.com/v1/places:searchText'
 
@@ -282,6 +289,11 @@ export async function geocodeCityCenter(apiKey: string, destination: string, sig
 // primary geocodeQuery, then its shorter geocodeQueryAlt). Rejects a hit that
 // lands too far from the city center. Returns null if nothing verifies — the
 // caller drops the place. Never throws.
+//
+// Deliberately verifies at Text Search Pro tier (no photo) — see the
+// includePhotos billing comment near the top of this file for why. Callers
+// that want a photo fetch one separately, after this candidate has actually
+// been accepted, via getPlaceCoverPhotos.
 export async function verifyPlace(
   apiKey: string,
   queries: string[],
@@ -292,7 +304,7 @@ export async function verifyPlace(
     if (!query?.trim()) continue
     let result: VerifiedPlace | null
     try {
-      result = await textSearchCached(apiKey, query, cityCenter, true, signal)
+      result = await textSearchCached(apiKey, query, cityCenter, false, signal)
     } catch {
       // Transient failure (network / rate limit) — not cached; try the next
       // query, and this place stays eligible on a later generation attempt.
@@ -701,6 +713,10 @@ const COVER_PHOTO_COUNT = 3
 // `photos`) since only each photo's resource name is ever read here —
 // requesting the full Photo object would also pull widthPx/heightPx/
 // authorAttributions for no reason.
+//
+// Also reused by api/generate-trip-day.ts to fetch a place's photoRef after
+// verification — see verifyPlace's own comment for why that's deliberately
+// deferred out of the bulk Text Search call instead of requested there.
 //
 // Throws on network/non-2xx (caller -> 502, transient/retryable). Returns []
 // for a clean response with no photos on record (caller -> 200 with an empty

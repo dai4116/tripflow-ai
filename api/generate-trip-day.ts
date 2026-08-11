@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { stripBilingualName } from './_lib/placeName.js'
-import { distanceKm, geocodeCityCenter, verifyPlace, type GeoPoint } from './_lib/placesVerify.js'
+import { distanceKm, geocodeCityCenter, getPlaceCoverPhotos, verifyPlace, type GeoPoint } from './_lib/placesVerify.js'
 import {
   buildDayPrompt,
   mapWithConcurrency,
@@ -276,8 +276,25 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
       res.status(502).json({ error: 'No verifiable places' })
       return
     }
-    console.log(`[generate-trip-day] done: ${Date.now() - handlerStart}ms elapsed, day ${day}, returning ${accepted.length} places`)
-    res.status(200).json({ places: accepted })
+
+    // Photos are fetched here, per accepted place — not inside verifyPlace's
+    // bulk Text Search above — so this trip only pays for a photo on places
+    // that actually made it into the itinerary, not every over-asked
+    // candidate (see verifyPlace's own comment). A place with no Google photo
+    // on record, or whose fetch fails, is left with no photoRef — already a
+    // normal, well-handled case (see Place.photoRef in src/types/index.ts),
+    // so this is best-effort and never fails the whole request.
+    const withPhotos = await mapWithConcurrency(accepted, VERIFY_CONCURRENCY, async (place) => {
+      try {
+        const photos = await getPlaceCoverPhotos(googleKey, place.placeId, controller.signal)
+        return { ...place, photoRef: photos[0] ?? place.photoRef }
+      } catch {
+        return place
+      }
+    })
+
+    console.log(`[generate-trip-day] done: ${Date.now() - handlerStart}ms elapsed, day ${day}, returning ${withPhotos.length} places`)
+    res.status(200).json({ places: withPhotos })
   } catch (error) {
     console.error('generate-trip-day failed', error)
     res.status(502).json({ error: 'AI generation failed' })
