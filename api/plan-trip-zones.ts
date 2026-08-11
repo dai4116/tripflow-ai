@@ -19,7 +19,20 @@ import { geocodeCityCenter, type GeoPoint } from './_lib/placesVerify.js'
 // generous headroom, nowhere near Vercel's 60s Hobby-tier ceiling.
 export const config = { maxDuration: 20 }
 
-type PlanZonesBody = TripContext & { totalDays?: number }
+type PlanZonesBody = TripContext & {
+  totalDays?: number
+  // Group-relative day numbers (1-indexed against THIS call's own totalDays,
+  // not the whole trip) that a flight actually narrows — see
+  // buildZonePlanPrompt's own comment for why zone planning needs to know
+  // this rather than leaving it to generate-trip-day.ts's later
+  // flightConstraintLine alone. Sent only for the city group that actually
+  // owns the trip's real first/last absolute day (aiTripClient.ts's
+  // planCitySegments works this out); absent for every other group.
+  arrivalDay?: number
+  arrivalTime?: string
+  departureDay?: number
+  departureTime?: string
+}
 
 export default async function handler(req: VercelLikeRequest, res: VercelLikeResponse) {
   if (req.method !== 'POST') {
@@ -27,13 +40,27 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
     return
   }
 
-  const { destination, travelStyle, preferences, additionalNotes, totalDays } = (req.body ?? {}) as PlanZonesBody
+  const { destination, travelStyle, preferences, additionalNotes, totalDays, arrivalDay, arrivalTime, departureDay, departureTime } =
+    (req.body ?? {}) as PlanZonesBody
   if (!validateDestination(destination)) {
     res.status(400).json({ error: 'Missing destination' })
     return
   }
   if (!validateTotalDays(totalDays)) {
     res.status(400).json({ error: 'Invalid totalDays' })
+    return
+  }
+  // Bounds-checked the same way generate-trip-day.ts validates its own
+  // `day` field — a real client only ever sends a value already correct
+  // (derived from this same totalDays, see aiTripClient.ts's
+  // planCitySegments), so this exists purely as a defensive check at the
+  // network boundary against a malformed body reaching buildZonePlanPrompt.
+  if (arrivalDay !== undefined && (!Number.isInteger(arrivalDay) || arrivalDay < 1 || arrivalDay > totalDays)) {
+    res.status(400).json({ error: 'Invalid arrivalDay' })
+    return
+  }
+  if (departureDay !== undefined && (!Number.isInteger(departureDay) || departureDay < 1 || departureDay > totalDays)) {
+    res.status(400).json({ error: 'Invalid departureDay' })
     return
   }
 
@@ -49,14 +76,22 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
   // controller.signal so a client disconnect cancels the in-flight Claude
   // AND Google calls, not just whichever one the signal happened to reach.
   const [zones, cityCenter] = await Promise.all([
-    planZones(ctx, totalDays, controller.signal),
+    planZones(ctx, totalDays, controller.signal, arrivalDay, arrivalTime, departureDay, departureTime),
     resolveCityCenter(destination, controller.signal),
   ])
 
   res.status(200).json({ zones, cityCenter })
 }
 
-async function planZones(ctx: TripContext, totalDays: number, signal: AbortSignal): Promise<ZoneHint[]> {
+async function planZones(
+  ctx: TripContext,
+  totalDays: number,
+  signal: AbortSignal,
+  arrivalDay?: number,
+  arrivalTime?: string,
+  departureDay?: number,
+  departureTime?: string,
+): Promise<ZoneHint[]> {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return []
 
@@ -71,7 +106,7 @@ async function planZones(ctx: TripContext, totalDays: number, signal: AbortSigna
         max_tokens: 4000,
         thinking: { type: 'disabled' },
         output_config: { format: { type: 'json_schema', schema: ZONE_SCHEMA } },
-        messages: [{ role: 'user', content: buildZonePlanPrompt(ctx, totalDays) }],
+        messages: [{ role: 'user', content: buildZonePlanPrompt(ctx, totalDays, arrivalDay, arrivalTime, departureDay, departureTime) }],
       },
       { signal },
     )

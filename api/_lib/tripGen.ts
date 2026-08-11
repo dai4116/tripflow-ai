@@ -48,7 +48,11 @@ export const PLACE_SCHEMA = {
           // default regardless of what it actually is.
           estimatedTimeHours: { type: 'number' },
         },
-        required: ['day', 'category', 'name', 'geocodeQuery', 'description', 'timeOfDay', 'estimatedTimeHours'],
+        // geocodeQueryAlt is required (not just present-when-offered) —
+        // see buildDaySystemPrompt's own comment on why a confident-sounding
+        // primary query still isn't a safe signal that it'll be the one
+        // Google's database actually matches.
+        required: ['day', 'category', 'name', 'geocodeQuery', 'geocodeQueryAlt', 'description', 'timeOfDay', 'estimatedTimeHours'],
         additionalProperties: false,
       },
     },
@@ -251,10 +255,46 @@ export async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (i
   return results
 }
 
-export function buildZonePlanPrompt(ctx: TripContext, totalDays: number): string {
+export function buildZonePlanPrompt(
+  ctx: TripContext,
+  totalDays: number,
+  // Which of THIS zone plan's own days (1-indexed, same numbering as the
+  // `day` field this prompt asks for below) a flight actually narrows —
+  // aiTripClient.ts resolves this from the whole trip's real first/last
+  // absolute day before calling in, since a flight only ever lands/departs
+  // on the trip's real first/last day, not necessarily day 1 of THIS
+  // particular city's own zone plan (a multi-city trip's later-visited city
+  // doesn't start on day 1 of the whole trip). Undefined when no flight
+  // narrows a day this zone plan covers — a city group that isn't visited
+  // first or last on the whole trip, or arrivalTime/departureTime simply
+  // weren't provided. Without this, stage 1 can hand a day like "近郊自然
+  // 景觀一日遊" (a suburban-nature day trip) to a day that turns out to only
+  // have 4 usable hours after a mid-afternoon landing — by the time
+  // buildDayPrompt's own
+  // flightConstraintLine tries to steer around it, the zone/theme is already
+  // locked in, so it can only pick worse candidates within the wrong theme,
+  // not switch to a theme that actually fits the shortened day.
+  arrivalDay?: number,
+  arrivalTime?: string,
+  departureDay?: number,
+  departureTime?: string,
+): string {
   // FOOD_PREFERENCE excluded — see its own comment for why (guaranteed every
   // day already, doesn't need an "at least one day" assignment here).
   const distributablePreferences = (ctx.preferences ?? []).filter((preference) => preference !== FOOD_PREFERENCE)
+  const flightZoneLine =
+    arrivalDay && departureDay && arrivalDay === departureDay
+      ? `第 ${arrivalDay} 天：旅客要到當地時間 ${arrivalTime} 才抵達，且同一天 ${departureTime} 就要離開（入境與離境都在這天），實際可用時段非常短，這天請安排市區、輕量、彈性高的主題，不要安排需要較長往返時間的近郊/區域景點。`
+      : [
+          arrivalDay
+            ? `第 ${arrivalDay} 天：旅客當地時間 ${arrivalTime} 才會抵達（扣除入境與往返市區的時間，實際能開始遊覽會再晚一點），實際可遊覽時間較短，這天請安排市區、輕量、彈性高的主題，不要安排需要一大早出發、或需要較長往返時間的近郊/區域景點。`
+            : '',
+          departureDay
+            ? `第 ${departureDay} 天：旅客當地時間 ${departureTime} 就要出發前往機場，實際可遊覽時間會提早結束，這天請安排市區、輕量、彈性高的主題，不要安排太遠、或只適合傍晚以後才進行的主題（例如夜市、酒吧、夜景聚焦的行程）。`
+            : '',
+        ]
+          .filter(Boolean)
+          .join('\n')
   return [
     `目的地：${ctx.destination}`,
     ctx.travelStyle?.length ? `旅遊風格：${ctx.travelStyle.join('、')}` : '',
@@ -267,6 +307,7 @@ export function buildZonePlanPrompt(ctx: TripContext, totalDays: number): string
     `請先幫我規劃一趟共 ${totalDays} 天行程的「每日主題與區域」大綱——還不用列出具體景點，只需要決定每天要去哪個區域、聚焦什麼主題。`,
     `請通盤考慮全部 ${totalDays} 天：每天的區域/主題都要不一樣，不要讓同一個知名景點或商圈在兩天的主題描述裡都出現。`,
     '主題請有變化，混合市區文化商圈、老街/夜市、自然景觀與近郊景點、歷史建築等不同類型——不要每天都侷限在市中心最知名的那幾個地方，也請適度考慮比較不那麼觀光客爆滿、但確實存在且值得一去的近郊區域。',
+    flightZoneLine,
     distributablePreferences.length
       ? `以下每一個興趣偏好都請至少分配到一天：${distributablePreferences.join('、')}。請把每個偏好指派給主題/區域最適合它的那一天（例如「逛街購物」指派給有商圈的那天、「自然秘境」指派給近郊/自然景觀的那天），並在該天的 assignedPreferences 欄位填入對應的偏好文字（必須用原字串，不要改寫或翻譯）。天數比偏好數量多時，沒被指派偏好的天可以自由發揮、assignedPreferences 填空陣列；天數比偏好數量少時，允許同一天指派多個偏好。`
       : '',
@@ -297,7 +338,7 @@ export function buildDaySystemPrompt(): string {
     `每個景點也請填 estimatedTimeHours 欄位——一般遊客實際會在這個地點停留的時數（可以有小數，例如 1.5），只算停留時間本身，不用算進交通時間，且不會低於 1 小時。請依地點的實際性質估算，不要每個都填同一個數字：一餐飯約 1-2 小時；大型主題樂園、超大型展館可以到 4 小時以上；其餘大多數地點（地標、博物館、公園、商圈、老街）都落在 1-3 小時之間，實際多少取決於這個地點本身的規模，以及會玩得多深入——例如淺草寺，如果只是拍雷門大燈籠、入本堂參拜、走馬看花，約 1 小時就夠；但如果會逛仲見世商店街、吃傳統小吃、抽籤買御守，就要抓 2-3 小時。請同時參考這位旅客的旅遊風格與興趣偏好（見上方）判斷這趟通常會怎麼玩：「精準規劃」這類重效率、行程緊湊的風格，同一個地點通常抓比較短；「自在慢旅」這類不趕行程、重視細看慢逛的風格，或「在地體驗」「必吃美食」這類偏好，同一個地點可以抓比較長。`,
     '名稱優先使用繁體中文慣用名稱，不要同時附上英文原文或重複的括號翻譯（例如寫「洽圖洽週末市場」，不要寫「Chatuchak Weekend Market（洽圖洽週末市場）」）。若沒有通行的繁體中文名稱，或外文是官方品牌名稱，請保留官方名稱；分店、分校、校區等必要辨識資訊可用繁體中文括號註明（例如「Wall Street English（信義分校）」）。',
     '另外提供 geocodeQuery 欄位：這是給地圖服務（OpenStreetMap）查詢定位用的完整字串，不會顯示給使用者。格式必須是「地點官方名稱, 城市, 國家」，三段全部使用同一種語言，而且優先使用當地官方語言（地圖資料庫幾乎都是用當地語言登記地點名稱，翻成英文常常查不到、或誤配到完全不相關的地方）；只有目的地本身是英語系國家，或這個地點是國際連鎖品牌、慣用英文名稱時，才用英文。絕對不要中文和其他語言混用在同一個 geocodeQuery 裡。例如目的地是義大利佛羅倫斯，應填寫「Galleria degli Uffizi, Firenze, Italia」（義大利文），不要翻成「Uffizi Gallery, Florence, Italy」；目的地是韓國釜山，應填寫「부산시립미술관, 부산, 대한민국」（韓文），不要翻成「Busan Museum of Art, Busan, South Korea」。只有目的地本身是華語地區時，才整段使用中文（例如「九份老街, 新北市, 台灣」）。',
-    '如果不確定這個地點在地圖服務上的正式登記名稱（例如是複合式建築、市場、商圈，官方全名可能跟通俗說法不同），請額外提供 geocodeQueryAlt 欄位，格式同 geocodeQuery，但改用更簡短、更通用的常見說法（例如 geocodeQuery 是「Mercato Centrale di San Lorenzo, Firenze, Italia」，geocodeQueryAlt 可以是「Mercato Centrale, Firenze, Italia」），作為查詢失敗時的備援；有把握的話可以不用提供這個欄位。另一種常見狀況是地點名稱本身已經把城市名黏在前面（例如「부산영화체험박물관」），這種寫法常常查不到，這時 geocodeQueryAlt 請把城市名從地點名稱裡拿掉、只留給城市那個欄位（例如寫成「영화체험박물관, 부산, 대한민국」）。',
+    '每個景點都務必填寫 geocodeQueryAlt 欄位，格式同 geocodeQuery，但改用更簡短、更通用的常見說法，作為 geocodeQuery 查詢失敗時的備援——即使你對 geocodeQuery 很有把握也要填，因為地圖資料庫的登記方式有時跟常見說法不同，再有把握的查詢字串都可能查不到。常見的兩種改法：一是拿掉不影響辨識的細節，只留最通用的稱呼（例如 geocodeQuery 是「Mercato Centrale di San Lorenzo, Firenze, Italia」，geocodeQueryAlt 可以是「Mercato Centrale, Firenze, Italia」）；二是地點名稱本身已經把城市名黏在前面時（例如「부산영화체험박물관」，這種寫法常常查不到），把城市名從地點名稱裡拿掉、只留給城市那個欄位（例如寫成「영화체험박물관, 부산, 대한민국」）。如果這個地點真的找不到比 geocodeQuery 更好的替代說法，geocodeQueryAlt 可以重複填一次 geocodeQuery 本身——但仍然要填，不能留空。',
     '請「只」推薦你有把握真實存在、地圖上找得到的『具體、明確』地點。兩種常見錯誤都要避免：一是模糊的類別式名稱（例如「清水在地小吃」「中信市場美食」這種不是特定店家/地標的名稱）；二是為了湊類型或數量，生造出聽起來像正式機構、但你不確定是否存在的名稱（例如自己組合出一個「XX博物館」）。不確定某個細分機構是否存在時，請改推薦你比較有把握的知名地標，或是更廣義但確實存在的地點（例如某商圈、某條老街），不要用一個可能不存在的專有名稱硬湊。',
   ].join('\n')
 }

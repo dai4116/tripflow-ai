@@ -83,6 +83,18 @@ type ZonePlanContext = {
   travelStyle?: string[]
   preferences?: string[]
   additionalNotes?: string
+  // Group-relative day numbers (1-indexed against THIS group's own
+  // groupTotalDays) that a flight actually narrows — set only for the group
+  // that owns the trip's real first/last absolute day (see
+  // planCitySegments' own comment for why that's always day 1 / this
+  // group's own last day, never anything in between). Lets stage 1 pick a
+  // lighter/more-flexible theme for that day up front, instead of leaving
+  // it to generate-trip-day.ts's own flightConstraintLine to steer around a
+  // theme that's already locked in.
+  arrivalDay?: number
+  arrivalTime?: string
+  departureDay?: number
+  departureTime?: string
 }
 
 // One segment's resolved generation context. `zones`/`cityCenter` are
@@ -257,6 +269,10 @@ async function planZones(ctx: ZonePlanContext, totalDays: number): Promise<{ zon
         preferences: ctx.preferences,
         additionalNotes: ctx.additionalNotes,
         totalDays,
+        arrivalDay: ctx.arrivalDay,
+        arrivalTime: ctx.arrivalTime,
+        departureDay: ctx.departureDay,
+        departureTime: ctx.departureTime,
       }),
       signal: controller.signal,
     })
@@ -288,7 +304,7 @@ async function planZones(ctx: ZonePlanContext, totalDays: number): Promise<{ zon
 // each other (bounded by MAX_PARALLEL_REQUESTS); a single-destination trip
 // is the one-segment, one-group case, reducing to exactly one planZones()
 // call, byte-for-byte the same request as before per-city planning existed.
-async function planCitySegments(input: CreateTripInput, segments: CitySegment[]): Promise<SegmentPlan[]> {
+async function planCitySegments(input: CreateTripInput, segments: CitySegment[], totalTripDays: number): Promise<SegmentPlan[]> {
   // sameCity is an OR-match (placeId when both sides have one, else text),
   // not a value that can serve as a Map key — an array scan is the plain
   // way to group by it. Segment counts are small (at most MAX_CITIES from
@@ -307,12 +323,37 @@ async function planCitySegments(input: CreateTripInput, segments: CitySegment[])
     // other — the first is as good a representative as any for the
     // destination text/context this group's single zone-planning call needs.
     const representative = citySegments[0]!
+    // A flight only ever lands/departs on the whole trip's real first/last
+    // absolute day — never a per-group one — so only the group that
+    // actually owns that day gets a flight line in its own zone plan.
+    // `some` (not indexing citySegments[0]/[-1]) sidesteps needing to prove
+    // this group's own segment ordering: whichever segment covers absolute
+    // day 1 is provably the earliest-appearing one in THIS group's own
+    // (still-sorted) filtered list — `segments` is chronological and
+    // grouping only ever appends in that same order — so its own
+    // group-relative day always comes out to 1 once groupStartDay's cursor
+    // below reaches it; the same reasoning makes the absolute-last-day
+    // segment's own group-relative day always this group's own
+    // groupTotalDays (its last day too).
+    // Gated on input.arrivalTime/departureTime actually being set, not just
+    // on this group owning the day — the day-membership check alone is true
+    // for every trip's first/last group regardless of whether the user ever
+    // entered a flight time, which would otherwise send arrivalDay/
+    // departureDay with no matching time and interpolate the literal string
+    // "undefined" into buildZonePlanPrompt's Chinese text for the vast
+    // majority of ordinary trips that don't set one.
+    const arrivalDay = input.arrivalTime && citySegments.some((segment) => segment.startDay === 1) ? 1 : undefined
+    const departureDay = input.departureTime && citySegments.some((segment) => segment.endDay === totalTripDays) ? groupTotalDays : undefined
     const { zones, cityCenter } = await planZones(
       {
         destination: representative.destination,
         travelStyle: input.travelStyle,
         preferences: preferencesForGroup(input.preferences, citySegments, allGroups),
         additionalNotes: input.additionalNotes,
+        arrivalDay,
+        arrivalTime: arrivalDay ? input.arrivalTime : undefined,
+        departureDay,
+        departureTime: departureDay ? input.departureTime : undefined,
       },
       groupTotalDays,
     )
@@ -572,7 +613,7 @@ export async function fetchAiPlaces(
   baseWindow: DayWindow,
 ): Promise<PlaceSuggestion[] | undefined> {
   const segments = resolveCitySegments(input, days)
-  const plans = await planCitySegments(input, segments)
+  const plans = await planCitySegments(input, segments, days)
 
   // Day 1 / the last day get a narrower window when a known flight
   // arrival/departure shortens their usable hours, and a segment-transition

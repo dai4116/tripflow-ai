@@ -290,6 +290,43 @@ test('fetchAiPlaces narrows day 1\'s window when arrivalTime shortens it, and pa
   assert.equal(day2.arrivalTime, undefined)
 })
 
+test('fetchAiPlaces does NOT send arrivalDay/departureDay to plan-trip-zones when the trip has no flight times at all', async (t) => {
+  // Regression test: arrivalDay/departureDay used to be derived purely from
+  // whether a city group owns the trip's absolute first/last day, with no
+  // check that input.arrivalTime/departureTime were actually set — every
+  // ordinary trip's first/last group satisfies that day-ownership check, so
+  // arrivalDay ended up sent with no matching time, and buildZonePlanPrompt
+  // interpolated the literal string "undefined" into the Chinese prompt for
+  // the vast majority of trips that never set a flight time.
+  let zonesBody: { arrivalDay?: number; arrivalTime?: string; departureDay?: number; departureTime?: string } | undefined
+  mockFetch(t, {
+    zones: (body) => {
+      zonesBody = body as typeof zonesBody
+      return new Response(JSON.stringify({ zones: [], cityCenter: null }), { status: 200 })
+    },
+    day: (body) => new Response(JSON.stringify({ places: [dayPlace(body.day, `p${body.day}`)] }), { status: 200 }),
+  })
+  await fetchAiPlaces(baseInput({ startDate: '2024-03-01', endDate: '2024-03-02' }), 2, PLACEHOLDER_WINDOW)
+  assert.equal(zonesBody?.arrivalDay, undefined)
+  assert.equal(zonesBody?.arrivalTime, undefined)
+  assert.equal(zonesBody?.departureDay, undefined)
+  assert.equal(zonesBody?.departureTime, undefined)
+})
+
+test('fetchAiPlaces sends arrivalDay=1 and the matching arrivalTime to plan-trip-zones when arrivalTime is set', async (t) => {
+  let zonesBody: { arrivalDay?: number; arrivalTime?: string } | undefined
+  mockFetch(t, {
+    zones: (body) => {
+      zonesBody = body as typeof zonesBody
+      return new Response(JSON.stringify({ zones: [], cityCenter: null }), { status: 200 })
+    },
+    day: (body) => new Response(JSON.stringify({ places: [dayPlace(body.day, `p${body.day}`)] }), { status: 200 }),
+  })
+  await fetchAiPlaces(baseInput({ startDate: '2024-03-01', endDate: '2024-03-02', arrivalTime: '14:00' }), 2, PLACEHOLDER_WINDOW)
+  assert.equal(zonesBody?.arrivalDay, 1)
+  assert.equal(zonesBody?.arrivalTime, '14:00')
+})
+
 test('fetchAiPlaces skips a day entirely (no request at all) when a flight leaves it no usable window', async (t) => {
   const requestedDays: number[] = []
   mockFetch(t, {

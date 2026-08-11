@@ -78,6 +78,25 @@ test('rejects an out-of-range totalDays', async () => {
   assert.equal(res.statusCode, 400)
 })
 
+test('rejects an out-of-range or non-integer arrivalDay/departureDay, but accepts a body with neither field at all', async () => {
+  const rejected = [
+    { ...VALID_BODY, arrivalDay: 0 },
+    { ...VALID_BODY, arrivalDay: 4 }, // > totalDays (3)
+    { ...VALID_BODY, arrivalDay: 1.5 },
+    { ...VALID_BODY, departureDay: 0 },
+    { ...VALID_BODY, departureDay: 4 },
+  ]
+  for (const body of rejected) {
+    const res = fakeRes()
+    await handler(fakeReq({ body }), res)
+    assert.equal(res.statusCode, 400, `expected 400 for ${JSON.stringify(body)}`)
+  }
+
+  const res = fakeRes()
+  await handler(fakeReq({ body: VALID_BODY }), res) // no ANTHROPIC_API_KEY -> still fine, best-effort
+  assert.equal(res.statusCode, 200)
+})
+
 test('is fully best-effort with no API keys configured: still 200, empty zones, null cityCenter', async () => {
   const res = fakeRes()
   await handler(fakeReq({ body: VALID_BODY }), res)
