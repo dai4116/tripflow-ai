@@ -253,6 +253,14 @@ function updateSelection() {
     marker.setIcon(buildIcon(place, focusIndex === -1 ? null : focusIndex + 1))
   }
   previousSelectedId = props.selectedPlaceId
+
+  // Selecting a place from the trip list should always pan the map to it,
+  // not just when it happens to change focusedColumnId — the caller
+  // (TripBoardPage) also sets focusedColumnId, but that watcher's fit is a
+  // no-op when the place is already in the currently-focused day, which
+  // left the very first list click unfocused.
+  const selectedMarker = props.selectedPlaceId ? markers.get(props.selectedPlaceId) : undefined
+  if (selectedMarker) map.panTo(selectedMarker.getLatLng())
 }
 
 onMounted(async () => {
@@ -265,6 +273,11 @@ onMounted(async () => {
   }).addTo(map)
 
   syncAll()
+
+  if (props.focusedPlaceIds.length > 0) {
+    fitToFocusedMarkers()
+    return
+  }
 
   if (markers.size > 0) {
     fitToMarkers()
