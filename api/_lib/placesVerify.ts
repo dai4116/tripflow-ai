@@ -1,3 +1,5 @@
+import { Redis } from '@upstash/redis'
+
 // Google Places API (New) — Text Search verification.
 //
 // Confirms an AI-suggested place actually exists as a real POI and returns
@@ -88,6 +90,77 @@ export type VerifiedPlace = { placeId: string; name: string; lat: number; lng: n
 // a network/non-2xx failure is NOT cached (see textSearchCached) so it can be
 // retried on a later call.
 const cache = new Map<string, VerifiedPlace | null>()
+
+// Second tier behind the Map above. The Map only survives within one warm
+// serverless instance, but a single trip generation fans out across many
+// separate invocations (aiTripClient.ts's parallel per-day requests, each
+// its own function call, frequently a fresh cold instance) — so without a
+// cross-invocation store, every trip re-pays Google's Text Search Pro rate
+// ($32/1000, see this file's top comment) for the same well-known landmarks
+// every other trip to the same city also selects. Backed by Upstash Redis
+// via Vercel's Marketplace integration (see .env.example) — optional: unset
+// KV_REST_API_URL/KV_REST_API_TOKEN (e.g. local dev) makes every kv* helper
+// below a no-op, and this file behaves exactly as it did before this cache
+// existed, falling back to the Map alone.
+const kv =
+  process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN
+    ? new Redis({ url: process.env.KV_REST_API_URL, token: process.env.KV_REST_API_TOKEN })
+    : null
+
+// A verified place's coordinates/placeId are effectively permanent — the
+// point of this TTL is only to eventually re-verify a place that's since
+// closed or been repurposed (see parseHit's businessStatus/DISQUALIFYING_TYPES
+// comments for why that matters), not because the data goes stale on any
+// normal timescale. 90 days keeps popular landmarks cached across many trips
+// without needing a manual eviction path.
+const KV_TTL_SECONDS = 60 * 60 * 24 * 90
+
+// Google doesn't document photo resource names (the `photos.name` strings
+// this caches) as permanently stable the same way it does place_id — shorter
+// than KV_TTL_SECONDS so a cached photo ref gets re-verified against Google
+// more often than a place's own coordinates do.
+const PHOTO_KV_TTL_SECONDS = 60 * 60 * 24 * 30
+
+// Bounds one KV round trip so a slow/hung Upstash response degrades to "miss,
+// fall through to Google" instead of adding its own unbounded latency on top
+// of REQUEST_TIMEOUT_MS's own budget for the Google call that follows a miss.
+const KV_TIMEOUT_MS = 3000
+
+function withKvTimeout<T>(promise: Promise<T>): Promise<T> {
+  return Promise.race([promise, new Promise<T>((_, reject) => setTimeout(() => reject(new Error('KV timeout')), KV_TIMEOUT_MS))])
+}
+
+// Wrapped rather than a bare T so a genuine cached negative (`{v: null}`, for
+// callers whose T includes null) is distinguishable from "not in KV at all"
+// (a bare `null` response from redis.get) — same distinction a plain Map
+// gets for free from `Map.get` returning `undefined` on a miss vs an
+// explicit `null`/`[]` value.
+type KvEntry<T> = { v: T }
+
+// Never throws — a KV outage should degrade to "always miss" (fall through
+// to Google, same as before this cache existed), not fail the request that
+// triggered it. Generic over T so both the text-search cache (VerifiedPlace |
+// null) and the photo-ref cache (string[]) below share this same helper.
+async function kvGet<T>(key: string): Promise<T | undefined> {
+  if (!kv) return undefined
+  try {
+    const entry = await withKvTimeout(kv.get<KvEntry<T>>(key))
+    return entry === null ? undefined : entry.v
+  } catch (error) {
+    console.error('[placesVerify] KV read failed, falling back to Google', error)
+    return undefined
+  }
+}
+
+// Fire-and-forget — the caller already has its result from Google; a slow or
+// failed cache write shouldn't hold up (or fail) the request that produced
+// it. Logged so a persistent problem is still visible in function logs.
+function kvSet<T>(key: string, value: T, ttlSeconds: number): void {
+  if (!kv) return
+  kv.set<KvEntry<T>>(key, { v: value }, { ex: ttlSeconds }).catch((error) => {
+    console.error('[placesVerify] KV write failed', error)
+  })
+}
 
 type TextSearchResponse = {
   places?: Array<{
@@ -235,13 +308,20 @@ async function textSearchCached(
 ): Promise<VerifiedPlace | null> {
   const trimmed = query.trim().toLowerCase()
   if (!trimmed) return null
-  const key = `${includePhotos ? '1' : '0'}:${trimmed}`
+  const key = `text:${includePhotos ? '1' : '0'}:${trimmed}`
 
   const cached = cache.get(key)
   if (cached !== undefined) return cached
 
+  const kvCached = await kvGet<VerifiedPlace | null>(key)
+  if (kvCached !== undefined) {
+    cache.set(key, kvCached) // warm this instance's own Map too, so a repeat call this invocation skips the KV round trip
+    return kvCached
+  }
+
   const result = await textSearch(apiKey, query, bias, includePhotos, signal)
   cache.set(key, result)
+  kvSet(key, result, KV_TTL_SECONDS)
   return result
 }
 
@@ -726,7 +806,27 @@ const COVER_PHOTO_COUNT = 3
 // VERIFY LIVE: billing tier for the `photos` field mask on Place Details
 // (New) — textSearch's Pro/Enterprise split above is specific to Text
 // Search's own SKU table, not confirmed to carry over here.
+//
+// Same two-tier cache (Map, then KV — see the top-of-file comment on `cache`
+// and `kv`) as textSearchCached, keyed by placeId rather than a query string
+// since this is always called with an already-verified place's own Google
+// ID. Cache-and-return only happens on a successful fetch, so this still
+// throws on network/non-2xx exactly as documented above — a transient
+// failure is never cached as "no photos".
+const photoCache = new Map<string, string[]>()
+
 export async function getPlaceCoverPhotos(apiKey: string, placeId: string, signal?: AbortSignal): Promise<string[]> {
+  const key = `photo:${placeId}`
+
+  const cached = photoCache.get(key)
+  if (cached !== undefined) return cached
+
+  const kvCached = await kvGet<string[]>(key)
+  if (kvCached !== undefined) {
+    photoCache.set(key, kvCached) // warm this instance's own Map too, so a repeat call this invocation skips the KV round trip
+    return kvCached
+  }
+
   const url = `https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`
 
   const { signal: combinedSignal, clear } = withTimeout(signal)
@@ -747,6 +847,8 @@ export async function getPlaceCoverPhotos(apiKey: string, placeId: string, signa
       if (photo.name) refs.push(photo.name)
       if (refs.length >= COVER_PHOTO_COUNT) break
     }
+    photoCache.set(key, refs)
+    kvSet(key, refs, PHOTO_KV_TTL_SECONDS)
     return refs
   } finally {
     clear()
