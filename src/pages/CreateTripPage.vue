@@ -1,5 +1,5 @@
 <template>
-  <section class="new-trip-page">
+  <section class="new-trip-page" :class="{ 'new-trip-page--generating': isGenerating }">
     <PageHeader
       title="規劃新行程 ✈️"
       description="告訴 AI 你想去哪裡 它會幫你打造專屬行程"
@@ -187,25 +187,16 @@
           <AppIcon name="sparkle" :size="22" />
         </span>
         <h2 class="generating__title">正在為你打造行程</h2>
-        <p class="generating__subtitle">{{ progressSubtitle }}</p>
+        <p v-if="showLongWaitNotice" class="generating__subtitle">
+          天數較多時需要多花幾分鐘，感謝耐心等候
+        </p>
 
-        <ol class="generating__stages">
-          <li
-            v-for="(stage, index) in stages"
-            :key="stage"
-            class="generating__stage"
-            :class="{
-              'generating__stage--done': index < currentStageIndex,
-              'generating__stage--active': index === currentStageIndex,
-            }"
-          >
-            <span class="generating__stage-icon">
-              <AppIcon v-if="index < currentStageIndex" name="check" :size="11" />
-              <span v-else-if="index === currentStageIndex" class="generating__spinner" />
-            </span>
-            {{ stage }}
-          </li>
-        </ol>
+        <p class="generating__stage-current">
+          <span class="generating__spinner" />
+          <Transition name="stage-fade" mode="out-in">
+            <span :key="currentStage">{{ currentStage }}</span>
+          </Transition>
+        </p>
       </div>
 
       <div v-else class="generating">
@@ -525,7 +516,10 @@ const stages = computed(() => [
   '規劃每日行程',
   '優化路線',
 ])
-const progressSubtitle = computed(() => (showLongWaitNotice.value ? '天數較多時可能需要幾分鐘，請耐心等候…' : '請稍候…'))
+// currentStageIndex snaps to stages.length once generation succeeds (see
+// finishGeneration), one tick before navigating away — clamp so that instant
+// still resolves to a real stage label instead of undefined.
+const currentStage = computed(() => stages.value[Math.min(currentStageIndex.value, stages.value.length - 1)])
 
 let stageTimer: number | undefined
 
@@ -689,6 +683,10 @@ let cancelled = false
 async function finishGeneration() {
   requestInFlight = true
   try {
+    // TEMP: local preview only — remove this line. Delays the real call so
+    // generating-card's stage animation is visible before it hits your local
+    // config's failure. 8s covers all four stage transitions.
+    await new Promise((resolve) => setTimeout(resolve, 60000))
     const firstCity = form.cities[0]!
     const trip = await tripsStore.createTrip({
       // The top-level destination/destinationPlaceId/Lat/Lng fields always

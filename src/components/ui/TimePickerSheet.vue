@@ -1,52 +1,73 @@
 <template>
   <Teleport to="body">
-    <div class="time-picker-overlay" :style="popoverStyle" role="presentation">
-      <section ref="sheetEl" class="time-picker-sheet" role="dialog" :aria-label="title">
-        <h3 class="time-picker-sheet__title">{{ title }}</h3>
+    <div
+      class="time-picker-overlay"
+      :class="{ 'time-picker-overlay--sheet': isSheet }"
+      :style="isSheet ? undefined : popoverStyle"
+      role="presentation"
+    >
+      <Transition name="time-picker-sheet-slide" appear>
+        <section
+          ref="sheetEl"
+          class="time-picker-sheet"
+          :class="{ 'time-picker-sheet--sheet': isSheet }"
+          role="dialog"
+          :aria-label="title"
+        >
+          <span v-if="isSheet" class="time-picker-sheet__handle" aria-hidden="true" />
+          <h3 class="time-picker-sheet__title">{{ title }}</h3>
 
-        <div class="time-picker-wheels">
-          <div class="time-picker-wheels__highlight" aria-hidden="true" />
+          <div class="time-picker-wheels">
+            <div class="time-picker-wheels__highlight" aria-hidden="true" />
 
-          <div ref="hourWheelEl" class="time-picker-wheel" @scroll="onScroll('hour')">
-            <div class="time-picker-wheel__spacer" />
-            <button
-              v-for="hour in hourOptions"
-              :key="hour"
-              type="button"
-              class="time-picker-wheel__item"
-              :class="{ 'time-picker-wheel__item--selected': hour === selectedHour }"
-              @click="selectHour(hour)"
-            >
-              {{ String(hour).padStart(2, '0') }}
-            </button>
-            <div class="time-picker-wheel__spacer" />
+            <div ref="hourWheelEl" class="time-picker-wheel" @scroll="onScroll('hour')">
+              <div class="time-picker-wheel__spacer" />
+              <button
+                v-for="hour in hourOptions"
+                :key="hour"
+                type="button"
+                class="time-picker-wheel__item"
+                :class="{ 'time-picker-wheel__item--selected': hour === selectedHour }"
+                @click="selectHour(hour)"
+              >
+                {{ String(hour).padStart(2, '0') }}
+              </button>
+              <div class="time-picker-wheel__spacer" />
+            </div>
+
+            <div ref="minuteWheelEl" class="time-picker-wheel" @scroll="onScroll('minute')">
+              <div class="time-picker-wheel__spacer" />
+              <button
+                v-for="minute in minuteOptions"
+                :key="minute"
+                type="button"
+                class="time-picker-wheel__item"
+                :class="{ 'time-picker-wheel__item--selected': minute === selectedMinute }"
+                @click="selectMinute(minute)"
+              >
+                {{ String(minute).padStart(2, '0') }}
+              </button>
+              <div class="time-picker-wheel__spacer" />
+            </div>
           </div>
 
-          <div ref="minuteWheelEl" class="time-picker-wheel" @scroll="onScroll('minute')">
-            <div class="time-picker-wheel__spacer" />
-            <button
-              v-for="minute in minuteOptions"
-              :key="minute"
-              type="button"
-              class="time-picker-wheel__item"
-              :class="{ 'time-picker-wheel__item--selected': minute === selectedMinute }"
-              @click="selectMinute(minute)"
-            >
-              {{ String(minute).padStart(2, '0') }}
-            </button>
-            <div class="time-picker-wheel__spacer" />
-          </div>
-        </div>
-
-        <BaseButton class="time-picker-sheet__confirm" @click="confirm">確定</BaseButton>
-      </section>
+          <BaseButton class="time-picker-sheet__confirm" @click="confirm">確定</BaseButton>
+        </section>
+      </Transition>
     </div>
   </Teleport>
 </template>
 
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useIsMobile } from '../../composables/useIsMobile'
 import BaseButton from './BaseButton.vue'
+
+// Below this width, an anchored popover has nowhere consistent to land (the
+// trigger button can be anywhere on the page) — pin to the bottom of the
+// screen instead, same breakpoint as the board's own sheet takeovers (see
+// TripBoardPage.vue's isSheetMode).
+const isSheet = useIsMobile(767)
 
 // Must match .time-picker-wheel__item height — the scroll position converts
 // to a selected value via index = scrollTop / this.
@@ -81,6 +102,10 @@ const POPOVER_GAP = 8
 const VIEWPORT_MARGIN = 12
 
 function updatePopoverPosition() {
+  // Sheet mode is positioned entirely by CSS (fixed to the viewport bottom)
+  // — no anchor math needed, and popoverStyle stays untouched (unbound in
+  // the template) so it can't fight the CSS.
+  if (isSheet.value) return
   if (!props.anchorEl || !sheetEl.value) return
 
   const anchorRect = props.anchorEl.getBoundingClientRect()

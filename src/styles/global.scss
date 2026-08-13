@@ -1887,6 +1887,30 @@ h3 {
   margin-bottom: 24px;
 }
 
+// Stretches generating-card down to the bottom of the viewport instead of
+// leaving it at its natural (small, top-anchored) content height. Uses
+// height: 100% of .workspace-shell__main rather than a calc(100vh - Npx)
+// guess — .workspace-shell__main is already a stretched grid item on desktop
+// and an explicit height: 100% scroll container on mobile (see the 767px
+// media query below), so 100% here lands exactly on real available space
+// (already net of the mobile top bar / bottom-nav clearance) instead of
+// overshooting or falling short of it.
+.new-trip-page--generating {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.new-trip-page--generating .generating-card {
+  display: flex;
+  flex: 1;
+}
+
+.new-trip-page--generating .generating {
+  flex: 1;
+  align-content: center;
+}
+
 .trip-form {
   display: grid;
   gap: 14px;
@@ -2259,7 +2283,7 @@ h3 {
   place-items: center;
   width: 52px;
   height: 52px;
-  margin-bottom: 6px;
+  margin-bottom: 20px;
   border-radius: $radius-pill;
   background: $color-primary-soft;
   color: $color-primary-text;
@@ -2310,44 +2334,21 @@ h3 {
   font-size: $fs-ui;
 }
 
-.generating__stages {
-  display: grid;
-  gap: 2px;
+.generating__stage-current {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
   width: 100%;
   max-width: 340px;
   margin: 22px 0 0;
-  padding: 0;
-  list-style: none;
-  text-align: left;
-}
-
-.generating__stage {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 4px;
-  color: $color-subtle;
+  color: $color-ink;
   font-size: $fs-ui;
   font-weight: 600;
-  transition: color 200ms ease;
-}
-
-.generating__stage-icon {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  border: 1.5px solid $color-border;
-  border-radius: $radius-pill;
-  color: $color-subtle;
-  transition:
-    border-color 200ms ease,
-    background 200ms ease,
-    color 200ms ease;
 }
 
 .generating__spinner {
+  flex: none;
   width: 12px;
   height: 12px;
   border: 2px solid rgba($color-primary, 0.25);
@@ -2356,19 +2357,21 @@ h3 {
   animation: spin 700ms linear infinite;
 }
 
-.generating__stage--active,
-.generating__stage--done {
-  color: $color-ink;
+.stage-fade-enter-active,
+.stage-fade-leave-active {
+  transition:
+    opacity 200ms ease,
+    transform 200ms ease;
 }
 
-.generating__stage--active .generating__stage-icon {
-  border-color: $color-primary;
+.stage-fade-enter-from {
+  opacity: 0;
+  transform: translateY(4px);
 }
 
-.generating__stage--done .generating__stage-icon {
-  border-color: $color-success;
-  background: $color-success;
-  color: $color-surface;
+.stage-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 
 // Static (no pulse/sparkle) — those animations read as "still working",
@@ -2398,7 +2401,13 @@ h3 {
   position: relative;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  height: calc(100vh - 56px);
+  // margin: -28px already cancels .workspace-shell__main's own padding on
+  // all 4 sides, pulling this edge-to-edge with main's border box — so
+  // height only needs to match the viewport itself, not the viewport minus
+  // padding again. (Was double-subtracting 2×$page-padding, leaving a 56px
+  // strip uncovered at the bottom that nothing else fills on desktop.)
+  height: 100vh;
+  height: 100dvh;
   margin: -28px;
 }
 
@@ -4161,7 +4170,10 @@ h3 {
 }
 
 // ---------------------------------------------------------------------------
-// Time picker — compact anchored popover on every viewport
+// Time picker — anchored popover on desktop; a fixed bottom sheet below the
+// isSheet breakpoint (767px, see TimePickerSheet.vue), since an anchored
+// popover has no consistent landing spot when its trigger button can be
+// anywhere on the page.
 // ---------------------------------------------------------------------------
 
 .time-picker-overlay {
@@ -4169,6 +4181,15 @@ h3 {
   z-index: 70;
   display: block;
   background: transparent;
+}
+
+.time-picker-overlay--sheet {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba($color-dusk, 0.42);
 }
 
 .time-picker-sheet {
@@ -4179,6 +4200,24 @@ h3 {
   border-radius: $radius-lg;
   background: $color-surface;
   box-shadow: $shadow-lg;
+}
+
+.time-picker-sheet--sheet {
+  position: relative;
+  width: 100%;
+  padding: 22px 14px calc(14px + env(safe-area-inset-bottom));
+  border-radius: $radius-lg $radius-lg 0 0;
+}
+
+.time-picker-sheet__handle {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  width: 36px;
+  height: 4px;
+  transform: translateX(-50%);
+  border-radius: $radius-pill;
+  background: $color-border;
 }
 
 .time-picker-sheet__title {
@@ -4255,6 +4294,19 @@ h3 {
   min-height: 32px;
   padding-inline: 12px;
   font-size: $fs-small;
+}
+
+// Only the sheet variant animates — the desktop popover already commits to
+// its final position before paint (see updatePopoverPosition), so sliding
+// it in would just add a mistimed jump.
+.time-picker-sheet--sheet.time-picker-sheet-slide-enter-active,
+.time-picker-sheet--sheet.time-picker-sheet-slide-leave-active {
+  transition: transform 220ms ease;
+}
+
+.time-picker-sheet--sheet.time-picker-sheet-slide-enter-from,
+.time-picker-sheet--sheet.time-picker-sheet-slide-leave-to {
+  transform: translateY(100%);
 }
 
 // ---------------------------------------------------------------------------

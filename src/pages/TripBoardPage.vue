@@ -183,7 +183,7 @@
 
       <Transition name="mobile-sheet-fade">
         <button
-          v-if="drawerPlace && isMobile"
+          v-if="drawerPlace && isSheetMode"
           class="mobile-sheet-overlay"
           type="button"
           aria-label="關閉地點詳情"
@@ -191,11 +191,11 @@
         />
       </Transition>
 
-      <Transition :name="isMobile ? 'place-sheet-slide' : 'place-drawer-slide'">
+      <Transition :name="isSheetMode ? 'place-sheet-slide' : 'place-drawer-slide'">
         <aside
           v-if="drawerPlace"
           class="place-drawer"
-          :class="{ 'place-drawer--sheet': isMobile }"
+          :class="{ 'place-drawer--sheet': isSheetMode }"
           aria-label="地點詳細資料面板"
         >
           <button class="place-drawer__close" type="button" aria-label="關閉面板" @click="closeDrawer">
@@ -455,10 +455,10 @@
       </div>
     </Transition>
 
-    <Transition :name="isMobile ? 'add-place-sheet-slide' : 'add-place-panel-slide'">
+    <Transition :name="isSheetMode ? 'add-place-sheet-slide' : 'add-place-panel-slide'">
       <AddPlaceModal
         v-if="showAddModal"
-        :sheet="isMobile"
+        :sheet="isSheetMode"
         :column-id="addModalColumnId"
         :column-title="addModalColumnTitle"
         :city="cityName"
@@ -522,6 +522,13 @@ const router = useRouter()
 // side-by-side grid to a single Board/Map pane (see global.scss) — below
 // this width there's no room to show both, so the toggle takes over.
 const isMobile = useIsMobile(1100)
+// Narrower than isMobile on purpose: a ~900px browser window has room for
+// the board's single-pane layout but is not a phone — it still shouldn't
+// get full-screen bottom sheets for the add-place/place-detail overlays,
+// which read as broken (edge-to-edge with a lot of empty space) at that
+// width. Matches the shell's own true-mobile breakpoint (see global.scss's
+// 767px media query) rather than the board layout's 1100px one.
+const isSheetMode = useIsMobile(767)
 const tripsStore = useTripsStore()
 const { trips, places } = storeToRefs(tripsStore)
 const mobileView = ref<'board' | 'map'>('board')
@@ -703,7 +710,7 @@ const {
   onPhotoError: onDrawerPhotoError,
 } = usePlacePhoto(drawerPlace, 1000)
 const drawerPlaceSchedule = computed(() => getPlaceSchedule(drawerPlace.value))
-const shouldLockBodyScroll = computed(() => isMobile.value && Boolean(drawerPlace.value))
+const shouldLockBodyScroll = computed(() => isSheetMode.value && Boolean(drawerPlace.value))
 const cityName = computed(() => cityFromDestination(activeTrip.value.destination))
 
 watch(
@@ -1208,7 +1215,7 @@ function viewOnMap() {
 function openGoogleMapsPlace() {
   if (!drawerPlace.value) return
   const url = googleMapsPlaceUrl(drawerPlace.value)
-  if (isMobile.value) {
+  if (isSheetMode.value) {
     window.location.href = url
   } else {
     window.open(url, '_blank', 'noopener,noreferrer')
