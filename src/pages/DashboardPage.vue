@@ -95,7 +95,7 @@ const todayLabel = computed(() => {
 const greetingTitle = computed(() => {
   const hour = new Date().getHours()
   const greeting = hour < 12 ? '早安' : hour < 18 ? '午安' : '晚上好'
-  return `${greeting}，柏翰！👋`
+  return `${greeting} 👋`
 })
 const greetingDescription = computed(() => {
   if (trips.value.length === 0) return '開始規劃你的第一趟旅程吧'

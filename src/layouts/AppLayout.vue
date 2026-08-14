@@ -1,10 +1,6 @@
 <template>
-  <div v-if="isMarketing" class="marketing-shell">
-    <AppHeader />
-
-    <main>
-      <RouterView />
-    </main>
+  <div v-if="isBare" class="bare-shell">
+    <RouterView />
   </div>
 
   <div v-else class="workspace-shell">
@@ -22,13 +18,14 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import AppHeader from '../components/layout/AppHeader.vue'
 import AppSidebar from '../components/layout/AppSidebar.vue'
 import MobileBottomNav from '../components/layout/MobileBottomNav.vue'
 import MobileTopBar from '../components/layout/MobileTopBar.vue'
 
 const route = useRoute()
-const isMarketing = computed(() => route.meta.layout === 'marketing')
+// No AppSidebar/MobileTopBar chrome at all — for standalone flows (the
+// guest-entry landing page, onboarding) that want to be distraction-free.
+const isBare = computed(() => route.meta.layout === 'bare')
 
 // On mobile, .workspace-shell__main (not the document) is the scroll
 // container — vue-router's own scrollBehavior only resets window scroll, so

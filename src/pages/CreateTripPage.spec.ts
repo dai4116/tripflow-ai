@@ -162,7 +162,7 @@ describe('CreateTripPage', () => {
     stubFetch()
     const { wrapper } = await mountPage()
     // Not one of the pre-selected defaults, so the first click actually selects it.
-    const chip = wrapper.findAll('.preference-chip').find((c) => c.text() === '人文古蹟')!
+    const chip = wrapper.findAll('.preference-chip').find((c) => c.text() === '人文藝術')!
 
     await chip.trigger('click')
     expect(chip.classes()).toContain('preference-chip--selected')

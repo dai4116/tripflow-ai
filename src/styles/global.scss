@@ -153,26 +153,104 @@ h3 {
 }
 
 // ---------------------------------------------------------------------------
-// Marketing shell
+// Bare shell — no chrome at all (guest landing, onboarding)
 // ---------------------------------------------------------------------------
 
-.marketing-shell {
+.bare-shell {
   min-height: 100vh;
+  min-height: 100dvh;
   background: $color-bg;
 }
 
-.app-header {
-  display: grid;
-  grid-template-columns: 1fr auto;
+// ---------------------------------------------------------------------------
+// Guest landing — the entire marketing hero/workflow/preview page this used
+// to be got replaced by a single centered entry point; onboarding (see
+// data/onboarding.ts) now carries the "how it works" explanation instead,
+// with real screenshots rather than this page's old decorative mockup.
+// ---------------------------------------------------------------------------
+
+.guest-landing {
+  position: relative;
+  display: flex;
+  min-height: 100vh;
+  min-height: 100dvh;
+  flex-direction: column;
   align-items: center;
-  gap: 24px;
-  min-height: 56px;
-  padding: 0 max(20px, calc((100vw - 1120px) / 2));
-  border-bottom: 1px solid $color-border;
-  background: rgba($color-surface, 0.92);
+  justify-content: center;
+  gap: 18px;
+  padding: 24px;
+  overflow: hidden;
+  text-align: center;
 }
 
-.app-header__brand,
+// Purely decorative — a soft blurred wash behind the content so the page
+// reads as deliberately minimal rather than unfinished/blank. pointer-
+// events: none since it sits over nothing interactive, but stacks below the
+// content anyway just from DOM order (first child, no z-index needed).
+.guest-landing__glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(720px, 140vw);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba($color-primary, 0.16), rgba($color-primary, 0) 70%);
+  filter: blur(20px);
+  pointer-events: none;
+}
+
+.guest-landing__brand,
+.guest-landing__title,
+.guest-landing__cta,
+.guest-landing__note {
+  position: relative;
+  animation: guest-landing-fade-up 560ms ease both;
+}
+
+.guest-landing__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 30px;
+  color: $color-ink;
+  font-size: $fs-ui;
+  font-weight: 800;
+}
+
+.guest-landing__title {
+  max-width: 420px;
+  font-size: $fs-display;
+  font-weight: 800;
+  line-height: $lh-tight;
+  letter-spacing: -0.01em;
+  animation-delay: 60ms;
+}
+
+.guest-landing__cta {
+  margin-top: 30px;
+  animation-delay: 180ms;
+}
+
+.guest-landing__note {
+  margin: 0;
+  color: $color-subtle;
+  font-size: $fs-small;
+  animation-delay: 220ms;
+}
+
+@keyframes guest-landing-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .app-sidebar__brand {
   display: inline-flex;
   align-items: center;
@@ -180,20 +258,6 @@ h3 {
   color: $color-ink;
   font-size: $font-size-sm;
   font-weight: 800;
-}
-
-.app-header__actions {
-  display: flex;
-  align-items: center;
-  justify-self: end;
-  gap: 18px;
-  color: $color-muted;
-  font-size: $font-size-xs;
-  font-weight: 700;
-}
-
-.app-header__actions .base-button {
-  justify-self: end;
 }
 
 // ---------------------------------------------------------------------------
@@ -298,48 +362,6 @@ h3 {
   font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-}
-
-.app-sidebar__user {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: auto;
-  padding: 11px;
-  border: 1px solid $color-border;
-  border-radius: $radius-lg;
-  background: $color-bg;
-}
-
-.app-sidebar__settings {
-  margin-left: auto;
-  color: $color-subtle;
-}
-
-.app-sidebar__avatar {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  place-items: center;
-  border-radius: $radius-pill;
-  background: linear-gradient(135deg, $color-primary, #4a7de0);
-  color: $color-surface;
-  font-size: $font-size-xs;
-  font-weight: 800;
-}
-
-.app-sidebar__user strong,
-.app-sidebar__user small {
-  display: block;
-}
-
-.app-sidebar__user strong {
-  font-size: $fs-small;
-}
-
-.app-sidebar__user small {
-  color: $color-subtle;
-  font-size: $fs-caption;
 }
 
 // ---------------------------------------------------------------------------
@@ -753,40 +775,6 @@ h3 {
   padding: 0;
   opacity: 0;
   cursor: pointer;
-}
-
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  width: fit-content;
-  height: 28px;
-  padding: 0 11px;
-  border-radius: $radius-pill;
-  background: $color-primary-soft;
-  color: $color-primary-text;
-  font-size: $font-size-xs;
-  font-weight: 750;
-  text-transform: capitalize;
-}
-
-.status-badge--success {
-  background: $color-success-soft;
-  color: $color-success;
-}
-
-.status-badge--warning {
-  background: $color-warning-soft;
-  color: color.adjust($color-warning, $lightness: -8%);
-}
-
-.status-badge--danger {
-  background: $color-danger-soft;
-  color: $color-danger;
-}
-
-.status-badge--accent {
-  background: $color-accent-soft;
-  color: $color-accent-text;
 }
 
 // ---------------------------------------------------------------------------
@@ -1369,318 +1357,6 @@ h3 {
   color: $color-muted;
   font-size: $fs-caption;
   font-weight: 600;
-}
-
-// ---------------------------------------------------------------------------
-// Landing page
-// ---------------------------------------------------------------------------
-
-.landing-page {
-  --landing-container: 1120px;
-  --landing-gutter: max(20px, calc((100vw - var(--landing-container)) / 2));
-
-  padding: 54px 0 0;
-}
-
-.landing-hero {
-  display: grid;
-  grid-template-columns: minmax(330px, 0.84fr) minmax(420px, 1.16fr);
-  align-items: center;
-  gap: 78px;
-  min-height: 414px;
-  padding: 0 var(--landing-gutter) 70px;
-}
-
-.landing-hero__copy {
-  display: grid;
-  gap: 18px;
-}
-
-.landing-hero__copy h1 {
-  max-width: 420px;
-  font-size: $fs-display;
-  line-height: $lh-tight;
-}
-
-.landing-hero__copy p {
-  max-width: 390px;
-  color: $color-muted;
-  font-size: $font-size-sm;
-  line-height: $lh-body;
-}
-
-.landing-hero__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.landing-hero__trust {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
-  color: $color-success;
-  font-size: $font-size-xs;
-  font-weight: 700;
-}
-
-.landing-mobile-preview {
-  display: none;
-}
-
-.product-preview {
-  @include card-shell;
-  display: grid;
-  position: relative;
-  grid-template-columns: 1fr 150px;
-  grid-template-rows: auto minmax(0, 1fr);
-  min-height: 246px;
-  overflow: hidden;
-  border-radius: $radius-md;
-  box-shadow: $shadow-lg;
-}
-
-.product-preview__header {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 12px 16px;
-  border-bottom: 1px solid $color-border-light;
-  background: $color-surface;
-}
-
-.product-preview__header strong {
-  display: block;
-  color: $color-ink;
-  font-size: $fs-small;
-  font-weight: 800;
-}
-
-.product-preview__header span {
-  color: $color-subtle;
-  font-size: $fs-micro;
-}
-
-.product-preview__header .app-icon {
-  color: $color-subtle;
-}
-
-.product-preview__board {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 11px;
-  padding: 24px;
-}
-
-.product-preview__column {
-  display: grid;
-  gap: 10px;
-  align-content: start;
-}
-
-.product-preview__column-head strong {
-  display: block;
-  color: $color-muted;
-  font-size: $fs-micro;
-  text-transform: uppercase;
-}
-
-.product-preview__mini-card {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px;
-  border-radius: $radius-sm;
-  background: $color-surface;
-  box-shadow: $shadow-sm;
-}
-
-.product-preview__mini-card-thumb {
-  position: relative;
-  flex-shrink: 0;
-  width: 40px;
-  height: 40px;
-  border-radius: $radius-xs;
-}
-
-// Overlaps the thumbnail's top-left corner, fixed teal — mirrors
-// .place-card__index exactly (a real place's badge isn't colored by day).
-.product-preview__mini-card-index {
-  position: absolute;
-  top: -4px;
-  left: -4px;
-  display: grid;
-  place-items: center;
-  width: 14px;
-  height: 14px;
-  border: 1.5px solid $color-surface;
-  border-radius: $radius-pill;
-  background: $color-primary;
-  color: $color-surface;
-  font-size: 8px;
-  font-weight: 800;
-}
-
-.product-preview__mini-card-body {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
-.product-preview__mini-card-top {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.product-preview__mini-card-time {
-  color: $color-ink;
-  font-size: 9px;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-}
-
-.product-preview__mini-card-body strong {
-  overflow: hidden;
-  color: $color-ink;
-  font-size: $fs-micro;
-  font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.product-preview__mini-card-body small {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  color: $color-subtle;
-  font-size: 9px;
-}
-
-.product-preview__map {
-  position: relative;
-  background:
-    linear-gradient(rgba($color-dusk, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba($color-dusk, 0.05) 1px, transparent 1px),
-    linear-gradient(135deg, #cfe7dc, #d8e6e2);
-  background-size: 24px 24px, 24px 24px, cover;
-}
-
-.product-preview__map-pin {
-  position: absolute;
-  display: grid;
-  place-items: center;
-  width: 16px;
-  height: 16px;
-  padding: 0;
-  border: 2px solid $color-surface;
-  border-radius: $radius-pill;
-  color: $color-surface;
-  font-size: 8px;
-  font-weight: 800;
-  box-shadow: $shadow-sm;
-}
-
-.landing-section {
-  padding: 64px var(--landing-gutter);
-}
-
-.landing-section--white {
-  background: $color-surface;
-}
-
-.landing-section__header {
-  display: grid;
-  justify-items: center;
-  gap: 8px;
-  max-width: 520px;
-  margin: 0 auto 42px;
-  text-align: center;
-}
-
-.landing-section__header h2 {
-  font-size: $fs-h2;
-}
-
-.landing-section__header p {
-  color: $color-muted;
-  font-size: $font-size-sm;
-}
-
-.workflow-list {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 32px;
-}
-
-.workflow-step {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 15px;
-}
-
-.workflow-step > strong {
-  color: rgba($color-primary, 0.35);
-  font-size: rem(36);
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-
-.workflow-step p {
-  margin-top: 7px;
-  color: $color-muted;
-  font-size: $font-size-xs;
-  line-height: $lh-body;
-}
-
-.landing-cta {
-  display: grid;
-  justify-items: center;
-  gap: 16px;
-  margin: 72px var(--landing-gutter) 72px;
-  padding: 40px 24px;
-  border-radius: 20px;
-  background: $color-dusk;
-  color: $color-surface;
-  text-align: center;
-}
-
-.landing-cta h2 {
-  font-size: $fs-h1;
-}
-
-.landing-cta p {
-  color: rgba($color-surface, 0.72);
-  font-size: $font-size-sm;
-}
-
-.landing-footer {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  gap: 24px;
-  padding: 28px var(--landing-gutter);
-  border-top: 1px solid $color-border;
-}
-
-.landing-footer__brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.landing-footer nav {
-  display: flex;
-  gap: 24px;
-  color: $color-muted;
-  font-size: $font-size-sm;
-}
-
-.landing-footer small {
-  justify-self: end;
-  color: $color-muted;
 }
 
 // ---------------------------------------------------------------------------
@@ -4742,17 +4418,8 @@ h3 {
   .app-sidebar__brand span:last-child,
   .app-sidebar__label,
   .app-sidebar__section a span,
-  .app-sidebar__cta span,
-  .app-sidebar__user div {
+  .app-sidebar__cta span {
     display: none;
-  }
-
-  // AppIcon's own scoped style (.app-icon[data-v-xxx] { display: inline-block })
-  // outranks a plain single-class selector, so this needs !important to
-  // actually win — otherwise the gear icon stays visible, cramped in next to
-  // the avatar instead of being hidden with the rest of the user card's text.
-  .app-sidebar__settings {
-    display: none !important;
   }
 
   .app-sidebar__section a,
@@ -4769,19 +4436,9 @@ h3 {
     width: 44px;
   }
 
-  .app-sidebar__user {
-    justify-content: center;
-    padding: 8px;
-  }
-
   .trip-grid,
-  .trips-list,
-  .workflow-list {
+  .trips-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .landing-hero {
-    grid-template-columns: 1fr;
   }
 
   // Below this width there's no room to show the Kanban board and the map
@@ -4928,11 +4585,6 @@ h3 {
 }
 
 @media (max-width: 720px) {
-  .app-header {
-    grid-template-columns: 1fr auto;
-    padding-inline: 20px;
-  }
-
   .workspace-shell {
     grid-template-columns: 1fr;
   }
@@ -4949,37 +4601,9 @@ h3 {
   }
 
   .trip-grid,
-  .workflow-list,
   .form-grid,
   .choice-grid {
     grid-template-columns: 1fr;
-  }
-
-  .landing-page {
-    padding-top: 36px;
-  }
-
-  .landing-hero,
-  .landing-section {
-    padding-inline: 20px;
-  }
-
-  .landing-footer {
-    grid-template-columns: 1fr;
-    justify-items: center;
-    text-align: center;
-  }
-
-  .landing-footer small {
-    justify-self: center;
-  }
-
-  .product-preview {
-    grid-template-columns: 1fr;
-  }
-
-  .product-preview__map {
-    min-height: 180px;
   }
 
   .trip-board-page {
@@ -5003,7 +4627,7 @@ h3 {
     // to land exactly on the visible height. Pinning the shell below with
     // position: fixed sidesteps that entirely (fixed elements always match
     // the true visible viewport), so html/body/#app never need to scroll —
-    // only .workspace-shell__main / .marketing-shell do, deliberately.
+    // only .workspace-shell__main / .bare-shell do, deliberately.
     height: 100%;
     overflow: hidden;
   }
@@ -5018,6 +4642,24 @@ h3 {
 
   h2 {
     font-size: $fs-h2-mobile;
+  }
+
+  // $fs-display's clamp() floor (40px) is still too wide for this line to
+  // fit one row on a narrow phone — a class selector beats the plain h1
+  // rule above on specificity, so that alone doesn't reach this element.
+  .guest-landing__title {
+    font-size: $fs-h1-mobile;
+  }
+
+  // .bare-shell has no fixed height/layout of its own (unlike
+  // .workspace-shell__main below), so a page whose content runs taller than
+  // the visible viewport has nowhere to go but clipped by #app's
+  // overflow: hidden above, with no way to scroll to the rest. This is that
+  // page's own scroll container.
+  .bare-shell {
+    height: 100%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .brand-mark {
@@ -5044,18 +4686,6 @@ h3 {
     padding: 16px 12px 94px;
   }
 
-  // .marketing-shell has no scroll container of its own (unlike
-  // .workspace-shell__main above) — without this it inherits #app's
-  // overflow: hidden from the rule above and the landing page simply can't
-  // scroll past one viewport's worth of content.
-  .marketing-shell {
-    height: 100%;
-    max-width: 100%;
-    overflow-x: hidden;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
   .app-sidebar {
     display: none;
   }
@@ -5077,18 +4707,6 @@ h3 {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    font-weight: 800;
-  }
-
-  .mobile-top-bar__avatar {
-    display: grid;
-    width: 30px;
-    height: 30px;
-    place-items: center;
-    border-radius: $radius-pill;
-    background: linear-gradient(135deg, $color-primary, #4a7de0);
-    color: $color-surface;
-    font-size: $font-size-xs;
     font-weight: 800;
   }
 
@@ -5133,16 +4751,6 @@ h3 {
     box-shadow: $shadow-primary;
   }
 
-  .app-header {
-    grid-template-columns: 1fr auto;
-    min-height: 44px;
-    padding-inline: 12px;
-  }
-
-  .app-header__brand {
-    font-size: $font-size-sm;
-  }
-
   .base-field__control {
     min-height: 42px;
   }
@@ -5162,110 +4770,6 @@ h3 {
 
   .page-header p {
     font-size: $font-size-xs;
-  }
-
-  .landing-page {
-    max-width: 100%;
-    padding-top: 40px;
-  }
-
-  .landing-hero {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 26px;
-    min-height: auto;
-    padding: 0 12px 44px;
-  }
-
-  .landing-hero__copy {
-    gap: 18px;
-  }
-
-  .landing-hero__copy h1 {
-    max-width: 320px;
-    font-size: $fs-display-mobile;
-    line-height: 1.08;
-  }
-
-  .landing-hero__copy p {
-    max-width: none;
-    font-size: $font-size-sm;
-  }
-
-  .landing-hero__actions {
-    gap: 10px;
-  }
-
-  .landing-hero__trust {
-    gap: 12px;
-    font-size: $font-size-xs;
-  }
-
-  .product-preview {
-    display: none;
-  }
-
-  .landing-mobile-preview {
-    @include card-shell;
-    display: grid;
-    gap: 12px;
-    padding: 14px;
-    overflow: visible;
-  }
-
-  .landing-mobile-preview__header strong {
-    color: $color-ink;
-    font-size: $fs-small;
-    font-weight: 800;
-  }
-
-  .landing-mobile-preview__tabs {
-    display: flex;
-    gap: 6px;
-  }
-
-  .landing-mobile-preview__tab {
-    padding: 5px 10px;
-    border-radius: $radius-pill;
-    background: $color-surface-soft;
-    color: $color-subtle;
-    font-size: $fs-micro;
-    font-weight: 700;
-  }
-
-  .landing-mobile-preview__tab--active {
-    background: $color-primary-soft;
-    color: $color-primary-text;
-  }
-
-  .landing-mobile-preview__cards {
-    display: grid;
-    gap: 8px;
-  }
-
-  .landing-section {
-    padding: 44px 12px;
-  }
-
-  .landing-section__header {
-    margin-bottom: 28px;
-  }
-
-  .landing-section__header h2 {
-    font-size: $fs-h2-mobile;
-  }
-
-  .workflow-list {
-    grid-template-columns: 1fr;
-  }
-
-  .landing-cta {
-    margin: 44px 12px;
-    padding: 30px 18px;
-  }
-
-  .landing-cta h2 {
-    font-size: $fs-h1-mobile;
   }
 
   .dashboard-page {
@@ -5605,5 +5109,179 @@ h3 {
   .ask-ai-sheet-slide-leave-from {
     opacity: 1;
     transform: translate3d(0, 0, 0);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Onboarding carousel — first-visit only (see data/onboarding.ts), a bare
+// full-screen flow with no AppSidebar/nav chrome (see AppLayout.vue's 'bare'
+// layout).
+// ---------------------------------------------------------------------------
+
+.onboarding-page {
+  position: relative;
+  display: flex;
+  min-height: 100vh;
+  min-height: 100dvh;
+  flex-direction: column;
+  align-items: center;
+  // "safe" is the fix for the vh/dvh guess being wrong in either direction:
+  // centers normally when the content fits, but if centering would push the
+  // start of the content past the scrollable area's edge (content taller
+  // than this min-height actually reached) it falls back to start-aligned
+  // instead of clipping — same content, both directions covered by one
+  // declaration instead of guessing a breakpoint-specific override.
+  justify-content: safe center;
+  padding: 64px 24px 32px;
+}
+
+.onboarding-page__skip {
+  position: absolute;
+  top: 10px;
+  right: 20px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: $radius-pill;
+  background: none;
+  color: $color-subtle;
+  font-size: $fs-small;
+  font-weight: 700;
+}
+
+.onboarding-page__skip:hover {
+  background: $color-surface-soft;
+  color: $color-ink;
+}
+
+.onboarding-slide {
+  display: grid;
+  width: 100%;
+  max-width: 340px;
+  justify-items: center;
+  gap: 20px;
+  text-align: center;
+}
+
+.onboarding-slide__frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 5;
+  overflow: hidden;
+  border-radius: $radius-lg;
+  background: $color-surface-soft;
+  box-shadow: $shadow-lg;
+}
+
+.onboarding-slide__image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  // contain, not cover — these are real UI screenshots with real text at
+  // the edges (see data/onboarding.ts's images), and the four screenshots
+  // don't all share the frame's exact aspect ratio. cover would crop
+  // whichever edge overflows; contain never crops, just letterboxes against
+  // the frame's own background.
+  object-fit: contain;
+  object-position: top;
+  opacity: 0;
+  transition: opacity 500ms ease;
+}
+
+.onboarding-slide__image--active {
+  opacity: 1;
+}
+
+.onboarding-slide__title {
+  font-size: $fs-h3;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.onboarding-slide__description {
+  margin: 0;
+  color: $color-muted;
+  font-size: $fs-ui;
+  line-height: 1.6;
+  // Renders the \n literals in OnboardingPage.vue's steps copy as real line
+  // breaks — plain text interpolation ({{ }}, not v-html) otherwise
+  // collapses them like any other whitespace.
+  white-space: pre-line;
+}
+
+.onboarding-slide-enter-active,
+.onboarding-slide-leave-active {
+  transition:
+    opacity 220ms ease,
+    transform 220ms ease;
+}
+
+.onboarding-slide-enter-from {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+.onboarding-slide-leave-to {
+  opacity: 0;
+  transform: translateX(-20px);
+}
+
+.onboarding-page__footer {
+  display: flex;
+  width: 100%;
+  max-width: 340px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 32px;
+}
+
+.onboarding-page__dots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.onboarding-page__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: $radius-pill;
+  background: $color-border;
+  transition:
+    width 200ms ease,
+    background 200ms ease;
+}
+
+.onboarding-page__dot--active {
+  width: 18px;
+  background: $color-primary;
+}
+
+.onboarding-page__next {
+  min-width: 112px;
+}
+
+// Placed after the rules above (not inside the main Responsive section
+// further up the file) on purpose — these target the same classes at equal
+// specificity, so with an earlier source position they'd lose the cascade
+// to the desktop rules above and silently do nothing on mobile too.
+@media (max-width: 767px) {
+  .onboarding-page {
+    padding: 58px 24px 0px;
+  }
+
+  .onboarding-slide {
+    gap: 14px;
+  }
+
+  // Shorter than the desktop 3/5 — object-fit: contain never crops, so a
+  // shorter frame just letterboxes the (slightly taller) real screenshots a
+  // bit more; trades a little of their vertical presence for meaningfully
+  // less page height to fit on a short phone screen.
+  .onboarding-slide__frame {
+    aspect-ratio: 3 / 4;
+  }
+
+  .onboarding-page__footer {
+    margin-top: 14px;
   }
 }

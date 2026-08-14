@@ -21,14 +21,6 @@
         <span>行程</span>
       </RouterLink>
     </nav>
-
-    <div class="app-sidebar__user">
-      <span class="app-sidebar__avatar">柏</span>
-      <div>
-        <strong>陳柏翰</strong>
-        <small>bohan@tripflow.ai</small>
-      </div>
-    </div>
   </aside>
 </template>
 

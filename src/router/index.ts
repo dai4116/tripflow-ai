@@ -1,13 +1,27 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
+import { hasSeenOnboarding } from '../data/onboarding'
 import { useTripsStore } from '../stores/trips'
+
+// First-visit gate for the routes that actually enter the app (not the
+// marketing landing page itself, and not explore-trip — that one's meant to
+// stay a frictionless, no-commitment demo, see exploreTrips.ts). Includes
+// trip-board so a first-time visitor who opens a direct/shared trip link
+// still sees onboarding instead of skipping straight past it.
+const ONBOARDING_GATED_ROUTES = new Set(['dashboard', 'trip-create', 'trips', 'trip-board'])
 
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
     name: 'landing',
     component: () => import('../pages/LandingPage.vue'),
-    meta: { layout: 'marketing' },
+    meta: { layout: 'bare' },
+  },
+  {
+    path: '/onboarding',
+    name: 'onboarding',
+    component: () => import('../pages/OnboardingPage.vue'),
+    meta: { layout: 'bare' },
   },
   {
     path: '/dashboard',
@@ -63,6 +77,16 @@ const router = createRouter({
   scrollBehavior() {
     return { top: 0 }
   },
+})
+
+router.beforeEach((to) => {
+  if (!hasSeenOnboarding() && typeof to.name === 'string' && ONBOARDING_GATED_ROUTES.has(to.name)) {
+    // Carries the originally-requested URL through so OnboardingPage.vue's
+    // finish() can send the user on to wherever they actually meant to go
+    // (a direct/shared link to trip-create or a specific trip) instead of
+    // always dumping them on the dashboard.
+    return { name: 'onboarding', query: { redirect: to.fullPath } }
+  }
 })
 
 export default router

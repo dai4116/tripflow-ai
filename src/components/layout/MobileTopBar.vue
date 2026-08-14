@@ -4,7 +4,6 @@
       <span class="brand-mark"><AppIcon name="compass" :size="16" /></span>
       <strong>TripFlow AI</strong>
     </RouterLink>
-    <span class="mobile-top-bar__avatar">柏</span>
   </header>
 </template>
 

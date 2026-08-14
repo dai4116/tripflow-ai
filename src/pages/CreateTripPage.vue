@@ -683,10 +683,6 @@ let cancelled = false
 async function finishGeneration() {
   requestInFlight = true
   try {
-    // TEMP: local preview only — remove this line. Delays the real call so
-    // generating-card's stage animation is visible before it hits your local
-    // config's failure. 8s covers all four stage transitions.
-    await new Promise((resolve) => setTimeout(resolve, 60000))
     const firstCity = form.cities[0]!
     const trip = await tripsStore.createTrip({
       // The top-level destination/destinationPlaceId/Lat/Lng fields always
