@@ -49,6 +49,13 @@
       </RouterLink>
     </section>
 
+    <div v-if="trips.length === 0" class="trips-empty">
+      <AppIcon name="compass" :size="28" />
+      <h3>還沒有任何行程</h3>
+      <p>建立你的第一趟旅程，開始規劃景點與行程安排</p>
+      <BaseButton :to="{ name: 'trip-create' }" variant="primary">AI 規劃行程</BaseButton>
+    </div>
+
     <section class="dashboard-section">
       <div class="section-head">
         <h2>探索行程</h2>
@@ -73,6 +80,7 @@ import { computed } from 'vue'
 import PageHeader from '../components/layout/PageHeader.vue'
 import TripCard from '../components/trips/TripCard.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
+import BaseButton from '../components/ui/BaseButton.vue'
 import TrailCoverArt from '../components/ui/TrailCoverArt.vue'
 import { useCoverPhotoUrl } from '../composables/useCoverPhotoUrl'
 import { useImageWithFallback } from '../composables/useImageWithFallback'
@@ -94,11 +102,13 @@ const todayLabel = computed(() => {
 // a greeting that's stuck on "早安" no matter when the page is opened.
 const greetingTitle = computed(() => {
   const hour = new Date().getHours()
-  const greeting = hour < 12 ? '早安' : hour < 18 ? '午安' : '晚上好'
+  const greeting = hour < 12 ? '早安' : hour < 18 ? '午安' : '晚安'
   return `${greeting} 👋`
 })
 const greetingDescription = computed(() => {
-  if (trips.value.length === 0) return '開始規劃你的第一趟旅程吧'
+  // Empty state has its own heading + CTA below (.trips-empty) — an empty
+  // string here skips PageHeader's <p> so the two messages don't stack.
+  if (trips.value.length === 0) return ''
 
   return `有 ${trips.value.length} 個行程進行中`
 })

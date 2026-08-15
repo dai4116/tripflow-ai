@@ -1,6 +1,6 @@
 <template>
   <aside class="app-sidebar">
-    <RouterLink class="app-sidebar__brand" :to="{ name: 'landing' }">
+    <RouterLink class="app-sidebar__brand" :to="{ name: 'dashboard' }">
       <span class="brand-mark"><AppIcon name="compass" :size="18" /></span>
       <span>TripFlow AI</span>
     </RouterLink>
