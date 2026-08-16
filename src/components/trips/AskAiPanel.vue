@@ -67,12 +67,19 @@
           </span>
         </div>
 
-        <div v-if="messages.length === 1 && !pendingSuggestion" class="ask-ai-suggestions">
+        <div v-if="isThinking" class="ask-ai-message ask-ai-message--ai ask-ai-message--thinking">
+          <span class="ask-ai-typing"><i /><i /><i /></span>
+        </div>
+      </div>
+
+      <div class="ask-ai-panel__quickbar">
+        <div v-if="!pendingSuggestion" class="ask-ai-suggestions">
           <button
             v-for="chip in suggestionChips"
             :key="chip.kind"
             type="button"
             class="ask-ai-suggestion"
+            :disabled="isThinking"
             @click="pickSuggestion(chip.kind)"
           >
             <AppIcon :name="chip.icon" :size="14" />
@@ -80,7 +87,7 @@
           </button>
         </div>
 
-        <div v-else-if="pendingSuggestion" class="ask-ai-day-picker">
+        <div v-else class="ask-ai-day-picker">
           <p class="ask-ai-day-picker__prompt">第幾天？</p>
           <div class="ask-ai-day-picker__days">
             <button
@@ -88,6 +95,7 @@
               :key="column.id"
               type="button"
               class="ask-ai-day-chip"
+              :disabled="isThinking"
               @click="pickDay(column.dayNumber)"
             >
               第 {{ column.dayNumber }} 天
@@ -96,10 +104,6 @@
           <button type="button" class="ask-ai-day-picker__back" @click="cancelSuggestion">
             返回
           </button>
-        </div>
-
-        <div v-if="isThinking" class="ask-ai-message ask-ai-message--ai ask-ai-message--thinking">
-          <span class="ask-ai-typing"><i /><i /><i /></span>
         </div>
       </div>
 
@@ -110,7 +114,12 @@
           placeholder="例如：推薦我第 1 天附近的景點..."
           aria-label="傳送訊息給 AI"
         />
-        <button type="submit" class="ask-ai-panel__send" :disabled="!draft.trim()" aria-label="送出訊息">
+        <button
+          type="submit"
+          class="ask-ai-panel__send"
+          :disabled="!draft.trim() || isThinking"
+          aria-label="送出訊息"
+        >
           <AppIcon name="arrow-right" :size="15" />
         </button>
       </form>
@@ -184,12 +193,13 @@ function suggestionActions(): AiAction[] {
   ]
 }
 
-// Quick-start prompts shown under the opening greeting, before the user has
-// sent anything — spares them typing out the three things AI can do that
-// manual drag/delete can't (recommend places, judge pace, optimize a day's
-// route by real coordinates). None of them make sense without a day, so
-// picking one doesn't send yet — it opens the day picker below (see
-// pendingSuggestion) and the day click sends/runs the full request.
+// Quick-start prompts pinned in the quickbar above the input, always
+// clickable (not just before the first message) — spares the user typing
+// out the three things AI can do that manual drag/delete can't (recommend
+// places, judge pace, optimize a day's route by real coordinates). None of
+// them make sense without a day, so picking one doesn't send yet — it
+// swaps the quickbar to the day picker (see pendingSuggestion) and the day
+// click sends/runs the full request.
 type SuggestionKind = 'suggest' | 'pace' | 'route'
 const suggestionChips: { kind: SuggestionKind; icon: IconName; label: string }[] = [
   { kind: 'suggest', icon: 'sparkle', label: '推薦附近景點' },
@@ -469,7 +479,7 @@ function messageFromAskAiResult(result: AskAiResult): Omit<AiMessage, 'id' | 'ro
 
 async function sendMessage() {
   const text = draft.value.trim()
-  if (!text) return
+  if (!text || isThinking.value) return
 
   messages.value.push({ id: nanoid(), role: 'user', text })
   draft.value = ''

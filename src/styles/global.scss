@@ -4118,7 +4118,7 @@ h3 {
   z-index: 6;
   display: grid;
   height: 360px;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
   border-top: 1px solid $color-border;
   border-right: 1px solid $color-border;
   background: $color-surface;
@@ -4248,11 +4248,18 @@ h3 {
   font-weight: 750;
 }
 
-.ask-ai-suggestions {
-  display: grid;
+.ask-ai-panel__quickbar {
+  display: flex;
+  flex-wrap: wrap;
   gap: 6px;
-  justify-self: start;
-  max-width: 92%;
+  padding: 10px 14px;
+  border-top: 1px solid $color-border;
+}
+
+.ask-ai-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .ask-ai-suggestion {
@@ -4278,11 +4285,16 @@ h3 {
   @include focus-ring;
 }
 
+.ask-ai-suggestion:disabled {
+  border-color: $color-border;
+  color: $color-subtle;
+  opacity: 0.6;
+}
+
 .ask-ai-day-picker {
   display: grid;
   gap: 8px;
-  justify-self: start;
-  max-width: 92%;
+  width: 100%;
 }
 
 .ask-ai-day-picker__prompt {
@@ -4314,6 +4326,12 @@ h3 {
 
 .ask-ai-day-chip:focus-visible {
   @include focus-ring;
+}
+
+.ask-ai-day-chip:disabled {
+  border-color: $color-border;
+  color: $color-subtle;
+  opacity: 0.6;
 }
 
 .ask-ai-day-picker__back {
@@ -5096,7 +5114,7 @@ h3 {
     z-index: 46;
     height: auto;
     max-height: min(70vh, 560px);
-    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
     border-right: 0;
     border-radius: $radius-lg $radius-lg 0 0;
     box-shadow: 0 -18px 48px rgba($color-dusk, 0.18);
