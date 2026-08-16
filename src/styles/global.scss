@@ -5314,3 +5314,247 @@ h3 {
     margin-top: 14px;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Trip print / export page
+// ---------------------------------------------------------------------------
+
+.trip-print-page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding-bottom: 60px;
+}
+
+.trip-print-page__toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px $page-padding;
+  background: $color-surface;
+  border-bottom: 1px solid $color-border;
+}
+
+.trip-print-page__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: $color-muted;
+  font-size: $fs-small;
+  font-weight: 700;
+}
+
+.trip-print-page__back:hover {
+  color: $color-primary-text;
+}
+
+.trip-print-page__export {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 18px;
+  border: 0;
+  border-radius: $radius-pill;
+  background: $color-primary;
+  color: $color-surface;
+  font-size: $fs-small;
+  font-weight: 750;
+  box-shadow: $shadow-primary;
+}
+
+.trip-print-page__export:hover {
+  background: $color-primary-deep;
+}
+
+.trip-print-page__export:focus-visible {
+  @include focus-ring;
+}
+
+.trip-print-page__sheet {
+  max-width: 680px;
+  margin: 28px auto 0;
+  padding: 0 $page-padding;
+}
+
+// Only shown as the repeating page header once @media print takes over —
+// on screen the sticky toolbar above already does that job.
+.trip-print-page__running {
+  display: none;
+}
+
+.trip-print-page__head {
+  padding-bottom: 18px;
+  border-bottom: 1px solid $color-border;
+}
+
+.trip-print-page__head h1 {
+  margin: 0 0 4px;
+  font-size: $fs-h2;
+  font-weight: 800;
+  color: $color-ink;
+}
+
+.trip-print-page__head p {
+  margin: 0;
+  font-size: $fs-small;
+  color: $color-muted;
+}
+
+.trip-print-page__unscheduled {
+  color: $color-warning;
+  font-weight: 700;
+}
+
+.trip-print-page__empty {
+  padding: 24px 0;
+  color: $color-subtle;
+  font-size: $fs-small;
+}
+
+.trip-print-page__day {
+  padding-top: 22px;
+}
+
+.trip-print-page__day-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 10px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid $color-border;
+  font-size: $fs-small;
+  font-weight: 700;
+  color: $color-muted;
+}
+
+.trip-print-page__day-badge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 7px;
+  border-radius: $radius-pill;
+  background: $color-primary-soft;
+  color: $color-primary-text;
+  font-size: $fs-caption;
+  font-weight: 800;
+}
+
+.trip-print-page__stops {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.trip-print-page__stop {
+  display: grid;
+  grid-template-columns: 52px 1fr auto;
+  align-items: baseline;
+  gap: 12px;
+  padding: 9px 0;
+}
+
+.trip-print-page__time {
+  font-size: $fs-small;
+  font-weight: 700;
+  color: $color-ink;
+}
+
+.trip-print-page__stop-body {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.trip-print-page__stop-name {
+  font-size: $fs-ui;
+  font-weight: 700;
+  color: $color-ink;
+}
+
+.trip-print-page__duration {
+  font-size: $fs-caption;
+  color: $color-muted;
+  white-space: nowrap;
+}
+
+.trip-print-page__connector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0 2px 64px;
+  font-size: $fs-caption;
+  color: $color-subtle;
+}
+
+@media (max-width: 767px) {
+  .trip-print-page__toolbar {
+    padding: 12px 16px;
+  }
+
+  .trip-print-page__sheet {
+    margin-top: 20px;
+    padding: 0 16px;
+  }
+
+  .trip-print-page__stop {
+    grid-template-columns: 44px 1fr;
+  }
+
+  .trip-print-page__duration {
+    grid-column: 2;
+  }
+
+  .trip-print-page__connector {
+    padding-left: 56px;
+  }
+}
+
+// Browser print stylesheet — strips the on-screen chrome (toolbar, sticky
+// positioning, card shadows) down to a plain paginated document. Page
+// numbers/date are left to the browser's own print-dialog "headers and
+// footers" option rather than faked here — Chrome doesn't reliably support
+// CSS Paged Media's counter(page) in @page margin boxes.
+@media print {
+  .trip-print-page__toolbar {
+    display: none;
+  }
+
+  .trip-print-page__running {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 6px 0;
+    border-bottom: 1px solid $color-border;
+    text-align: center;
+    font-size: $fs-caption;
+    color: $color-subtle;
+  }
+
+  .trip-print-page__sheet {
+    max-width: none;
+    margin-top: 0;
+    padding: 26px 0 0;
+  }
+
+  .trip-print-page__day {
+    break-inside: avoid;
+  }
+
+  // Colored category pills lean on hue to separate categories, which a
+  // black-and-white/low-ink print run can't reproduce reliably — flatten to
+  // plain text so the label alone (already rendered by CategoryChip) still
+  // carries the meaning.
+  .category-chip {
+    background: none;
+    padding: 0;
+    color: $color-muted;
+  }
+}

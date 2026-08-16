@@ -1,6 +1,12 @@
+import type { IconName } from '../components/ui/icons'
 import type { TravelMode } from '../types'
 
 export type GeoPoint = { lat: number; lng: number }
+
+// Shared by TravelTimeRow.vue (the inline board connector) and
+// TripPrintPage.vue (the read-only itinerary) so a travel mode always maps
+// to the same icon in both places.
+export const TRAVEL_MODE_ICON: Record<TravelMode, IconName> = { driving: 'car', walking: 'walk', cycling: 'bike', manual: 'clock' }
 export type TravelEstimate = { durationMin: number; distanceKm: number }
 
 // Straight-line (haversine) distance in km — used to pick walking vs

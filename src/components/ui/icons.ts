@@ -123,6 +123,9 @@ export const icons = {
   plane: {
     body: `<path d="M21 16V14L13 9V3.5A1.5 1.5 0 0 0 11.5 2A1.5 1.5 0 0 0 10 3.5V9L2 14V16L10 13.5V19L7.5 20.5V22L11.5 21L15.5 22V20.5L13 19V13.5L21 16Z" fill="currentColor" stroke="none"/>`,
   },
+  printer: {
+    body: `<path d="M7 8V4h10v4" ${STROKE}/><rect x="4" y="8" width="16" height="7" rx="1.6" ${STROKE}/><rect x="7" y="13" width="10" height="7" rx="1" ${STROKE}/><circle cx="16.5" cy="11" r="0.9" fill="currentColor" stroke="none"/>`,
+  },
 } satisfies Record<string, { body: string; tall?: boolean }>
 
 export type IconName = keyof typeof icons

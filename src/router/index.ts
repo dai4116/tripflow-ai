@@ -66,6 +66,20 @@ const routes: RouteRecordRaw[] = [
     },
   },
   {
+    path: '/trips/:tripId/print',
+    name: 'trip-print',
+    component: () => import('../pages/TripPrintPage.vue'),
+    meta: { layout: 'bare' },
+    // Not in ONBOARDING_GATED_ROUTES on purpose — this read-only view is
+    // meant to work as a frictionless direct link (same spirit as
+    // explore-trip), which matters once it doubles as the base for a future
+    // public share link.
+    beforeEnter: () => {
+      const tripsStore = useTripsStore()
+      if (tripsStore.trips.length === 0) return { name: 'dashboard' }
+    },
+  },
+  {
     path: '/trips/new',
     redirect: { name: 'trip-create' },
   },

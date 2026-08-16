@@ -9,6 +9,13 @@
       </template>
 
       <template #badge>
+        <RouterLink
+          :to="{ name: 'trip-print', params: { tripId: activeTrip.id } }"
+          class="trip-settings-trigger"
+          aria-label="列印 / 匯出行程"
+        >
+          <AppIcon name="printer" :size="15" />
+        </RouterLink>
         <button
           type="button"
           class="trip-settings-trigger"
@@ -502,7 +509,14 @@ import { useColumnSchedule } from '../composables/useColumnSchedule'
 import { useConfirmDialog } from '../composables/useConfirmDialog'
 import { useIsMobile } from '../composables/useIsMobile'
 import { usePlacePhoto } from '../composables/usePlacePhoto'
-import { cityFromDestination, computeTripDays, dayWindowForPace, formatDateRange, toDateInputValue } from '../data/generateTrip'
+import {
+  cityFromDestination,
+  computeTripDays,
+  dayWindowForPace,
+  formatColumnDate,
+  formatDateRange,
+  toDateInputValue,
+} from '../data/generateTrip'
 import { googleMapsPlaceUrl } from '../data/googleMapsUrl'
 import type { GeoPoint } from '../data/placesSearchClient'
 import {
@@ -768,18 +782,8 @@ function onKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') closeDrawer()
 }
 
-const WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六']
-
-// Trips copied from Explore do not have a real date yet. Hide the date slot
-// until the user schedules one instead of showing placeholder text here.
 function columnDate(column: TripColumn): string {
-  if (!activeTrip.value.startDate) return ''
-
-  const date = new Date(activeTrip.value.startDate)
-  if (Number.isNaN(date.getTime())) return ''
-
-  date.setDate(date.getDate() + (column.dayNumber - 1))
-  return `${date.getMonth() + 1}/${date.getDate()} (${WEEKDAY_LABELS[date.getDay()]})`
+  return formatColumnDate(activeTrip.value.startDate, column.dayNumber)
 }
 
 function closeOverlapWarning() {

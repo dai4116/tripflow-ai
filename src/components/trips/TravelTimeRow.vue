@@ -21,7 +21,7 @@
 // as a new top-level sibling in the VueDraggable list, so it can't interfere
 // with drag-reorder detection.
 import { computed } from 'vue'
-import { formatTravelDuration } from '../../data/routing'
+import { formatTravelDuration, TRAVEL_MODE_ICON } from '../../data/routing'
 import type { Place } from '../../types'
 import AppIcon from '../ui/AppIcon.vue'
 
@@ -44,7 +44,5 @@ const travel = computed(() => {
   return value?.toPlaceId === props.nextPlace.id ? value : null
 })
 
-const MODE_ICON = { driving: 'car', walking: 'walk', cycling: 'bike', manual: 'clock' } as const
-
-const modeIcon = computed(() => MODE_ICON[travel.value?.mode ?? 'manual'])
+const modeIcon = computed(() => TRAVEL_MODE_ICON[travel.value?.mode ?? 'manual'])
 </script>

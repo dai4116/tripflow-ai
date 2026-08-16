@@ -464,6 +464,23 @@ export function formatDateRange(startDate: string, endDate: string): string {
   return `${end.getFullYear()}年${startLabel} - ${endLabel}`
 }
 
+const WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六']
+
+// Shared by TripBoardPage.vue (the column header) and TripPrintPage.vue (the
+// exported itinerary) so a day always resolves to the same calendar date in
+// both places. Trips copied from Explore (or any trip not yet scheduled)
+// have no startDate — return '' to hide the date slot rather than showing
+// placeholder text.
+export function formatColumnDate(startDate: string | undefined, dayNumber: number): string {
+  if (!startDate) return ''
+
+  const date = new Date(startDate)
+  if (Number.isNaN(date.getTime())) return ''
+
+  date.setDate(date.getDate() + (dayNumber - 1))
+  return `${date.getMonth() + 1}/${date.getDate()} (${WEEKDAY_LABELS[date.getDay()]})`
+}
+
 type GeoPoint = { lat: number; lng: number }
 
 function hasCoords(suggestion: PlaceSuggestion): suggestion is PlaceSuggestion & GeoPoint {
