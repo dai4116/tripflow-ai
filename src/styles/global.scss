@@ -2884,6 +2884,12 @@ h3 {
   box-shadow: $shadow-lg;
 }
 
+// Edit mode hides the cover photo/title row (name is already an editable
+// field in the form), so the grid collapses to a single content row.
+.place-drawer--editing {
+  grid-template-rows: minmax(0, 1fr);
+}
+
 .mobile-sheet-overlay {
   display: none;
 }
@@ -3032,6 +3038,13 @@ h3 {
   gap: 14px;
   overflow-y: auto;
   padding: 16px;
+}
+
+// Editing mode has no photo row, so the fixed-position close button (top:
+// 10px, 30px tall) needs the content pushed clear of it instead of floating
+// over the photo like it does in read mode.
+.place-drawer--editing .place-drawer__content {
+  padding-top: 32px;
 }
 
 // Groups the outbound-Maps link with the place-level edit/remove tools, so the
@@ -3194,6 +3207,55 @@ h3 {
   color: $color-muted;
   font-size: $font-size-xs;
   font-weight: 700;
+}
+
+.place-drawer__field {
+  display: grid;
+  gap: 6px;
+}
+
+.place-drawer__category-wrap {
+  position: relative;
+}
+
+// Category rarely changes once a place is added, so it collapses to a
+// single trigger (mirrors "移動天數" above) instead of the always-expanded
+// pill row it used to be — opening the same day-picker-sheet-style list.
+.place-drawer__category-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+  background: $color-bg;
+  color: $color-ink;
+  font-size: $fs-ui;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.place-drawer__category-chevron {
+  margin-left: auto;
+  color: $color-subtle;
+}
+
+.place-drawer__category-menu {
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  width: auto;
+}
+
+.place-drawer__category-item {
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.day-picker-sheet__item--selected {
+  background: $color-primary-soft;
+  color: $color-primary-text;
 }
 
 .place-drawer__toggle-field {
@@ -3484,6 +3546,24 @@ h3 {
   color: $color-primary-text;
   font-size: $fs-ui;
   font-weight: 800;
+}
+
+.add-place-modal__day-wrap {
+  position: relative;
+}
+
+// Resets the <button> chrome so it keeps reading as the same teal subtitle
+// text (.add-place-modal__subtitle, applied alongside this on the same
+// element) while adding the chevron + click target for switching days.
+.add-place-modal__day-trigger {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
 }
 
 .add-place-modal__close {
@@ -4286,7 +4366,7 @@ h3 {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  padding: 10px 14px;
+  padding: 10px 14px 0;
   border-top: 1px solid $color-border;
 }
 
@@ -4331,6 +4411,13 @@ h3 {
   width: 100%;
 }
 
+.ask-ai-day-picker__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .ask-ai-day-picker__prompt {
   color: $color-muted;
   font-size: $fs-caption;
@@ -4369,14 +4456,12 @@ h3 {
 }
 
 .ask-ai-day-picker__back {
-  justify-self: start;
   padding: 2px 0;
   border: 0;
   background: none;
   color: $color-subtle;
   font-size: $fs-caption;
   font-weight: 700;
-  text-decoration: underline;
 }
 
 .ask-ai-suggestion .app-icon {
@@ -4425,7 +4510,6 @@ h3 {
   display: flex;
   gap: 8px;
   padding: 12px 14px;
-  border-top: 1px solid $color-border;
 }
 
 .ask-ai-panel__input input {
@@ -5061,6 +5145,10 @@ h3 {
     border-left: 0;
     border-radius: $radius-lg $radius-lg 0 0;
     box-shadow: 0 -18px 48px rgba($color-dusk, 0.18);
+  }
+
+  .place-drawer.place-drawer--sheet.place-drawer--editing {
+    grid-template-rows: minmax(0, 1fr);
   }
 
   .place-drawer--sheet.place-sheet-slide-enter-active,

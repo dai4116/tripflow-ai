@@ -192,13 +192,14 @@
         <aside
           v-if="drawerPlace"
           class="place-drawer"
-          :class="{ 'place-drawer--sheet': isSheetMode }"
+          :class="{ 'place-drawer--sheet': isSheetMode, 'place-drawer--editing': isEditingPlace }"
           aria-label="地點詳細資料面板"
         >
           <button class="place-drawer__close" type="button" aria-label="關閉面板" @click="closeDrawer">
             <AppIcon name="close" :size="13" />
           </button>
           <div
+            v-if="!isEditingPlace"
             class="place-drawer__image"
             :class="{
               'place-drawer__image--pending': !drawerPhotoReady,
@@ -303,17 +304,49 @@
             <div v-else class="place-drawer__edit-form">
               <BaseInput v-model="editForm.name" label="名稱" placeholder="地點名稱" />
 
-              <div class="add-place-modal__pills">
-                <button
-                  v-for="category in allPlaceCategories"
-                  :key="category"
-                  type="button"
-                  class="preference-chip"
-                  :class="{ 'preference-chip--selected': editForm.category === category }"
-                  @click="editForm.category = category"
-                >
-                  {{ categoryLabels[category] }}
-                </button>
+              <div class="place-drawer__field">
+                <span class="place-drawer__field-label">類別</span>
+                <div class="place-drawer__category-wrap">
+                  <button
+                    type="button"
+                    class="place-drawer__category-trigger"
+                    @click="isCategoryMenuOpen = !isCategoryMenuOpen"
+                  >
+                    <!-- `?? …other` guards a category value TypeScript can't verify at
+                         this boundary — see CategoryChip.vue's categoryIcon computed. -->
+                    <AppIcon :name="categoryIcons[editForm.category] ?? categoryIcons.other" :size="14" />
+                    {{ categoryLabels[editForm.category] ?? categoryLabels.other }}
+                    <AppIcon name="chevron-down" :size="11" class="place-drawer__category-chevron" />
+                  </button>
+                  <div
+                    v-if="isCategoryMenuOpen"
+                    class="day-picker-sheet day-picker-sheet--below place-drawer__category-menu"
+                    role="menu"
+                    aria-label="請選擇類別"
+                  >
+                    <div class="day-picker-sheet__list">
+                      <button
+                        v-for="category in allPlaceCategories"
+                        :key="category"
+                        type="button"
+                        role="menuitem"
+                        class="day-picker-sheet__item place-drawer__category-item"
+                        :class="{ 'day-picker-sheet__item--selected': editForm.category === category }"
+                        @click="selectEditCategory(category)"
+                      >
+                        <AppIcon :name="categoryIcons[category]" :size="14" />
+                        {{ categoryLabels[category] }}
+                      </button>
+                    </div>
+                  </div>
+                  <button
+                    v-if="isCategoryMenuOpen"
+                    class="place-drawer__move-backdrop"
+                    type="button"
+                    aria-label="關閉類別選單"
+                    @click="isCategoryMenuOpen = false"
+                  />
+                </div>
               </div>
 
               <div class="place-drawer__toggle-field">
@@ -471,7 +504,11 @@
         <AppIcon name="plus" :size="18" />
       </button>
 
-      <AskAiPanel :trip-id="activeTrip.id" :hide-launcher="showAddModal" @applied="focusColumn" />
+      <AskAiPanel
+        :trip-id="activeTrip.id"
+        :hide-launcher="showAddModal || (isSheetMode && Boolean(drawerPlace))"
+        @applied="focusColumn"
+      />
       </div>
     </Transition>
 
@@ -481,11 +518,13 @@
         :sheet="isSheetMode"
         :column-id="addModalColumnId"
         :column-title="addModalColumnTitle"
+        :columns="displayedColumns"
         :city="cityName"
         :destination="activeTrip.destination"
         :day-anchor="addModalDayAnchor"
         @close="showAddModal = false"
         @add="onAddPlace"
+        @change-column="addModalColumnId = $event"
       />
     </Transition>
   </section>
@@ -504,7 +543,7 @@ import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '../components/layout/PageHeader.vue'
 import AddPlaceModal from '../components/trips/AddPlaceModal.vue'
 import AskAiPanel from '../components/trips/AskAiPanel.vue'
-import { allPlaceCategories, categoryLabels } from '../components/trips/CategoryChip.vue'
+import { allPlaceCategories, categoryIcons, categoryLabels } from '../components/trips/CategoryChip.vue'
 import DayPickerSheet from '../components/trips/DayPickerSheet.vue'
 import DayStepper from '../components/trips/DayStepper.vue'
 import DayTabs from '../components/trips/DayTabs.vue'
@@ -587,6 +626,7 @@ const addModalColumnId = ref('')
 const newlyAddedColumnId = ref('')
 const NEW_COLUMN_ENTER_DURATION = 400
 const isMoveMenuOpen = ref(false)
+const isCategoryMenuOpen = ref(false)
 const isEditingPlace = ref(false)
 const editForm = reactive({
   name: '',
@@ -763,6 +803,7 @@ watch(
     closeOverlapWarning()
     clearBoardToast()
     isMoveMenuOpen.value = false
+    isCategoryMenuOpen.value = false
     isEditingPlace.value = false
     showAddModal.value = false
     showTripSettingsModal.value = false
@@ -858,6 +899,7 @@ function openPlaceDrawer(placeId: string) {
   selectedPlaceId.value = placeId
   drawerPlaceId.value = placeId
   isMoveMenuOpen.value = false
+  isCategoryMenuOpen.value = false
   isEditingPlace.value = false
 
   const place = tripPlaces.value.find((item) => item.id === placeId)
@@ -867,6 +909,7 @@ function openPlaceDrawer(placeId: string) {
 function closeDrawer() {
   drawerPlaceId.value = null
   isMoveMenuOpen.value = false
+  isCategoryMenuOpen.value = false
   isEditingPlace.value = false
 }
 
@@ -1203,10 +1246,17 @@ function startEdit() {
 
 function cancelEdit() {
   isEditingPlace.value = false
+  isCategoryMenuOpen.value = false
+}
+
+function selectEditCategory(category: PlaceCategory) {
+  editForm.category = category
+  isCategoryMenuOpen.value = false
 }
 
 function saveEdit() {
   if (!drawerPlace.value || !editForm.name.trim()) return
+  isCategoryMenuOpen.value = false
 
   tripsStore.updatePlace(drawerPlace.value.id, {
     name: editForm.name.trim(),

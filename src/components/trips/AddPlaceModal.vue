@@ -23,7 +23,30 @@
         <span v-if="sheet" class="add-place-modal__handle" aria-hidden="true" />
         <div class="add-place-modal__titles">
           <h3>新增地點</h3>
-          <p class="add-place-modal__subtitle">到{{ columnTitle }}</p>
+          <div class="add-place-modal__day-wrap">
+            <button
+              type="button"
+              class="add-place-modal__subtitle add-place-modal__day-trigger"
+              @click="isDayMenuOpen = !isDayMenuOpen"
+            >
+              到{{ columnTitle }}
+              <AppIcon name="chevron-down" :size="10" />
+            </button>
+            <DayPickerSheet
+              v-if="isDayMenuOpen"
+              :columns="columns"
+              title="請選擇要新增到的天數"
+              :disabled-column-id="columnId"
+              @select="selectColumn"
+            />
+            <button
+              v-if="isDayMenuOpen"
+              class="place-drawer__move-backdrop"
+              type="button"
+              aria-label="關閉天數選單"
+              @click="isDayMenuOpen = false"
+            />
+          </div>
         </div>
         <button type="button" class="add-place-modal__close" aria-label="關閉" @click="close">
           <AppIcon name="close" :size="13" />
@@ -96,7 +119,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { searchPlaces, type GeoPoint, type PlaceSearchResult } from '../../data/placesSearchClient'
-import type { PlaceCategory } from '../../types'
+import type { PlaceCategory, TripColumn } from '../../types'
 import AppIcon from '../ui/AppIcon.vue'
 import BaseInput from '../ui/BaseInput.vue'
 import {
@@ -107,10 +130,12 @@ import {
   sameAnchor,
 } from './addPlaceModalCache'
 import { categoryLabels } from './CategoryChip.vue'
+import DayPickerSheet from './DayPickerSheet.vue'
 
 const props = defineProps<{
   columnId: string
   columnTitle: string
+  columns: TripColumn[]
   city: string
   // Full trip destination (e.g. "京都，日本"), not just `city` — biases the
   // Google Places search to the right city (see geocodeCityCenter in
@@ -142,7 +167,19 @@ const emit = defineEmits<{
       placeId?: string
     },
   ]
+  // TripBoardPage.vue re-keys this component on the new columnId when this
+  // fires, so switching day remounts fresh rather than trying to patch
+  // addedPlaceIds/search state (both scoped to the old day) in place.
+  'change-column': [columnId: string]
 }>()
+
+const isDayMenuOpen = ref(false)
+
+function selectColumn(columnId: string) {
+  isDayMenuOpen.value = false
+  if (columnId === props.columnId) return
+  emit('change-column', columnId)
+}
 
 // Narrower than the full PlaceCategory taxonomy: 'transport' isn't something
 // a user searches Google Places for (it's a flight/booking detail typed in by
@@ -173,10 +210,13 @@ const hasSearched = ref(false)
 const searchFailed = ref(false)
 const failedPhotoIds = ref(new Set<string>())
 
-// See addPlaceModalCache.ts for why this lives in its own module instead of
-// here — a `const` at this scope re-initializes every time the modal
-// reopens, which defeats the whole point of caching across reopens.
-const addedPlaceIds = addedPlaceIdsFor(props.columnId)
+// See addPlaceModalCache.ts for why the underlying Set lives in its own
+// module instead of a plain local — that's what survives closing and
+// reopening the modal. This wrapper is a computed (not a one-time const)
+// because the day-switcher below changes props.columnId on this same,
+// still-mounted instance — a const snapshot would keep pointing at the
+// old day's Set forever.
+const addedPlaceIds = computed(() => addedPlaceIdsFor(props.columnId))
 
 function photoUrl(result: PlaceSearchResult): string {
   return `/api/place-photo?ref=${encodeURIComponent(result.photoRef ?? '')}&w=96`
@@ -273,7 +313,7 @@ async function runSearch() {
       isLoading.value = false
       hasSearched.value = true
       searchFailed.value = false
-      results.value = cached.results.filter((result) => !addedPlaceIds.has(result.placeId))
+      results.value = cached.results.filter((result) => !addedPlaceIds.value.has(result.placeId))
       return
     }
   }
@@ -308,7 +348,7 @@ async function runSearch() {
       results: response.results,
     })
   }
-  results.value = response.results.filter((result) => !addedPlaceIds.has(result.placeId))
+  results.value = response.results.filter((result) => !addedPlaceIds.value.has(result.placeId))
 }
 
 // Keystrokes debounce (avoid firing a request per character); a category
@@ -343,6 +383,25 @@ onBeforeUnmount(() => {
   loadTimeouts.forEach((id) => window.clearTimeout(id))
 })
 
+// Switching day via the day-switcher above changes props.columnId on this
+// same instance (no remount — see addedPlaceIds' computed above), so a
+// search typed/browsed for the old day has to be cleared by hand here.
+// Left as-is, it'd keep showing results biased toward the old day's
+// dayAnchor, and picking one would silently add it to the new day instead.
+watch(
+  () => props.columnId,
+  () => {
+    window.clearTimeout(debounceTimer)
+    activeController?.abort()
+    search.value = ''
+    activeCategory.value = null
+    results.value = []
+    isLoading.value = false
+    hasSearched.value = false
+    searchFailed.value = false
+  },
+)
+
 function pickResult(result: PlaceSearchResult) {
   const chipCategory = activeCategory.value
   // `result.category` only ever holds a value GOOGLE_TYPE_TO_CATEGORY
@@ -362,7 +421,7 @@ function pickResult(result: PlaceSearchResult) {
     photoRef: result.photoRef,
     placeId: result.placeId,
   })
-  addedPlaceIds.add(result.placeId)
+  addedPlaceIds.value.add(result.placeId)
   // Remove it from the visible list immediately — without this the button
   // stays rendered and clickable, and a second click (accidental double-click,
   // or a deliberate re-click since there's no other success feedback) adds
@@ -395,14 +454,16 @@ const dragStyle = computed(() => {
 })
 
 function onDragStart(event: PointerEvent) {
-  // A pointerdown on the close button bubbles up to this header listener
-  // too — starting a drag here would call setPointerCapture on the header,
-  // which retargets the tap's eventual click away from the button (a real
-  // browser dispatches that click to whichever element captured the
-  // pointer, not to whatever's visually underneath it), silently
-  // swallowing the tap instead of closing the modal. Bail out so the
-  // button's own @click handler fires normally.
-  if ((event.target as HTMLElement).closest('.add-place-modal__close')) return
+  // A pointerdown on the close button (or anywhere in the day-switcher —
+  // its trigger, its open DayPickerSheet list, and its backdrop all render
+  // inside the header via .add-place-modal__day-wrap) bubbles up to this
+  // header listener too — starting a drag here would call
+  // setPointerCapture on the header, which retargets the tap's eventual
+  // click away from the button (a real browser dispatches that click to
+  // whichever element captured the pointer, not to whatever's visually
+  // underneath it), silently swallowing the tap instead of firing the
+  // button's own handler. Bail out so it fires normally.
+  if ((event.target as HTMLElement).closest('.add-place-modal__close, .add-place-modal__day-wrap')) return
   isDragging.value = true
   dragPointerId = event.pointerId
   dragStartY = event.clientY

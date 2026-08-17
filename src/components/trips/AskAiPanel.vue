@@ -88,7 +88,12 @@
         </div>
 
         <div v-else class="ask-ai-day-picker">
-          <p class="ask-ai-day-picker__prompt">第幾天？</p>
+          <div class="ask-ai-day-picker__header">
+            <p class="ask-ai-day-picker__prompt">第幾天？</p>
+            <button type="button" class="ask-ai-day-picker__back" @click="cancelSuggestion">
+              返回
+            </button>
+          </div>
           <div class="ask-ai-day-picker__days">
             <button
               v-for="column in activeTrip?.columns ?? []"
@@ -101,9 +106,6 @@
               第 {{ column.dayNumber }} 天
             </button>
           </div>
-          <button type="button" class="ask-ai-day-picker__back" @click="cancelSuggestion">
-            返回
-          </button>
         </div>
       </div>
 
@@ -147,11 +149,12 @@ const MIN_THINKING_MS = 500
 
 const props = defineProps<{
   tripId: string
-  // Set while another full-board takeover (AddPlaceModal) is open — the
-  // launcher pill is `position: fixed` on mobile, so it'd otherwise float
-  // above that panel instead of being covered by it. Only hides the pill;
-  // an already-open chat panel is left alone (its own z-index already sits
-  // below AddPlaceModal's on both breakpoints).
+  // Set while another full-board takeover (AddPlaceModal, or the mobile
+  // place-drawer sheet) is open — the launcher pill is `position: fixed`
+  // on mobile, so it'd otherwise float above that panel instead of being
+  // covered by it. Only hides the pill; an already-open chat panel is left
+  // alone (its own z-index already sits below those panels' on both
+  // breakpoints).
   hideLauncher?: boolean
 }>()
 
@@ -202,8 +205,8 @@ function suggestionActions(): AiAction[] {
 // click sends/runs the full request.
 type SuggestionKind = 'suggest' | 'pace' | 'route'
 const suggestionChips: { kind: SuggestionKind; icon: IconName; label: string }[] = [
-  { kind: 'suggest', icon: 'sparkle', label: '推薦附近景點' },
-  { kind: 'pace', icon: 'clock', label: '看看節奏會不會太趕' },
+  { kind: 'suggest', icon: 'sparkle', label: '推薦景點' },
+  { kind: 'pace', icon: 'clock', label: '評估行程節奏' },
   { kind: 'route', icon: 'compass', label: '依路線排序' },
 ]
 const pendingSuggestion = ref<SuggestionKind | null>(null)

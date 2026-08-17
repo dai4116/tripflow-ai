@@ -99,6 +99,9 @@ export const icons = {
   'chevron-left': {
     body: `<path d="M14.5 5.5L8 12l6.5 6.5" ${STROKE} stroke-width="1.9"/>`,
   },
+  'chevron-down': {
+    body: `<path d="M5.5 9.5L12 16l6.5-6.5" ${STROKE} stroke-width="1.9"/>`,
+  },
   trash: {
     body: `<path d="M5 7h14M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m-9 0 1 12.5A1.5 1.5 0 0 0 8.5 21h7a1.5 1.5 0 0 0 1.5-1.5L18 7M10 11v6M14 11v6" ${STROKE}/>`,
   },

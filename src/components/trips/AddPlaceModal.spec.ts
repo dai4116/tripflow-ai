@@ -19,6 +19,7 @@ function mountModal(props: Partial<InstanceType<typeof AddPlaceModal>['$props']>
     props: {
       columnId: `day-${columnCounter}`,
       columnTitle: `第${columnCounter}天`,
+      columns: [],
       city: '京都',
       destination: '京都，日本',
       dayAnchor: null,
