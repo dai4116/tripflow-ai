@@ -21,7 +21,7 @@
         @pointercancel="onDragEnd"
       >
         <span v-if="sheet" class="add-place-modal__handle" aria-hidden="true" />
-        <div>
+        <div class="add-place-modal__titles">
           <h3>新增地點</h3>
           <p class="add-place-modal__subtitle">到{{ columnTitle }}</p>
         </div>

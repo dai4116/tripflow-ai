@@ -128,8 +128,8 @@
 
           <div class="place-drawer__content">
             <button type="button" class="place-drawer__nav-button" @click="openGoogleMapsPlace">
-              <AppIcon name="compass" :size="14" />
-              在 Google Maps 顯示
+              Google Maps
+              <AppIcon name="external" :size="13" />
             </button>
 
             <p class="place-drawer__description">{{ drawerPlace.description }}</p>

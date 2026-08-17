@@ -126,6 +126,9 @@ export const icons = {
   printer: {
     body: `<path d="M7 8V4h10v4" ${STROKE}/><rect x="4" y="8" width="16" height="7" rx="1.6" ${STROKE}/><rect x="7" y="13" width="10" height="7" rx="1" ${STROKE}/><circle cx="16.5" cy="11" r="0.9" fill="currentColor" stroke="none"/>`,
   },
+  external: {
+    body: `<path d="M11 5H6.6A1.6 1.6 0 0 0 5 6.6v10.8A1.6 1.6 0 0 0 6.6 19h10.8a1.6 1.6 0 0 0 1.6-1.6V13" ${STROKE}/><path d="M14 5h5v5M19 5l-7.5 7.5" ${STROKE}/>`,
+  },
 } satisfies Record<string, { body: string; tall?: boolean }>
 
 export type IconName = keyof typeof icons

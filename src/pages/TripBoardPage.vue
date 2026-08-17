@@ -198,15 +198,6 @@
           <button class="place-drawer__close" type="button" aria-label="關閉面板" @click="closeDrawer">
             <AppIcon name="close" :size="13" />
           </button>
-          <button
-            v-if="!isEditingPlace"
-            class="place-drawer__edit-toggle"
-            type="button"
-            aria-label="編輯地點詳情"
-            @click="startEdit"
-          >
-            <AppIcon name="edit" :size="13" />
-          </button>
           <div
             class="place-drawer__image"
             :class="{
@@ -229,10 +220,33 @@
 
           <div class="place-drawer__content">
             <template v-if="!isEditingPlace">
-              <button type="button" class="place-drawer__nav-button" @click="openGoogleMapsPlace">
-                <AppIcon name="compass" :size="14" />
-                在 Google Maps 查看
-              </button>
+              <div class="place-drawer__toolbar">
+                <button type="button" class="place-drawer__nav-button" @click="openGoogleMapsPlace">
+                  Google Maps
+                  <AppIcon name="external" :size="13" />
+                </button>
+
+                <div class="place-drawer__tools">
+                  <button
+                    class="place-drawer__tool"
+                    type="button"
+                    aria-label="編輯地點詳情"
+                    title="編輯地點詳情"
+                    @click="startEdit"
+                  >
+                    <AppIcon name="edit" :size="15" />
+                  </button>
+                  <button
+                    class="place-drawer__tool place-drawer__tool--danger"
+                    type="button"
+                    aria-label="移除地點"
+                    title="移除地點"
+                    @click="removeDrawerPlace"
+                  >
+                    <AppIcon name="trash" :size="15" />
+                  </button>
+                </div>
+              </div>
 
               <p class="place-drawer__description">{{ drawerPlace.description }}</p>
 
@@ -276,7 +290,6 @@
                     @select="moveDrawerPlaceTo"
                   />
                 </div>
-                <BaseButton class="place-drawer__remove" variant="ghost" @click="removeDrawerPlace">移除地點</BaseButton>
               </div>
               <button
                 v-if="isMoveMenuOpen"
