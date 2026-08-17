@@ -77,17 +77,25 @@ const emit = defineEmits<{
   save: [payload: { mode: TravelMode; durationMin: number; distanceKm?: number }]
 }>()
 
-const TABS: { mode: TravelMode; label: string; icon: 'car' | 'bike' | 'walk' | 'clock' }[] = [
-  { mode: 'driving', label: '開車', icon: 'car' },
-  { mode: 'cycling', label: '騎車', icon: 'bike' },
+// 開車/騎車 tabs are hidden for now — the underlying estimate comes from
+// OpenRouteService, not a real routed driving/cycling engine (see
+// fetchTravelTime in routing.ts), and it's noticeably unreliable for those
+// two modes. The TravelMode type and TRAVEL_MODE_ICON keep all four so
+// existing saved driving/cycling values still render correctly everywhere
+// read-only (TravelTimeRow, TripPrintPage) — only the picker UI narrows.
+const TABS: { mode: TravelMode; label: string; icon: 'walk' | 'clock' }[] = [
   { mode: 'walking', label: '走路', icon: 'walk' },
   { mode: 'manual', label: '自訂', icon: 'clock' },
 ]
 
 // Pre-fill from whatever's already saved (if any) so reopening the picker
-// to tweak a value doesn't lose it.
+// to tweak a value doesn't lose it. A place saved back when driving/cycling
+// were still selectable has no matching tab anymore — fall back to walking
+// rather than opening on a mode the user can no longer see or reselect.
 const existing = props.fromPlace.travelToNext?.toPlaceId === props.toPlace.id ? props.fromPlace.travelToNext : undefined
-const selectedMode = ref<TravelMode>(existing?.mode ?? 'walking')
+const selectedMode = ref<TravelMode>(
+  existing && (existing.mode === 'walking' || existing.mode === 'manual') ? existing.mode : 'walking',
+)
 const manualMinutes = ref(existing && existing.mode === 'manual' ? existing.durationMin : 0)
 
 // TimePickerSheet works in HH:MM, not raw minutes — converted at the edges

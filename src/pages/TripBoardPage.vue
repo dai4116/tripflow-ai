@@ -158,18 +158,8 @@
                 @open="openTravelTimeModal(entry.card.place, entry.nextPlace)"
               />
             </div>
-            <p v-if="column.placeIds.length === 0 && isMobile" class="kanban-column__empty">請新增景點</p>
+            <p v-if="column.placeIds.length === 0" class="kanban-column__empty">請新增景點</p>
           </VueDraggable>
-
-          <button
-            v-if="!isMobile"
-            type="button"
-            class="kanban-column__add-place"
-            @click="openAddPlaceModal(column.id)"
-          >
-            <AppIcon name="plus" :size="12" />
-            新增地點
-          </button>
         </section>
       </div>
 
@@ -452,6 +442,16 @@
         v-if="isMobile && mobileView === 'board' && !showAddModal"
         type="button"
         class="kanban-mobile-add-fab"
+        :aria-label="`新增地點到 ${focusedColumnTitle}`"
+        @click="openAddPlaceModal(focusedColumnId)"
+      >
+        <AppIcon name="plus" :size="18" />
+      </button>
+
+      <button
+        v-if="!isMobile && !showAddModal"
+        type="button"
+        class="kanban-desktop-add-fab"
         :aria-label="`新增地點到 ${focusedColumnTitle}`"
         @click="openAddPlaceModal(focusedColumnId)"
       >

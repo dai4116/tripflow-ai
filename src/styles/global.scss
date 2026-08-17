@@ -2570,48 +2570,13 @@ h3 {
   font-variant-numeric: tabular-nums;
 }
 
-// Sits at the bottom of the column's own card list rather than repeating
-// next to the header — with several day columns on screen at once, a
-// filled circle in every header read as a row of identical dots, not
-// individually meaningful controls. One dashed "add a card" row per column
-// (Trello's pattern) keeps the action but removes the repetition.
-.kanban-column__add-place {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 8px;
-  border: 1.5px dashed $color-border;
-  border-radius: $radius-md;
-  background: transparent;
-  color: $color-subtle;
-  font-size: $fs-caption;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  transition:
-    border-color 140ms ease,
-    background 140ms ease,
-    color 140ms ease;
-}
-
-.kanban-column__add-place:hover {
-  border-color: $color-primary;
-  background: $color-primary-soft;
-  color: $color-primary-text;
-}
-
-.kanban-column__add-place:focus-visible {
-  @include focus-ring;
-}
-
 .kanban-column__cards {
   display: grid;
   gap: 10px;
   align-content: start;
   // Grows to fill whatever extra height .kanban-board's stretch gave this
-  // column vs. the tallest one, so the add-place row below lines up with
-  // every other column's instead of trailing right after this one's own
-  // last card.
+  // column vs. the tallest one, so a short day's drop zone extends to match
+  // its neighbors instead of stopping right after its own last card.
   flex: 1;
   // This element is the actual Sortable.js drop container, not just a visual
   // wrapper — with an empty day it used to be 12px tall, so the "empty day"
@@ -3489,11 +3454,15 @@ h3 {
   font-weight: 800;
 }
 
+// Teal, same as the focused day's column-header fill and the desktop
+// add-place FAB — this is the one place that actually confirms which day
+// you're about to add to, so it borrows the app's existing "teal = this
+// day" color instead of reading as de-emphasized metadata.
 .add-place-modal__subtitle {
   margin-top: 2px;
-  color: $color-subtle;
+  color: $color-primary-text;
   font-size: $fs-small;
-  font-weight: 650;
+  font-weight: 800;
 }
 
 .add-place-modal__close {
@@ -4074,6 +4043,50 @@ h3 {
 }
 
 .kanban-mobile-add-fab:focus-visible {
+  @include focus-ring;
+}
+
+// ---------------------------------------------------------------------------
+// Desktop add-place FAB
+// ---------------------------------------------------------------------------
+
+// Replaces the old per-column dashed "+新增地點" row (Trello pattern) — with
+// several day columns on screen it read as low-contrast clutter, and the
+// button was easy to miss below a tall stack of cards. One FAB in a fixed
+// spot, adding to whichever day is currently focused (same focusedColumnId
+// the column-header click already drives for the map — its teal header
+// fill is the "which day" indicator, and AddPlaceModal's own subtitle
+// confirms it again before anything is actually added, so the icon-only
+// button doesn't need to repeat the day in its own label).
+.kanban-desktop-add-fab {
+  position: absolute;
+  // Same offset as .ask-ai-launcher below, stacked directly above it.
+  right: $map-panel-width + 16px;
+  bottom: 84px;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: $radius-pill;
+  background: $color-primary;
+  color: $color-surface;
+  box-shadow: $shadow-md;
+  transition:
+    transform 120ms ease,
+    background 140ms ease;
+}
+
+.kanban-desktop-add-fab:hover {
+  background: $color-primary-deep;
+}
+
+.kanban-desktop-add-fab:active {
+  transform: scale(0.94);
+}
+
+.kanban-desktop-add-fab:focus-visible {
   @include focus-ring;
 }
 
