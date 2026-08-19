@@ -117,7 +117,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { searchPlaces, type GeoPoint, type PlaceSearchResult } from '../../data/placesSearchClient'
 import type { PlaceCategory, TripColumn } from '../../types'
 import AppIcon from '../ui/AppIcon.vue'
@@ -377,7 +377,16 @@ watch(activeCategory, () => {
   runSearch()
 })
 
+function onKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && isDayMenuOpen.value) isDayMenuOpen.value = false
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', onKeydown)
+})
+
 onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown)
   window.clearTimeout(debounceTimer)
   activeController?.abort()
   loadTimeouts.forEach((id) => window.clearTimeout(id))

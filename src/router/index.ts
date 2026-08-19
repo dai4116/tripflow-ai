@@ -51,7 +51,12 @@ const routes: RouteRecordRaw[] = [
     path: '/trips/:tripId',
     name: 'trip-board',
     component: () => import('../pages/TripBoardPage.vue'),
-    meta: { layout: 'workspace' },
+    // hideMobileTopBar: the board's own PageHeader already carries the trip
+    // title/destination/date, so the generic branded top bar is pure
+    // duplicate chrome here — dropping it reclaims 48px of vertical space on
+    // mobile for the day columns and place cards, which matter more on this
+    // page than on any other.
+    meta: { layout: 'workspace', hideMobileTopBar: true },
     // TripBoardPage.vue falls back to trips[0] when :tripId doesn't match any
     // real trip (e.g. the hardcoded 'tokyo-explorer' demo id) — a graceful
     // fallback as long as SOME trip exists. With zero trips (fresh visitor,

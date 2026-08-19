@@ -4821,7 +4821,18 @@ h3 {
     display: block;
     max-width: 100%;
     overflow: hidden;
-    padding-top: 48px;
+    // Shared source of truth for the two fixed bars' footprints, safe-area
+    // included — every fixed/sticky element that needs to sit clear of them
+    // (or of the notch/home-indicator gesture strip viewport-fit=cover now
+    // exposes them to) reads these instead of hardcoding 48px/68px, so
+    // there's exactly one place to get this right.
+    --topbar-h: calc(48px + env(safe-area-inset-top));
+    --bottomnav-h: calc(68px + env(safe-area-inset-bottom));
+    padding-top: var(--topbar-h);
+  }
+
+  .workspace-shell--no-topbar {
+    padding-top: 0;
   }
 
   .workspace-shell__main {
@@ -4830,7 +4841,9 @@ h3 {
     overflow-x: hidden;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    padding: 16px 12px 94px;
+    // 94px was 68px bottom-nav + 26px breathing room — now bottomnav-h's own
+    // safe-area component covers the nav, so only the 26px extra is fixed.
+    padding: 16px 12px calc(26px + var(--bottomnav-h));
   }
 
   .app-sidebar {
@@ -4842,10 +4855,13 @@ h3 {
     inset: 0 0 auto;
     z-index: 60;
     display: flex;
-    height: 48px;
+    height: var(--topbar-h);
     align-items: center;
     justify-content: space-between;
-    padding: 0 12px;
+    // Brand row itself stays a fixed 48px tall; the safe-area inset is
+    // extra top padding pushing it down clear of the notch/Dynamic Island,
+    // not a shrink of the row's own content.
+    padding: env(safe-area-inset-top) 12px 0;
     border-bottom: 1px solid $color-border;
     background: rgba($color-surface, 0.96);
   }
@@ -4864,8 +4880,12 @@ h3 {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     align-items: center;
-    height: 68px;
-    padding: 6px 12px 8px;
+    height: var(--bottomnav-h);
+    // Icon/label row itself stays a fixed 54px tall (6+8 vertical padding
+    // either side of it, same as before); the safe-area inset is extra
+    // bottom padding keeping tap targets clear of the home-indicator
+    // gesture strip, not a shrink of the row's own content.
+    padding: 6px 12px calc(8px + env(safe-area-inset-bottom));
     border-top: 1px solid $color-border;
     background: rgba($color-surface, 0.98);
   }
@@ -5036,10 +5056,21 @@ h3 {
   }
 
   .trip-board-page {
-    height: calc(100dvh - 116px);
+    // The fixed height matching the visible slice between the two fixed
+    // bars — must exactly cancel workspace-shell__main's own padding below
+    // (16px 12px calc(26px + bottomnav-h)) via the negative margin, or this
+    // bleeds past/short of the real edges.
+    height: calc(100dvh - var(--topbar-h) - var(--bottomnav-h));
     max-width: calc(100% + 24px);
-    margin: -16px -12px -94px;
+    margin: -16px -12px calc(-26px - var(--bottomnav-h));
     overflow: hidden;
+  }
+
+  // trip-board's own route hides the top bar (see AppLayout.vue), so only
+  // the bottom nav comes off here — without this override the page still
+  // reserved the top bar's height, leaving a blank gap at the bottom.
+  .workspace-shell--no-topbar .trip-board-page {
+    height: calc(100dvh - var(--bottomnav-h));
   }
 
   .trip-board-page .page-header {
@@ -5128,16 +5159,23 @@ h3 {
 
   .mobile-sheet-overlay {
     position: fixed;
-    inset: 48px 0 68px;
+    inset: var(--topbar-h) 0 var(--bottomnav-h);
     z-index: 38;
     display: block;
     border: 0;
     background: rgba($color-dusk, 0.4);
   }
 
+  // trip-board hides the top bar (see AppLayout.vue) — without this the dim
+  // overlay would leave a gap of unclickable, undimmed page peeking through
+  // above the sheet.
+  .workspace-shell--no-topbar .mobile-sheet-overlay {
+    inset: 0 0 var(--bottomnav-h);
+  }
+
   .place-drawer.place-drawer--sheet {
     position: fixed;
-    inset: auto 0 68px;
+    inset: auto 0 var(--bottomnav-h);
     z-index: 40;
     width: 100%;
     max-height: min(72vh, 620px);
@@ -5195,7 +5233,7 @@ h3 {
   .ask-ai-launcher {
     position: fixed;
     right: 16px;
-    bottom: 84px;
+    bottom: calc(16px + var(--bottomnav-h));
     left: auto;
     z-index: 55;
     padding: 0;
@@ -5213,7 +5251,7 @@ h3 {
   .kanban-mobile-add-fab {
     position: fixed;
     right: 16px;
-    bottom: 144px;
+    bottom: calc(76px + var(--bottomnav-h));
     // Keep this board-level action below drawer/sheet overlays (38+), so it
     // cannot float through the Ask AI panel or place-detail sheet.
     z-index: 37;
@@ -5223,16 +5261,21 @@ h3 {
 
   .ask-ai-overlay {
     position: fixed;
-    inset: 48px 0 68px;
+    inset: var(--topbar-h) 0 var(--bottomnav-h);
     z-index: 44;
     display: block;
     border: 0;
     background: rgba($color-dusk, 0.4);
   }
 
+  // Same top-bar-relative inset issue as .mobile-sheet-overlay above.
+  .workspace-shell--no-topbar .ask-ai-overlay {
+    inset: 0 0 var(--bottomnav-h);
+  }
+
   .ask-ai-panel {
     position: fixed;
-    inset: auto 0 68px;
+    inset: auto 0 var(--bottomnav-h);
     z-index: 46;
     height: auto;
     max-height: min(70vh, 560px);
@@ -5454,7 +5497,9 @@ h3 {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px $page-padding;
+  // Extra top clearance for the notch/Dynamic Island — this page has no
+  // mobile-top-bar of its own to already reserve that space.
+  padding: calc(14px + env(safe-area-inset-top)) $page-padding 14px;
   background: $color-surface;
   border-bottom: 1px solid $color-border;
 }
@@ -5593,6 +5638,14 @@ h3 {
   min-width: 0;
 }
 
+// Without this, a long place name and the chip compete for the row's
+// remaining space and flexbox can shrink the chip below its label's
+// natural width, wrapping "景點"/"美食" etc. onto two lines instead of
+// just letting the name wrap.
+.trip-print-page__stop-body .category-chip {
+  flex-shrink: 0;
+}
+
 .trip-print-page__stop-name {
   font-size: $fs-ui;
   font-weight: 700;
@@ -5615,8 +5668,18 @@ h3 {
 }
 
 @media (max-width: 767px) {
+  // 60px (the base rule's flat padding-bottom) isn't enough clearance on
+  // mobile: Safari's bottom URL bar re-expands right as scroll hits its
+  // max extent, eating into space that was available a moment earlier, and
+  // the home-indicator gesture area (env(safe-area-inset-bottom)) sits
+  // below that again — together they were swallowing the last line of the
+  // last stop.
+  .trip-print-page {
+    padding-bottom: calc(132px + env(safe-area-inset-bottom));
+  }
+
   .trip-print-page__toolbar {
-    padding: 12px 16px;
+    padding: calc(12px + env(safe-area-inset-top)) 16px 12px;
   }
 
   .trip-print-page__sheet {

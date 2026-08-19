@@ -3,9 +3,9 @@
     <RouterView />
   </div>
 
-  <div v-else class="workspace-shell">
+  <div v-else class="workspace-shell" :class="{ 'workspace-shell--no-topbar': hideMobileTopBar }">
     <AppSidebar />
-    <MobileTopBar />
+    <MobileTopBar v-if="!hideMobileTopBar" />
 
     <main ref="mainEl" class="workspace-shell__main">
       <RouterView />
@@ -26,6 +26,9 @@ const route = useRoute()
 // No AppSidebar/MobileTopBar chrome at all — for standalone flows (the
 // guest-entry landing page, onboarding) that want to be distraction-free.
 const isBare = computed(() => route.meta.layout === 'bare')
+// Some workspace pages (e.g. trip-board) carry enough of their own header
+// context that the generic branded top bar is redundant on mobile.
+const hideMobileTopBar = computed(() => route.meta.hideMobileTopBar === true)
 
 // On mobile, .workspace-shell__main (not the document) is the scroll
 // container — vue-router's own scrollBehavior only resets window scroll, so

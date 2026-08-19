@@ -833,7 +833,18 @@ onBeforeUnmount(() => {
 })
 
 function onKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape') closeDrawer()
+  if (event.key !== 'Escape') return
+  // Closest-thing-first: a dropdown open on top of the drawer should back
+  // out of just the dropdown, not the whole drawer underneath it.
+  if (isCategoryMenuOpen.value) {
+    isCategoryMenuOpen.value = false
+    return
+  }
+  if (isMoveMenuOpen.value) {
+    isMoveMenuOpen.value = false
+    return
+  }
+  closeDrawer()
 }
 
 function columnDate(column: TripColumn): string {
