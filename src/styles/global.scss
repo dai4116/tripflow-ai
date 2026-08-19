@@ -2562,7 +2562,7 @@ h3 {
 }
 
 .kanban-column__date {
-  color: #22303c;
+  color: $color-ink;
   font-size: $fs-ui;
   font-weight: 700;
   letter-spacing: normal;
@@ -4611,9 +4611,12 @@ h3 {
     color: $color-muted;
   }
 
-  .trip-view-toggle__button--active {
-    background: $color-primary !important;
-    color: $color-surface !important;
+  // Compound with the type selector (not just the modifier class alone) so
+  // this outranks .trip-view-toggle button above on specificity — otherwise
+  // a single class loses to class+tag and silently needs !important to win.
+  .trip-view-toggle button.trip-view-toggle__button--active {
+    background: $color-primary;
+    color: $color-surface;
     box-shadow: $shadow-primary;
   }
 
@@ -4906,7 +4909,11 @@ h3 {
     color: $color-primary-text;
   }
 
-  .mobile-bottom-nav__primary {
+  // Compound with the type selector so this ties (and, being the later
+  // rule, wins) the specificity of .mobile-bottom-nav a.router-link-active
+  // above — the class alone loses to that whenever this link's own route is
+  // active, which is exactly when it most needs its white icon to stick.
+  .mobile-bottom-nav a.mobile-bottom-nav__primary {
     align-self: center;
     justify-self: center;
     width: 46px;
@@ -4914,7 +4921,7 @@ h3 {
     place-items: center;
     border-radius: $radius-pill;
     background: $color-primary;
-    color: $color-surface !important;
+    color: $color-surface;
     box-shadow: $shadow-primary;
   }
 
@@ -5120,9 +5127,12 @@ h3 {
     color: $color-muted;
   }
 
-  .trip-view-toggle__button--active {
-    background: $color-primary !important;
-    color: $color-surface !important;
+  // Compound with the type selector (not just the modifier class alone) so
+  // this outranks .trip-view-toggle button above on specificity — otherwise
+  // a single class loses to class+tag and silently needs !important to win.
+  .trip-view-toggle button.trip-view-toggle__button--active {
+    background: $color-primary;
+    color: $color-surface;
     box-shadow: $shadow-primary;
   }
 
