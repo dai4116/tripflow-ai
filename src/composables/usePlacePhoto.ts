@@ -11,14 +11,19 @@ import type { Place } from '../types'
 // banner need very different source resolutions; without this they'd both
 // get /api/place-photo's default, leaving the banner visibly blurry.
 //
-// `ready` gates when the CALLER should reveal its whole card (photo + name
-// etc.) together, instead of the name popping in immediately while the photo
-// is still an async network fetch — it's true once there's nothing left to
-// wait for (no photo, load succeeded, load failed) or LOAD_TIMEOUT_MS has
-// passed on a slow photo (so a bad connection can't leave the card blank
-// forever; the real photo still crossfades in via `photoLoaded` whenever it
-// does land).
-const LOAD_TIMEOUT_MS = 500
+// `ready` no longer gates a whole card's visibility (see PlaceCard.vue /
+// TripBoardPage.vue's drawer) — callers now use it only to cap how long a
+// thumbnail's shimmer/loading state animates before giving up and settling
+// into a plain static box. Because nothing but that animation is riding on
+// it anymore, this can afford to be generous: /api/place-photo is a 3-hop
+// chain (us -> Google Photo Media -> a redirect -> the CDN image itself),
+// which routinely clears 500ms on a cold serverless instance — confirmed
+// live, that made the shimmer visibly stop-then-flash into the photo on a
+// completely normal, un-hung load. 3s is long enough to cover that normal
+// range and still short enough that a genuinely hung request doesn't shimmer
+// forever. The real photo still crossfades in via `photoLoaded` whenever it
+// lands, timeout or not.
+export const LOAD_TIMEOUT_MS = 3000
 
 export function usePlacePhoto(place: Ref<Place | null | undefined>, widthPx: number) {
   const photoFailed = ref(false)

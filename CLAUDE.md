@@ -19,7 +19,7 @@ AI 排程的旅遊行程規劃工具：使用者輸入目的地/天數/風格，
 | `ANTHROPIC_API_KEY` | AI 生成（Claude） | 生成硬失敗，無 fallback |
 | `GOOGLE_PLACES_API_KEY` | 地點驗證/座標/照片/自動完成 | 退回舊的 Nominatim 路徑，可能定位不到或定位錯 |
 | `OPENROUTESERVICE_API_KEY` | 交通時間估算（經 `/api/route` 代理） | 交通時間功能不可用 |
-| `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Upstash Redis，跨 function 快取已驗證地點 90 天 | 每次都直接打 Google，沒有跨次快取 |
+| `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Upstash Redis：`api/_lib/placesVerify.ts` 跨 function 快取已驗證地點 90 天；`api/place-photo.ts`（經 `api/_lib/kv.ts`）另外快取已解析的照片轉址網址 50 分鐘、過期/無效 photoRef 5 分鐘 | 兩邊都退回「每次都直接打 Google，沒有跨次快取」，不會壞掉 |
 
 ## 系統分層
 
