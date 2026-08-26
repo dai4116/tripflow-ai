@@ -86,7 +86,7 @@
           >
             <span
               class="add-place-suggestion__media"
-              :class="{ 'add-place-suggestion__media--loading': showPhoto(result) && !isPhotoLoaded(result) }"
+              :class="{ 'add-place-suggestion__media--loading': isPhotoPending(result) }"
             >
               <img
                 v-if="showPhoto(result)"
@@ -229,13 +229,51 @@ function isPhotoLoaded(result: PlaceSearchResult): boolean {
   return loadedPhotoIds.value.has(result.placeId)
 }
 
+// Caps how long the thumbnail shimmers before giving up — without this, a
+// photo request that never fires load or error (a hung connection, not just
+// a slow one) would shimmer forever instead of settling into the plain
+// surface-soft box the same as a still-in-flight-but-past-caring photo.
+// Mirrors usePlacePhoto.ts's identical ready/timedOut reasoning; tracked
+// per-row here since search results are PlaceSearchResult, not the Place
+// type that composable works with.
+const LOAD_TIMEOUT_MS = 500
+const timedOutPhotoIds = ref(new Set<string>())
+const loadTimeouts = new Map<string, number>()
+
+function isPhotoPending(result: PlaceSearchResult): boolean {
+  return showPhoto(result) && !isPhotoLoaded(result) && !timedOutPhotoIds.value.has(result.placeId)
+}
+
 function onPhotoLoad(placeId: string) {
   loadedPhotoIds.value.add(placeId)
+  window.clearTimeout(loadTimeouts.get(placeId))
+  loadTimeouts.delete(placeId)
 }
 
 function onPhotoError(placeId: string) {
   failedPhotoIds.value.add(placeId)
+  window.clearTimeout(loadTimeouts.get(placeId))
+  loadTimeouts.delete(placeId)
 }
+
+// New results (a fresh search, or a browse cache hit) each get their own
+// load-timeout clock started here — the template can't do this itself since
+// there's no per-row mounted hook without splitting each row into its own
+// component, which isn't worth it just for this.
+watch(results, (newResults) => {
+  for (const result of newResults) {
+    if (!result.photoRef) continue
+    if (loadedPhotoIds.value.has(result.placeId) || timedOutPhotoIds.value.has(result.placeId)) continue
+    if (loadTimeouts.has(result.placeId)) continue
+    loadTimeouts.set(
+      result.placeId,
+      window.setTimeout(() => {
+        timedOutPhotoIds.value.add(result.placeId)
+        loadTimeouts.delete(result.placeId)
+      }, LOAD_TIMEOUT_MS),
+    )
+  }
+})
 
 // Debounced so every keystroke doesn't fire its own Google-backed request —
 // only the last one after the user pauses does. The in-flight request is
@@ -350,6 +388,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
   window.clearTimeout(debounceTimer)
   activeController?.abort()
+  loadTimeouts.forEach((id) => window.clearTimeout(id))
 })
 
 // Switching day via the day-switcher above changes props.columnId on this
