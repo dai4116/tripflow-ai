@@ -6,19 +6,9 @@
       'place-card--warning-open': overlapWarningOpen,
     }"
   >
-    <button
-      type="button"
-      class="place-card__open"
-      :class="{ 'place-card__open--pending': !ready }"
-      :tabindex="ready ? undefined : -1"
-      @click="emit('open')"
-    >
-      <div class="place-card__media">
+    <button type="button" class="place-card__open" @click="emit('open')">
+      <div class="place-card__media" :class="{ 'place-card__media--loading': showPhoto && !photoLoaded }">
         <AppIcon v-if="!showPhoto" name="image" :size="16" class="place-card__media-icon" />
-        <!-- No loading="lazy": the whole card stays invisible via
-             place-card__open--pending until this loads (or times out), so
-             deferring the fetch would just make the card wait on a fetch
-             that hasn't even started yet. -->
         <img
           v-if="showPhoto"
           class="place-card__photo"
@@ -92,7 +82,7 @@ const warningMessage = computed(() =>
 )
 
 // 128 = 2x the 64px .place-card__media box, for retina.
-const { showPhoto, photoUrl, photoLoaded, ready, onPhotoLoad, onPhotoError } = usePlacePhoto(
+const { showPhoto, photoUrl, photoLoaded, onPhotoLoad, onPhotoError } = usePlacePhoto(
   toRef(props, 'place'),
   128,
 )

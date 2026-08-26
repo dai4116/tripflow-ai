@@ -109,7 +109,7 @@
           <div
             class="place-drawer__image"
             :class="{
-              'place-drawer__image--pending': !drawerPhotoReady,
+              'place-drawer__image--loading': showDrawerPhoto && !drawerPhotoLoaded,
               'place-drawer__image--fallback': !showDrawerPhoto,
             }"
           >
@@ -249,7 +249,6 @@ const {
   showPhoto: showDrawerPhoto,
   photoUrl: drawerPhotoUrl,
   photoLoaded: drawerPhotoLoaded,
-  ready: drawerPhotoReady,
   onPhotoLoad: onDrawerPhotoLoad,
   onPhotoError: onDrawerPhotoError,
 } = usePlacePhoto(drawerPlace, 1000)

@@ -953,19 +953,6 @@ h3 {
   font: inherit;
   text-align: left;
   cursor: grab;
-  opacity: 1;
-  transition: opacity 180ms ease;
-}
-
-// Held invisible (not unmounted — the photo underneath still needs to load
-// while hidden) until usePlacePhoto's `ready` says the photo and name can
-// appear together instead of the name popping in first. See usePlacePhoto.ts.
-// pointer-events: none (paired with the template's :tabindex="-1") keeps an
-// invisible card from being clicked or opened — plain opacity:0 alone leaves
-// it fully hit-testable and focusable.
-.place-card__open--pending {
-  opacity: 0;
-  pointer-events: none;
 }
 
 .place-card__media {
@@ -979,6 +966,17 @@ h3 {
   color: $color-subtle;
   // No overflow: hidden — the index badge deliberately hangs outside this
   // box (negative top/left) to overlap the thumbnail's corner.
+}
+
+// While a real photo is on the way (showPhoto true, not yet loaded) — same
+// shimmer gradient/keyframe as .kanban-skeleton__card, just sized to this
+// 64px thumbnail, so a blank-until-loaded box reads as "loading" instead of
+// looking broken. Never shown once !showPhoto — there's nothing to wait for,
+// the placeholder icon is already the resting state.
+.place-card__media--loading {
+  background: linear-gradient(90deg, $color-surface-soft 25%, $color-surface 50%, $color-surface-soft 75%);
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
 }
 
 .place-card__photo {
@@ -2970,14 +2968,16 @@ h3 {
   padding: 14px 16px;
   background: $color-surface-soft;
   color: $color-surface;
-  opacity: 1;
-  transition: opacity 180ms ease;
 }
 
-// Held invisible until usePlacePhoto's `ready` says the photo and place name
-// can appear together — see usePlacePhoto.ts.
-.place-drawer__image--pending {
-  opacity: 0;
+// While a real photo is on the way (showPhoto true, not yet loaded) — same
+// shimmer used by .place-card__media--loading/.kanban-skeleton__card. The
+// place name still renders immediately on top (see place-drawer__image h2
+// below); only the banner background/photo crossfades in underneath it.
+.place-drawer__image--loading {
+  background: linear-gradient(90deg, $color-surface-soft 25%, $color-surface 50%, $color-surface-soft 75%);
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
 }
 
 // No photo: the ::after scrim and $color-surface (light) <h2> below only make
@@ -3635,19 +3635,9 @@ h3 {
   border-radius: $radius-md;
   background: $color-surface;
   text-align: left;
-  opacity: 1;
   transition:
     border-color 140ms ease,
-    background 140ms ease,
-    opacity 180ms ease;
-}
-
-// Held invisible until the row's own photo is loaded/failed/timed-out — see
-// usePlacePhoto.ts's `ready` for the shared reasoning (this row tracks the
-// same thing locally in AddPlaceModal.vue since results aren't the Place type
-// that composable works with).
-.add-place-suggestion--pending {
-  opacity: 0;
+    background 140ms ease;
 }
 
 .add-place-suggestion:hover {
@@ -3670,6 +3660,15 @@ h3 {
   background: $color-surface-soft;
   color: $color-subtle;
   overflow: hidden;
+}
+
+// While a real photo is on the way (showPhoto true, not yet loaded) — same
+// shimmer as .place-card__media--loading/.place-drawer__image--loading. The
+// row's name text renders immediately regardless; only this thumbnail waits.
+.add-place-suggestion__media--loading {
+  background: linear-gradient(90deg, $color-surface-soft 25%, $color-surface 50%, $color-surface-soft 75%);
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
 }
 
 .add-place-suggestion__media img {
