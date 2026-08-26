@@ -3,7 +3,7 @@ import { defineComponent, ref, type Ref } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Place } from '../types'
-import { usePlacePhoto } from './usePlacePhoto'
+import { LOAD_TIMEOUT_MS, usePlacePhoto } from './usePlacePhoto'
 
 function place(overrides: Partial<Place> & { id: string }): Place {
   return {
@@ -72,7 +72,7 @@ describe('usePlacePhoto', () => {
   it('becomes ready via timeout if the photo never reports loaded or errored', async () => {
     const { wrapper } = mountHook(place({ id: 'p1', photoRef: 'places/abc/photos/xyz' }))
     expect(wrapper.vm.ready).toBe(false)
-    await vi.advanceTimersByTimeAsync(500)
+    await vi.advanceTimersByTimeAsync(LOAD_TIMEOUT_MS)
     expect(wrapper.vm.ready).toBe(true)
     // Still showing the real photo slot (not the placeholder) — the timeout
     // is just a "reveal the card anyway" escape hatch, not a failure.
@@ -89,7 +89,7 @@ describe('usePlacePhoto', () => {
     await wrapper.vm.$nextTick()
     expect(wrapper.vm.ready).toBe(false) // p2's own photo hasn't loaded yet
 
-    await vi.advanceTimersByTimeAsync(500)
+    await vi.advanceTimersByTimeAsync(LOAD_TIMEOUT_MS)
     expect(wrapper.vm.ready).toBe(true) // p2's own timeout, not a leftover from p1
   })
 })
