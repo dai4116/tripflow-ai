@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 25
+          cache: npm
+
+      - run: npm ci
+
+      - name: 型別檢查 + 邏輯層測試 (api / data / stores / composables)
+        run: npm run test
+
+      - name: 元件層測試 (vitest)
+        run: npm run test:components
+
+      - name: 建置 (vue-tsc -b + vite build)
+        run: npm run build
