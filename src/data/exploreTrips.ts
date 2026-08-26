@@ -201,7 +201,7 @@ const explorePlaceOverrides: Record<string, Partial<Place>> = {
     description: '素帖山上的金色佛塔寺院，可從觀景平台俯瞰清邁市區',
   },
   'cnx-hmong-village': {
-    name: '朵伊普伊苗族村（Hmong Doi Pui Village）',
+    name: '朵伊普伊苗族村',
     description: '素帖山上的苗族聚落，可認識山地文化並選購手工藝品',
   },
   'seoul-myeongdong-food': {

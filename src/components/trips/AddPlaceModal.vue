@@ -82,15 +82,12 @@
             :key="result.placeId"
             type="button"
             class="add-place-suggestion"
-            :class="{ 'add-place-suggestion--pending': !isReady(result) }"
-            :disabled="!isReady(result)"
             @click="pickResult(result)"
           >
-            <span class="add-place-suggestion__media">
-              <!-- No loading="lazy": the row itself stays invisible via
-                   add-place-suggestion--pending until this loads (or times
-                   out), so deferring the fetch would just make the row
-                   wait on a fetch that hasn't even started yet. -->
+            <span
+              class="add-place-suggestion__media"
+              :class="{ 'add-place-suggestion__media--loading': showPhoto(result) && !isPhotoLoaded(result) }"
+            >
               <img
                 v-if="showPhoto(result)"
                 :class="{ 'add-place-suggestion__photo--loaded': isPhotoLoaded(result) }"
@@ -226,55 +223,19 @@ function showPhoto(result: PlaceSearchResult): boolean {
   return Boolean(result.photoRef) && !failedPhotoIds.value.has(result.placeId)
 }
 
-// Mirrors usePlacePhoto's ready/timeout behavior (see usePlacePhoto.ts) but
-// tracked per-row here instead, since search results are PlaceSearchResult —
-// not the Place type that composable works with — and each row needs its own
-// independent ready state rather than one shared card's.
-const LOAD_TIMEOUT_MS = 500
 const loadedPhotoIds = ref(new Set<string>())
-const timedOutPhotoIds = ref(new Set<string>())
-const loadTimeouts = new Map<string, number>()
 
 function isPhotoLoaded(result: PlaceSearchResult): boolean {
   return loadedPhotoIds.value.has(result.placeId)
 }
 
-function isReady(result: PlaceSearchResult): boolean {
-  return (
-    !showPhoto(result) || loadedPhotoIds.value.has(result.placeId) || timedOutPhotoIds.value.has(result.placeId)
-  )
-}
-
 function onPhotoLoad(placeId: string) {
   loadedPhotoIds.value.add(placeId)
-  window.clearTimeout(loadTimeouts.get(placeId))
-  loadTimeouts.delete(placeId)
 }
 
 function onPhotoError(placeId: string) {
   failedPhotoIds.value.add(placeId)
-  window.clearTimeout(loadTimeouts.get(placeId))
-  loadTimeouts.delete(placeId)
 }
-
-// New results (a fresh search, or a browse cache hit) each get their own
-// load-timeout clock started here — the template can't do this itself since
-// there's no per-row mounted hook without splitting each row into its own
-// component, which isn't worth it just for this.
-watch(results, (newResults) => {
-  for (const result of newResults) {
-    if (!result.photoRef) continue
-    if (loadedPhotoIds.value.has(result.placeId) || timedOutPhotoIds.value.has(result.placeId)) continue
-    if (loadTimeouts.has(result.placeId)) continue
-    loadTimeouts.set(
-      result.placeId,
-      window.setTimeout(() => {
-        timedOutPhotoIds.value.add(result.placeId)
-        loadTimeouts.delete(result.placeId)
-      }, LOAD_TIMEOUT_MS),
-    )
-  }
-})
 
 // Debounced so every keystroke doesn't fire its own Google-backed request —
 // only the last one after the user pauses does. The in-flight request is
@@ -389,7 +350,6 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
   window.clearTimeout(debounceTimer)
   activeController?.abort()
-  loadTimeouts.forEach((id) => window.clearTimeout(id))
 })
 
 // Switching day via the day-switcher above changes props.columnId on this
