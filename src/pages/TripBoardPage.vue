@@ -158,7 +158,7 @@
                 @open="openTravelTimeModal(entry.card.place, entry.nextPlace)"
               />
             </div>
-            <p v-if="column.placeIds.length === 0" class="kanban-column__empty">請新增景點</p>
+            <p v-if="column.placeIds.length === 0" class="kanban-column__empty">點擊右下角 + 加入更多景點吧！</p>
           </VueDraggable>
         </section>
       </div>

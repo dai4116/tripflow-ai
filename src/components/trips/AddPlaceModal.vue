@@ -115,6 +115,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { LOAD_TIMEOUT_MS } from '../../composables/usePlacePhoto'
 import { searchPlaces, type GeoPoint, type PlaceSearchResult } from '../../data/placesSearchClient'
 import type { PlaceCategory, TripColumn } from '../../types'
 import AppIcon from '../ui/AppIcon.vue'
@@ -233,10 +234,10 @@ function isPhotoLoaded(result: PlaceSearchResult): boolean {
 // photo request that never fires load or error (a hung connection, not just
 // a slow one) would shimmer forever instead of settling into the plain
 // surface-soft box the same as a still-in-flight-but-past-caring photo.
-// Mirrors usePlacePhoto.ts's identical ready/timedOut reasoning; tracked
-// per-row here since search results are PlaceSearchResult, not the Place
-// type that composable works with.
-const LOAD_TIMEOUT_MS = 500
+// Mirrors usePlacePhoto.ts's identical ready/timedOut reasoning (LOAD_TIMEOUT_MS
+// imported from there so the two can't drift apart); tracked per-row here
+// since search results are PlaceSearchResult, not the Place type that
+// composable works with.
 const timedOutPhotoIds = ref(new Set<string>())
 const loadTimeouts = new Map<string, number>()
 
