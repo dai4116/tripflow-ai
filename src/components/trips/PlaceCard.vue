@@ -7,7 +7,7 @@
     }"
   >
     <button type="button" class="place-card__open" @click="emit('open')">
-      <div class="place-card__media" :class="{ 'place-card__media--loading': showPhoto && !photoLoaded }">
+      <div class="place-card__media" :class="{ 'place-card__media--loading': showPhoto && !ready }">
         <AppIcon v-if="!showPhoto" name="image" :size="16" class="place-card__media-icon" />
         <img
           v-if="showPhoto"
@@ -82,7 +82,7 @@ const warningMessage = computed(() =>
 )
 
 // 128 = 2x the 64px .place-card__media box, for retina.
-const { showPhoto, photoUrl, photoLoaded, onPhotoLoad, onPhotoError } = usePlacePhoto(
+const { showPhoto, photoUrl, photoLoaded, ready, onPhotoLoad, onPhotoError } = usePlacePhoto(
   toRef(props, 'place'),
   128,
 )
