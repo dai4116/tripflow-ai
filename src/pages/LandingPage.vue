@@ -12,7 +12,6 @@
     <BaseButton class="guest-landing__cta" :to="{ name: 'dashboard' }">
       立即開始
     </BaseButton>
-    <p class="guest-landing__note">免費使用・免註冊</p>
   </section>
 </template>
 
