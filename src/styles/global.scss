@@ -4915,15 +4915,26 @@ h3 {
   // rule, wins) the specificity of .mobile-bottom-nav a.router-link-active
   // above — the class alone loses to that whenever this link's own route is
   // active, which is exactly when it most needs its white icon to stick.
+  //
+  // The <a> itself stays unsized (stretches to fill its grid cell, same as
+  // its siblings) so the tap target matches theirs — only the inner
+  // .mobile-bottom-nav__primary-icon span is the fixed 46px pill. It used to
+  // be sized directly on the <a>, which shrank this button's hit area to a
+  // 46px circle centered in a much wider column while the other two links
+  // kept their full-cell hit area, so taps that missed the pill by a few px
+  // (but were still well inside the column) silently did nothing.
   .mobile-bottom-nav a.mobile-bottom-nav__primary {
-    align-self: center;
-    justify-self: center;
+    place-items: center;
+    color: $color-surface;
+  }
+
+  .mobile-bottom-nav__primary-icon {
+    display: grid;
+    place-items: center;
     width: 46px;
     height: 46px;
-    place-items: center;
     border-radius: $radius-pill;
     background: $color-primary;
-    color: $color-surface;
     box-shadow: $shadow-primary;
   }
 

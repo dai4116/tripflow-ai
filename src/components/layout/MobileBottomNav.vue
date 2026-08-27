@@ -9,7 +9,9 @@
       :to="{ name: 'trip-create' }"
       aria-label="用 AI 建立新行程"
     >
-      <AppIcon name="sparkle" :size="19" />
+      <span class="mobile-bottom-nav__primary-icon">
+        <AppIcon name="sparkle" :size="19" />
+      </span>
     </RouterLink>
     <RouterLink :to="{ name: 'trips' }">
       <AppIcon name="list" :size="19" />
