@@ -193,7 +193,7 @@ describe('AskAiPanel', () => {
     expect(store.places.find((p) => p.id === 'p1')!.columnId).toBe('day-2')
   })
 
-  it('一鍵排序路線 proposes a reorder for an out-of-order day, and applying it reorders the column', async () => {
+  it('一鍵排序 proposes a reorder for an out-of-order day, and applying it reorders the column', async () => {
     const { wrapper, store } = mountPanel((store) => {
       store.trips.push(
         seedTrip({
@@ -213,7 +213,7 @@ describe('AskAiPanel', () => {
     })
     await wrapper.find('.ask-ai-launcher').trigger('click')
 
-    const routeChip = wrapper.findAll('.ask-ai-suggestion').find((c) => c.text().includes('一鍵排序路線'))!
+    const routeChip = wrapper.findAll('.ask-ai-suggestion').find((c) => c.text().includes('一鍵排序'))!
     await routeChip.trigger('click')
     await wrapper.findAll('.ask-ai-day-chip')[0]!.trigger('click')
     await waitForThinking()

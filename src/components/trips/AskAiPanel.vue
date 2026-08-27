@@ -207,7 +207,7 @@ type SuggestionKind = 'suggest' | 'pace' | 'route'
 const suggestionChips: { kind: SuggestionKind; icon: IconName; label: string }[] = [
   { kind: 'suggest', icon: 'sparkle', label: '推薦景點' },
   { kind: 'pace', icon: 'clock', label: '評估行程節奏' },
-  { kind: 'route', icon: 'compass', label: '一鍵排序路線' },
+  { kind: 'route', icon: 'compass', label: '一鍵排序' },
 ]
 const pendingSuggestion = ref<SuggestionKind | null>(null)
 
@@ -457,7 +457,7 @@ function messageFromAskAiResult(result: AskAiResult): Omit<AiMessage, 'id' | 'ro
   }
 
   if (result.type === 'reorder_day') {
-    // Same client-computed heuristic as the "一鍵排序路線" suggestion chip
+    // Same client-computed heuristic as the "一鍵排序" suggestion chip
     // (sendRouteRequest) — reused here so a typed-out request ("幫我把第三
     // 天的地點依地理位置排一下") gets the same real answer instead of Claude
     // declining because none of its other tools fit "reorder a whole day".
