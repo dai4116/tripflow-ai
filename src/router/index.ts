@@ -16,6 +16,16 @@ const routes: RouteRecordRaw[] = [
     name: 'landing',
     component: () => import('../pages/LandingPage.vue'),
     meta: { layout: 'bare' },
+    // A returning user (has trips, or has already been through onboarding
+    // even if they haven't created a trip yet — e.g. a home-screen bookmark
+    // that always opens at "/") shouldn't have to click through the
+    // marketing pitch every time — send them straight to their trips
+    // instead. Runs before the component mounts, so there's no
+    // landing-page flash first.
+    beforeEnter: () => {
+      const tripsStore = useTripsStore()
+      if (tripsStore.trips.length > 0 || hasSeenOnboarding()) return { name: 'dashboard' }
+    },
   },
   {
     path: '/onboarding',
