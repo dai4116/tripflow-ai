@@ -516,7 +516,7 @@ export const TIME_BUCKET_WEIGHT: Record<string, number> = { morning: 0, afternoo
 // placed (via the `nextIndex` default of 0), just in their original
 // relative order within the bucket, since there's nothing to measure them
 // against. Shared by generateTrip.ts's generation-time day ordering and
-// AskAiPanel.vue's post-edit "依路線排序" so the two don't drift apart —
+// AskAiPanel.vue's post-edit "一鍵排序路線" so the two don't drift apart —
 // they differ only in which distance metric and coordinate guarantee they
 // pass in.
 export function orderByTimeBucket<T>(

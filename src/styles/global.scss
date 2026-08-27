@@ -5242,6 +5242,16 @@ h3 {
     gap: 8px;
   }
 
+  // Overrides the 1100px breakpoint's hardcoded bottom: 90px above — that
+  // value predates --bottomnav-h and doesn't account for
+  // env(safe-area-inset-bottom) baked into it, so on a phone with a home
+  // indicator the pill's bottom edge lands inside .mobile-bottom-nav's own
+  // footprint and gets clipped by it (same z-index, nav wins on being later
+  // in the DOM).
+  .board-toast {
+    bottom: calc(16px + var(--bottomnav-h));
+  }
+
   .ask-ai-launcher {
     position: fixed;
     right: 16px;
