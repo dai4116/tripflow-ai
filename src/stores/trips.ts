@@ -197,18 +197,19 @@ export const useTripsStore = defineStore('trips', () => {
   // kick off their own request for the same from→to pair.
   const pendingTravelFetches = new Set<string>()
 
-  // Beyond this straight-line distance, auto-fill switches from walking to
-  // driving — a routed foot-walking leg that far starts feeling impractical
-  // as an itinerary hop. Cycling/manual stay opt-in via the picker regardless
-  // of distance.
-  const AUTO_DRIVE_THRESHOLD_KM = 1.5
+  // Beyond this straight-line distance, a routed walking leg starts feeling
+  // impractical as an itinerary hop, so auto-fill leaves the gap unset
+  // instead of guessing — the picker only offers 走路/自訂 (see
+  // TravelTimeModal.vue's TABS), so there's no automatic mode left to fall
+  // back to that wouldn't misrepresent how the user would actually cover it.
+  const AUTO_WALK_THRESHOLD_KM = 1.5
 
   // Auto-fills travel time for adjacent places within a day that don't have
   // it yet (or whose stored travelToNext points at a place that's no longer
-  // actually next — see the TravelToNext type comment). Picks walking or
-  // driving itself based on straight-line distance (AUTO_DRIVE_THRESHOLD_KM);
-  // cycling/manual stay opt-in via the picker. Safe to call repeatedly —
-  // already-valid pairs and in-flight ones are skipped.
+  // actually next — see the TravelToNext type comment). Only fills walking
+  // estimates, and only within AUTO_WALK_THRESHOLD_KM; driving/cycling/manual
+  // stay opt-in via the picker regardless of distance. Safe to call
+  // repeatedly — already-valid pairs and in-flight ones are skipped.
   function fillMissingTravelTimes(tripId: string) {
     const trip = trips.value.find((item) => item.id === tripId)
     if (!trip) return
@@ -241,7 +242,8 @@ export const useTripsStore = defineStore('trips', () => {
 
         const from = { lat: fromPlace.lat, lng: fromPlace.lng }
         const to = { lat: toPlace.lat, lng: toPlace.lng }
-        const mode = straightLineDistanceKm(from, to) > AUTO_DRIVE_THRESHOLD_KM ? 'driving' : 'walking'
+        if (straightLineDistanceKm(from, to) > AUTO_WALK_THRESHOLD_KM) continue
+        const mode = 'walking'
 
         pendingTravelFetches.add(gapKey)
         fetchTravelTime(mode, from, to)

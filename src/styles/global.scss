@@ -14,6 +14,10 @@
 
 * {
   box-sizing: border-box;
+  // iOS Safari flashes a grey highlight on tap for any element that responds
+  // to touch, not just <a>/<button> — kill it globally instead of chasing
+  // every custom clickable div/label one at a time.
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
@@ -54,7 +58,6 @@ select {
 
 button {
   cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
 }
 
 a {
