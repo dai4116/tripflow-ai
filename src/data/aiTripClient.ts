@@ -1,6 +1,20 @@
 import type { CreateTripInput } from '../types'
 import { resolveCitySegments, sameCity, segmentForDay, targetCountForWindow, windowForFlightDay, windowForTransitDay } from './generateTrip.ts'
 import type { CitySegment, DayWindow, PlaceSuggestion } from './generateTrip'
+import { getVisitorId } from './visitorId.ts'
+
+// Thrown (not swallowed) specifically for a 429 from plan-trip-zones — see
+// planZones' own comment for why this is the one failure mode that must
+// abort trip creation instead of degrading to "proceed with no zone hints".
+// A distinct class (not a plain Error) so mapWithConcurrency's catch-and-log
+// path — and createTrip()'s own error handling, if it ever wants to special-
+// case this later — can tell it apart from a generic thrown error.
+export class RateLimitedError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'RateLimitedError'
+  }
+}
 
 // Orchestrates trip generation as many small, parallel per-day requests
 // instead of one request for the whole trip. The old design (a single call
@@ -138,11 +152,13 @@ type SegmentPlan = {
 // geocode.ts/routing.ts are strictly-serial rate limiters (concurrency 1),
 // not the bounded-parallelism this needs.
 //
-// Contract: `fn` must never throw — if it can fail, it must catch its own
-// error and resolve to a sentinel instead (every caller below already does
-// this). A thrown error still aborts the whole batch via Promise.all,
-// discarding every other in-flight result; this logs the culprit first so
-// it's diagnosable, but does not change that outcome.
+// Contract: `fn` must never throw for an ordinary failure — if it can fail,
+// it must catch its own error and resolve to a sentinel instead (every
+// caller below already does this). A thrown error still aborts the whole
+// batch via Promise.all, discarding every other in-flight result — planZones
+// deliberately uses this as its escape hatch for a 429 (see RateLimitedError
+// and planZones' own comment), so a thrown error here isn't necessarily a
+// bug; this logs the culprit either way so it's diagnosable.
 async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const results: R[] = new Array(items.length)
   let nextIndex = 0
@@ -153,6 +169,7 @@ async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T)
       try {
         results[i] = await fn(items[i]!)
       } catch (error) {
+        if (error instanceof RateLimitedError) throw error
         console.error('[aiTripClient] mapWithConcurrency: fn threw — this violates its no-throw contract and aborts the whole batch', error)
         throw error
       }
@@ -251,18 +268,35 @@ export function preferencesForGroup(preferences: string[] | undefined, group: Ci
 // if a revisit means those days aren't contiguous on the calendar — and
 // resolves that city's center once so every later per-day request for it
 // can reuse it instead of each geocoding it redundantly. Best-effort and
-// never throws — a failure here just means that group's day-requests
-// proceed with no zone hints and no shared city center, same as before this
-// endpoint existed (and same as any OTHER group's independent
-// success/failure — one city's zone-planning failing doesn't affect
-// another's).
+// never throws for a transient failure — that just means this group's
+// day-requests proceed with no zone hints and no shared city center, same as
+// before this endpoint existed. The one deliberate exception is a 429: this
+// is the one call per trip-creation-attempt api/_lib/rateLimit.ts gates (see
+// its own comment), so a block here is meant to actually stop the trip from
+// generating — silently downgrading it to "proceed anyway" the way a normal
+// failure does would let every generate-trip-day call fire regardless,
+// defeating the whole point of rate-limiting this endpoint. Thrown as
+// RateLimitedError so it propagates through mapWithConcurrency's Promise.all
+// (see its own "aborts the whole batch" comment) up to createTrip(), which
+// already surfaces any thrown generation failure as a hard error in the UI.
+// That path shows the pre-existing generic "AI 暫時無法使用" message, not
+// this error's own text — CreateTripPage.vue's catch doesn't bind the error
+// object at all, so RateLimitedError's message never reaches the screen.
+// Left this way on purpose: the generic message already satisfies the
+// design goal of not revealing which limit layer blocked the request, so
+// there's nothing to plumb through — only fix that catch if the design goal
+// changes to showing rate-limit-specific text.
 async function planZones(ctx: ZonePlanContext, totalDays: number): Promise<{ zones: ZoneHint[]; cityCenter: GeoPoint | null }> {
   const controller = new AbortController()
   const timer = window.setTimeout(() => controller.abort(), ZONE_HINT_TIMEOUT_MS)
   try {
+    const visitorId = getVisitorId()
     const response = await fetch('/api/plan-trip-zones', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(visitorId ? { 'X-Visitor-Id': visitorId } : {}),
+      },
       body: JSON.stringify({
         destination: ctx.destination,
         travelStyle: ctx.travelStyle,
@@ -276,6 +310,10 @@ async function planZones(ctx: ZonePlanContext, totalDays: number): Promise<{ zon
       }),
       signal: controller.signal,
     })
+    if (response.status === 429) {
+      const body = (await response.json().catch(() => null)) as { message?: string } | null
+      throw new RateLimitedError(body?.message ?? '目前使用量較高，請稍後再試')
+    }
     if (!response.ok) {
       console.error(`[aiTripClient] /api/plan-trip-zones (${ctx.destination}) returned ${response.status}, proceeding with no zone hints`)
       return { zones: [], cityCenter: null }
@@ -283,6 +321,7 @@ async function planZones(ctx: ZonePlanContext, totalDays: number): Promise<{ zon
     const data = (await response.json()) as { zones?: ZoneHint[]; cityCenter?: GeoPoint | null }
     return { zones: Array.isArray(data.zones) ? data.zones : [], cityCenter: data.cityCenter ?? null }
   } catch (error) {
+    if (error instanceof RateLimitedError) throw error
     console.error(`[aiTripClient] /api/plan-trip-zones (${ctx.destination}) failed, proceeding with no zone hints`, error)
     return { zones: [], cityCenter: null }
   } finally {
@@ -602,11 +641,15 @@ export function findExistingAnchor(places: PlaceSuggestion[], day: number): GeoP
 // functions calling Claude Sonnet + Google Places) — once per CITY GROUP for
 // zone-planning, then once per (segment, day) for candidate generation. See
 // this file's top comment for how a multi-city trip fans out into
-// independent per-city plans. Returns undefined — never throws — only when
-// the result is genuinely empty after both the initial pass and the one
-// backfill round below. trips.ts's createTrip() treats undefined as a hard
-// failure and shows a retry prompt instead of falling back to local template
-// data, so this function must not report success on a fully empty result.
+// independent per-city plans. Returns undefined when the result is
+// genuinely empty after both the initial pass and the one backfill round
+// below; trips.ts's createTrip() treats undefined as a hard failure and
+// shows a retry prompt instead of falling back to local template data, so
+// this function must not report success on a fully empty result. Can also
+// throw RateLimitedError (see planZones' own comment) — that's a deliberate
+// exception to the "never throws" contract every other failure path here
+// follows, propagated so createTrip() aborts immediately instead of
+// grinding through an already-doomed batch of per-day requests.
 export async function fetchAiPlaces(
   input: CreateTripInput,
   days: number,

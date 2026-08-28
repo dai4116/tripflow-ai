@@ -56,3 +56,31 @@ export function kvSet<T>(key: string, value: T, ttlSeconds: number): void {
     console.error('[kv] write failed', error)
   })
 }
+
+// Atomic counter for rate limiting — INCR (not read-then-write) so concurrent
+// requests can't race each other into under-counting. Returns undefined on
+// any failure or when KV isn't configured, same "degrade to unlimited"
+// contract as kvGet/kvSet — a caller checking a limit must treat undefined as
+// "can't enforce this, allow the request" rather than blocking on it.
+//
+// TTL is only set on the call that creates the key (result === 1) — setting
+// it on every call would keep sliding the window forward and the counter
+// would never actually expire. The gap between INCR and EXPIRE isn't atomic
+// (no Lua script — not worth the complexity here), so a crash in that gap
+// leaves a key with no TTL; worst case that makes this one counter stricter
+// than intended (it never resets) until manually cleared, never looser.
+export async function kvIncr(key: string, ttlSeconds: number): Promise<number | undefined> {
+  if (!kv) return undefined
+  try {
+    const count = await withKvTimeout(kv.incr(key))
+    if (count === 1) {
+      kv.expire(key, ttlSeconds).catch((error) => {
+        console.error('[kv] failed to set expiry after incr', error)
+      })
+    }
+    return count
+  } catch (error) {
+    console.error('[kv] incr failed, falling back to unlimited', error)
+    return undefined
+  }
+}

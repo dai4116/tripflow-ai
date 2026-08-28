@@ -12,9 +12,32 @@ mock.module('@anthropic-ai/sdk', {
   },
 })
 
+// See plan-trip-zones.test.ts's identical mock for why this is mocked rather
+// than left to the real "no KV configured -> always allowed" degradation.
+let currentRateLimitAllowed = true
+let lastRateLimitArgs: { visitorId: string | undefined; rule: unknown } | undefined
+mock.module('./_lib/rateLimit.ts', {
+  namedExports: {
+    enforceRateLimit: async (
+      req: { headers?: Record<string, string | string[] | undefined> },
+      res: { status: (code: number) => { json: (body: unknown) => void } },
+      rule: unknown,
+    ) => {
+      const visitorIdHeader = req.headers?.['x-visitor-id']
+      const visitorId = typeof visitorIdHeader === 'string' ? visitorIdHeader : undefined
+      lastRateLimitArgs = { visitorId, rule }
+      if (!currentRateLimitAllowed) {
+        res.status(429).json({ error: 'rate_limited', message: '目前使用量較高，請稍後再試' })
+        return false
+      }
+      return true
+    },
+  },
+})
+
 const { default: handler } = await import('./ask-ai.ts')
 
-function fakeReq(overrides: { method?: string; body?: unknown } = {}) {
+function fakeReq(overrides: { method?: string; body?: unknown; headers?: Record<string, string> } = {}) {
   return { method: 'POST', body: {}, ...overrides }
 }
 
@@ -38,6 +61,8 @@ let originalKey: string | undefined
 beforeEach(() => {
   originalKey = process.env.ANTHROPIC_API_KEY
   process.env.ANTHROPIC_API_KEY = 'test-key'
+  currentRateLimitAllowed = true
+  lastRateLimitArgs = undefined
 })
 
 afterEach(() => {
@@ -124,4 +149,32 @@ test('returns 502 when the Claude call throws', async () => {
   const res = fakeRes()
   await handler(fakeReq({ body: BASE_BODY }), res)
   assert.equal(res.statusCode, 502)
+})
+
+test('returns 429 without ever calling Claude when the rate limiter blocks the request', async () => {
+  currentRateLimitAllowed = false
+  let createCalled = false
+  currentCreate = async () => {
+    createCalled = true
+    return { content: [] }
+  }
+  const res = fakeRes()
+  await handler(fakeReq({ body: BASE_BODY }), res)
+  assert.equal(res.statusCode, 429)
+  assert.equal((res.body as { error?: string }).error, 'rate_limited')
+  assert.equal(createCalled, false)
+})
+
+test('forwards the X-Visitor-Id header to the rate limiter', async () => {
+  currentCreate = async () => ({ content: [] })
+  await handler(fakeReq({ body: BASE_BODY, headers: { 'x-visitor-id': 'visitor-42' } }), fakeRes())
+  assert.equal(lastRateLimitArgs?.visitorId, 'visitor-42')
+})
+
+test('rate limiter runs before the missing-API-key check', async () => {
+  delete process.env.ANTHROPIC_API_KEY
+  currentRateLimitAllowed = false
+  const res = fakeRes()
+  await handler(fakeReq({ body: BASE_BODY }), res) // would otherwise 500 (no API key)
+  assert.equal(res.statusCode, 429)
 })

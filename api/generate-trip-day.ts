@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { stripBilingualName } from './_lib/placeName.js'
 import { distanceKm, geocodeCityCenter, getPlaceCoverPhotos, verifyPlace, type GeoPoint } from './_lib/placesVerify.js'
+import { enforceRateLimit } from './_lib/rateLimit.js'
 import {
   buildDayPrompt,
   buildDaySystemPrompt,
@@ -16,6 +17,22 @@ import {
   type VercelLikeResponse,
   type ZoneHint,
 } from './_lib/tripGen.js'
+
+// This is the endpoint that actually does the expensive work (Claude
+// generation + Google Places verification for a whole day), reachable
+// directly by any caller that skips plan-trip-zones.ts entirely — its own
+// per-visitor/per-day limits mean nothing if this endpoint has no backstop of
+// its own. Deliberately global-only, no sessionPer10Min/sessionPerDay: a
+// legitimate multi-day trip fires one call per day in parallel (see
+// aiTripClient.ts's MAX_PARALLEL_REQUESTS), and a per-visitor cap here would
+// risk blocking some days of an already-approved trip but not others — a
+// worse failure mode than the fairness gap it would close. globalPerDay is
+// sized as a generous site-wide ceiling purely to bound worst-case cost from
+// a direct-bypass abuser, not to constrain normal usage.
+const RATE_LIMIT_RULE = {
+  endpoint: 'generate-trip-day',
+  globalPerDay: 200,
+}
 
 // Computed once at module scope, not per-request — buildDaySystemPrompt()
 // takes no arguments and its output never changes, so building it fresh on
@@ -84,6 +101,11 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
     res.status(405).json({ error: 'Method not allowed' })
     return
   }
+
+  // Checked before any Claude call — see the RATE_LIMIT_RULE comment above
+  // for why this is global-only, and plan-trip-zones.ts for the identical
+  // before-validation placement reasoning.
+  if (!(await enforceRateLimit(req, res, RATE_LIMIT_RULE))) return
 
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) {

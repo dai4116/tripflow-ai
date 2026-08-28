@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { enforceRateLimit } from './_lib/rateLimit.js'
 import { stripBilingualName } from './_lib/placeName.js'
 
 // Chat replies are small (one tool call or a short sentence), so this
@@ -11,10 +12,20 @@ type VercelLikeRequest = {
   method?: string
   body?: unknown
   on?: (event: 'close', listener: () => void) => void
+  // Vercel lower-cases incoming header names — read 'x-visitor-id'. Used for
+  // per-visitor rate limiting (see rateLimit.ts).
+  headers?: Record<string, string | string[] | undefined>
 }
 type VercelLikeResponse = {
   status: (code: number) => VercelLikeResponse
   json: (body: unknown) => void
+}
+
+const RATE_LIMIT_RULE = {
+  endpoint: 'ask-ai',
+  sessionPer10Min: 5,
+  sessionPerDay: 15,
+  globalPerDay: 100,
 }
 
 const PLACE_CATEGORIES = ['food', 'attraction', 'shopping', 'stay', 'transport', 'other'] as const
@@ -158,6 +169,10 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
     res.status(405).json({ error: 'Method not allowed' })
     return
   }
+
+  // Checked before any Claude call — see plan-trip-zones.ts's identical
+  // placement/reasoning.
+  if (!(await enforceRateLimit(req, res, RATE_LIMIT_RULE))) return
 
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) {

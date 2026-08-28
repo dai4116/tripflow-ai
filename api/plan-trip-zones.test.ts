@@ -16,9 +16,38 @@ mock.module('@anthropic-ai/sdk', {
   },
 })
 
+// Mocked so most tests exercise the "allowed" path without needing real KV
+// (the unmocked module already degrades to allowed with no KV configured —
+// see kv.ts — but mocking here lets the one 429 test below force a block
+// deterministically, and asserts on the visitor id the handler forwards).
+// Mirrors enforceRateLimit's own contract (writes the 429 itself, returns
+// whether the caller should proceed) so the handler's `if (!(await
+// enforceRateLimit(...))) return` short-circuits the same way it would for
+// real.
+let currentRateLimitAllowed = true
+let lastRateLimitArgs: { visitorId: string | undefined; rule: unknown } | undefined
+mock.module('./_lib/rateLimit.ts', {
+  namedExports: {
+    enforceRateLimit: async (
+      req: { headers?: Record<string, string | string[] | undefined> },
+      res: { status: (code: number) => { json: (body: unknown) => void } },
+      rule: unknown,
+    ) => {
+      const visitorIdHeader = req.headers?.['x-visitor-id']
+      const visitorId = typeof visitorIdHeader === 'string' ? visitorIdHeader : undefined
+      lastRateLimitArgs = { visitorId, rule }
+      if (!currentRateLimitAllowed) {
+        res.status(429).json({ error: 'rate_limited', message: '目前使用量較高，請稍後再試' })
+        return false
+      }
+      return true
+    },
+  },
+})
+
 const { default: handler } = await import('./plan-trip-zones.ts')
 
-function fakeReq(overrides: { method?: string; body?: unknown } = {}) {
+function fakeReq(overrides: { method?: string; body?: unknown; headers?: Record<string, string> } = {}) {
   return { method: 'POST', body: {}, ...overrides }
 }
 
@@ -49,6 +78,8 @@ beforeEach(() => {
   originalGoogleKey = process.env.GOOGLE_PLACES_API_KEY
   delete process.env.ANTHROPIC_API_KEY
   delete process.env.GOOGLE_PLACES_API_KEY
+  currentRateLimitAllowed = true
+  lastRateLimitArgs = undefined
 })
 
 afterEach(() => {
@@ -133,6 +164,33 @@ test('degrades to empty zones (not an error response) when the Claude call throw
   await handler(fakeReq({ body: VALID_BODY }), res)
   assert.equal(res.statusCode, 200)
   assert.deepEqual(res.body, { zones: [], cityCenter: null })
+})
+
+test('returns 429 without ever calling Claude when the rate limiter blocks the request', async () => {
+  process.env.ANTHROPIC_API_KEY = 'test-key'
+  currentRateLimitAllowed = false
+  let streamCalled = false
+  currentStream = () => {
+    streamCalled = true
+    return { finalMessage: async () => ({ content: [] }) }
+  }
+  const res = fakeRes()
+  await handler(fakeReq({ body: VALID_BODY }), res)
+  assert.equal(res.statusCode, 429)
+  assert.equal((res.body as { error?: string }).error, 'rate_limited')
+  assert.equal(streamCalled, false)
+})
+
+test('forwards the X-Visitor-Id header to the rate limiter', async () => {
+  await handler(fakeReq({ body: VALID_BODY, headers: { 'x-visitor-id': 'visitor-42' } }), fakeRes())
+  assert.equal(lastRateLimitArgs?.visitorId, 'visitor-42')
+})
+
+test('rate limiter runs before body validation — a blocked request never reaches the 400 checks', async () => {
+  currentRateLimitAllowed = false
+  const res = fakeRes()
+  await handler(fakeReq({ body: { destination: '' } }), res) // would otherwise 400 (missing destination)
+  assert.equal(res.statusCode, 429)
 })
 
 test('resolves both zones and cityCenter together when both API keys are configured', async (t) => {

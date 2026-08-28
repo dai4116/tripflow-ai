@@ -1,4 +1,5 @@
 import type { PlaceCategory } from '../types'
+import { getVisitorId } from './visitorId.ts'
 import type { PlaceSuggestion } from './generateTrip'
 
 // Chat replies are small — no whole-itinerary generation involved — so a
@@ -26,6 +27,10 @@ export type AskAiResult =
   // trusting Claude to describe a route it never computed.
   | { type: 'reorder_day'; columnId: string }
   | { type: 'text'; text: string }
+  // Distinct from a plain failure (which falls back to AskAiPanel.vue's own
+  // keyword heuristics, see below) — a rate limit is a deliberate block, not
+  // an outage, so it gets its own message instead of a guessed reply.
+  | { type: 'rate_limited'; message: string }
 
 // Talks to /api/ask-ai (a Vercel serverless function using Claude tool use
 // to decide move/remove/suggest vs. a plain reply). Returns undefined —
@@ -41,12 +46,20 @@ export async function fetchAskAiResult(
   const timer = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
 
   try {
+    const visitorId = getVisitorId()
     const response = await fetch('/api/ask-ai', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(visitorId ? { 'X-Visitor-Id': visitorId } : {}),
+      },
       body: JSON.stringify({ message, destination, columns }),
       signal: controller.signal,
     })
+    if (response.status === 429) {
+      const body = (await response.json().catch(() => null)) as { message?: string } | null
+      return { type: 'rate_limited', message: body?.message ?? '目前使用量較高，請稍後再試' }
+    }
     if (!response.ok) return undefined
 
     const data = (await response.json()) as { type?: string; name?: string; input?: Record<string, unknown>; text?: string }

@@ -439,6 +439,7 @@ function buildColumnSummaries(): AskAiColumnSummary[] {
 
 function messageFromAskAiResult(result: AskAiResult): Omit<AiMessage, 'id' | 'role'> {
   if (result.type === 'text') return { text: result.text }
+  if (result.type === 'rate_limited') return { text: result.message }
 
   if (result.type === 'move_place') {
     return {

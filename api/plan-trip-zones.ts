@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { enforceRateLimit } from './_lib/rateLimit.js'
 import {
   buildZonePlanPrompt,
   validateDestination,
@@ -10,6 +11,32 @@ import {
   type ZoneHint,
 } from './_lib/tripGen.js'
 import { geocodeCityCenter, type GeoPoint } from './_lib/placesVerify.js'
+
+// This endpoint is the trip-creation-attempt entry point (see
+// aiTripClient.ts's planCitySegments), which is what makes it the right
+// place to gate trip-creation cost even though generate-trip-day.ts does the
+// actual expensive per-day work. aiTripClient.ts's planZones() specifically
+// re-throws on a 429 from this endpoint (unlike every other failure here,
+// which is best-effort) so a block actually aborts the whole trip-creation
+// attempt before any generate-trip-day calls fire, instead of silently
+// "proceeding with no zone hints" the way a transient failure does.
+// generate-trip-day.ts still has its own separate, global-only backstop
+// (see its own comment) so a client that calls it directly, skipping this
+// endpoint entirely, doesn't get a completely free pass.
+//
+// One call per CITY GROUP, not one per trip — a multi-destination trip
+// (CreateTripPage.vue's MAX_CITIES = 8) can fire up to 8 of these for a
+// single, entirely legitimate "create trip" click. sessionPer10Min/
+// sessionPerDay are sized to comfortably clear that in one shot (confirmed
+// live: the original 3/10min, 8/day pair self-rate-limited a normal 4+-city
+// trip on its very first attempt, before any abuse was possible) rather than
+// being tuned around "one attempt = one call".
+const RATE_LIMIT_RULE = {
+  endpoint: 'plan-trip-zones',
+  sessionPer10Min: 10,
+  sessionPerDay: 20,
+  globalPerDay: 60,
+}
 
 // Stage 1 of trip generation, split out into its own lightweight request so
 // the client can call it once up front, then fan out many small per-day
@@ -39,6 +66,12 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
     res.status(405).json({ error: 'Method not allowed' })
     return
   }
+
+  // Checked before any Claude call is made (the whole point — a block here
+  // must actually save the cost, not just report it after the fact) and
+  // before body validation, since a blocked visitor doesn't need a more
+  // specific error than "try again later" either way.
+  if (!(await enforceRateLimit(req, res, RATE_LIMIT_RULE))) return
 
   const { destination, travelStyle, preferences, additionalNotes, totalDays, arrivalDay, arrivalTime, departureDay, departureTime } =
     (req.body ?? {}) as PlanZonesBody

@@ -15,9 +15,27 @@ mock.module('@anthropic-ai/sdk', {
   },
 })
 
+// See plan-trip-zones.test.ts's identical mock for why this is mocked rather
+// than left to the real "no KV configured -> always allowed" degradation.
+let currentRateLimitAllowed = true
+mock.module('./_lib/rateLimit.ts', {
+  namedExports: {
+    enforceRateLimit: async (
+      _req: { headers?: Record<string, string | string[] | undefined> },
+      res: { status: (code: number) => { json: (body: unknown) => void } },
+    ) => {
+      if (!currentRateLimitAllowed) {
+        res.status(429).json({ error: 'rate_limited', message: '目前使用量較高，請稍後再試' })
+        return false
+      }
+      return true
+    },
+  },
+})
+
 const { default: handler } = await import('./generate-trip-day.ts')
 
-function fakeReq(overrides: { method?: string; body?: unknown } = {}) {
+function fakeReq(overrides: { method?: string; body?: unknown; headers?: Record<string, string> } = {}) {
   return { method: 'POST', body: {}, ...overrides }
 }
 
@@ -62,6 +80,7 @@ beforeEach(() => {
   originalGoogleKey = process.env.GOOGLE_PLACES_API_KEY
   process.env.ANTHROPIC_API_KEY = 'test-key'
   delete process.env.GOOGLE_PLACES_API_KEY
+  currentRateLimitAllowed = true
 })
 
 afterEach(() => {
@@ -84,6 +103,20 @@ test('returns 500 when ANTHROPIC_API_KEY is not configured', async () => {
   const res = fakeRes()
   await handler(fakeReq({ body: BASE_BODY }), res)
   assert.equal(res.statusCode, 500)
+})
+
+test('returns 429 without ever calling Claude when the rate limiter blocks the request', async () => {
+  currentRateLimitAllowed = false
+  let streamCalled = false
+  currentStream = () => {
+    streamCalled = true
+    return { finalMessage: async () => ({ content: [], usage: { cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } }) }
+  }
+  const res = fakeRes()
+  await handler(fakeReq({ body: BASE_BODY }), res)
+  assert.equal(res.statusCode, 429)
+  assert.equal((res.body as { error?: string }).error, 'rate_limited')
+  assert.equal(streamCalled, false)
 })
 
 test('validates destination, totalDays, targetPlaceCount, and day', async () => {

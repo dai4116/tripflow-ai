@@ -190,6 +190,9 @@ export type VercelLikeRequest = {
   // so an in-flight Claude/Google call can be cancelled instead of paying
   // for work nobody will read the result of.
   on?: (event: 'close', listener: () => void) => void
+  // Vercel lower-cases incoming header names — read 'x-visitor-id', not
+  // 'X-Visitor-Id'. Used for per-visitor rate limiting (see rateLimit.ts).
+  headers?: Record<string, string | string[] | undefined>
 }
 export type VercelLikeResponse = {
   status: (code: number) => VercelLikeResponse
