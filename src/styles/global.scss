@@ -5776,3 +5776,151 @@ h3 {
     color: $color-muted;
   }
 }
+
+// AdminUsagePage — unlisted, secret-gated rate-limit usage dashboard (see
+// api/admin/usage.ts). Not part of the workspace layout, so it doesn't
+// reuse PageHeader/sidebar tokens the way every other page does.
+.admin-usage-page {
+  min-height: 100vh;
+  padding: 40px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.admin-usage-page__inner {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+
+  h1 {
+    font-size: $fs-h2;
+    margin-bottom: 24px;
+    text-align: center;
+  }
+}
+
+.admin-usage-page__gate {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 320px;
+  margin: 0 auto;
+
+  label {
+    font-size: $fs-small;
+    color: $color-muted;
+  }
+
+  input {
+    padding: 10px 12px;
+    border: 1px solid $color-border;
+    border-radius: $radius-sm;
+    font-size: $fs-ui;
+  }
+
+  button {
+    padding: 10px 12px;
+    border: none;
+    border-radius: $radius-sm;
+    background: $color-primary;
+    color: #fff;
+    font-size: $fs-ui;
+    cursor: pointer;
+
+    &:hover {
+      background: $color-primary-deep;
+    }
+  }
+}
+
+.admin-usage-page__toolbar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+
+  button {
+    padding: 8px 14px;
+    border: 1px solid $color-border;
+    border-radius: $radius-sm;
+    background: $color-surface;
+    font-size: $fs-small;
+    cursor: pointer;
+
+    &:hover {
+      background: $color-surface-soft;
+    }
+  }
+}
+
+.admin-usage-page__error {
+  color: $color-danger;
+  font-size: $fs-small;
+}
+
+.admin-usage-page__loading {
+  color: $color-muted;
+  font-size: $fs-small;
+}
+
+.admin-usage-page__series {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.admin-usage-page__card {
+  background: $color-surface;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+  padding: 18px 20px;
+}
+
+.admin-usage-page__card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 14px;
+
+  h2 {
+    font-size: $fs-title;
+  }
+}
+
+.admin-usage-page__today {
+  font-size: $fs-small;
+  color: $color-muted;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-usage-page__chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 90px;
+}
+
+.admin-usage-page__bar {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  background: $color-surface-soft;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.admin-usage-page__bar-fill {
+  width: 100%;
+  background: $color-primary;
+  border-radius: 2px 2px 0 0;
+  min-height: 2px;
+}
+
+.admin-usage-page__chart-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: $fs-micro;
+  color: $color-subtle;
+}

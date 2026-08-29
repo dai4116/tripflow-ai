@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { enforceRateLimit } from './_lib/rateLimit.js'
+import { ASK_AI_RULE as RATE_LIMIT_RULE } from './_lib/rateLimitRules.js'
 import { stripBilingualName } from './_lib/placeName.js'
 
 // Chat replies are small (one tool call or a short sentence), so this
@@ -19,13 +20,6 @@ type VercelLikeRequest = {
 type VercelLikeResponse = {
   status: (code: number) => VercelLikeResponse
   json: (body: unknown) => void
-}
-
-const RATE_LIMIT_RULE = {
-  endpoint: 'ask-ai',
-  sessionPer10Min: 5,
-  sessionPerDay: 15,
-  globalPerDay: 100,
 }
 
 const PLACE_CATEGORIES = ['food', 'attraction', 'shopping', 'stay', 'transport', 'other'] as const

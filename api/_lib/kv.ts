@@ -48,6 +48,38 @@ export async function kvGet<T>(key: string): Promise<T | undefined> {
   }
 }
 
+// Reads a value with no {v: T} unwrapping — for keys written by something
+// other than kvSet, e.g. kvIncr's plain integer counters (see
+// api/admin/usage.ts, which reads back rate-limit counters this way).
+export async function kvGetRaw<T>(key: string): Promise<T | undefined> {
+  if (!kv) return undefined
+  try {
+    const value = await withKvTimeout(kv.get<T>(key))
+    return value === null ? undefined : value
+  } catch (error) {
+    console.error('[kv] raw read failed, falling back to miss', error)
+    return undefined
+  }
+}
+
+// Batched version of kvGetRaw — one Redis round trip for many keys instead
+// of one per key. api/admin/usage.ts reads up to (endpoint count × history
+// days) counters per dashboard request; doing that as individual kvGetRaw
+// calls would fire that many separate Upstash REST calls, each independently
+// bounded by KV_TIMEOUT_MS, for one page load. Order of the returned array
+// matches `keys`. Empty input short-circuits before touching Redis at all —
+// Upstash's MGET requires at least one key.
+export async function kvMGetRaw<T>(keys: string[]): Promise<(T | undefined)[]> {
+  if (!kv || keys.length === 0) return keys.map(() => undefined)
+  try {
+    const values = await withKvTimeout(kv.mget<(T | null)[]>(...keys))
+    return values.map((value) => (value === null ? undefined : value))
+  } catch (error) {
+    console.error('[kv] raw mget failed, falling back to miss for all keys', error)
+    return keys.map(() => undefined)
+  }
+}
+
 // Fire-and-forget — the caller already has its result; a slow or failed
 // cache write shouldn't hold up (or fail) the request that produced it.
 export function kvSet<T>(key: string, value: T, ttlSeconds: number): void {
@@ -63,17 +95,27 @@ export function kvSet<T>(key: string, value: T, ttlSeconds: number): void {
 // contract as kvGet/kvSet — a caller checking a limit must treat undefined as
 // "can't enforce this, allow the request" rather than blocking on it.
 //
-// TTL is only set on the call that creates the key (result === 1) — setting
-// it on every call would keep sliding the window forward and the counter
-// would never actually expire. The gap between INCR and EXPIRE isn't atomic
-// (no Lua script — not worth the complexity here), so a crash in that gap
-// leaves a key with no TTL; worst case that makes this one counter stricter
-// than intended (it never resets) until manually cleared, never looser.
-export async function kvIncr(key: string, ttlSeconds: number): Promise<number | undefined> {
+// TTL is only set on the call that creates the key (result === 1) by
+// default — setting it on every call would keep sliding the window forward
+// and the counter would never actually expire. The gap between INCR and
+// EXPIRE isn't atomic (no Lua script — not worth the complexity here), so a
+// crash in that gap leaves a key with no TTL; worst case that makes this one
+// counter stricter than intended (it never resets) until manually cleared,
+// never looser.
+//
+// alwaysRefreshTtl opts out of that default for keys where re-sliding the
+// TTL forward is actually correct rather than a bug: rateLimit.ts's global
+// counter is already keyed by calendar date (see its own comment), so its
+// TTL only ever controls "how long do we retain this day's history" — never
+// "when does this rate-limiting window reset" — and refreshing it on every
+// call is what heals a key created under an older, shorter ttlSeconds (e.g.
+// one written before GLOBAL_COUNTER_TTL_SECONDS was extended) up to the
+// current target as soon as it's next touched.
+export async function kvIncr(key: string, ttlSeconds: number, opts?: { alwaysRefreshTtl?: boolean }): Promise<number | undefined> {
   if (!kv) return undefined
   try {
     const count = await withKvTimeout(kv.incr(key))
-    if (count === 1) {
+    if (count === 1 || opts?.alwaysRefreshTtl) {
       kv.expire(key, ttlSeconds).catch((error) => {
         console.error('[kv] failed to set expiry after incr', error)
       })

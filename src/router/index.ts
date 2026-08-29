@@ -98,6 +98,16 @@ const routes: RouteRecordRaw[] = [
     path: '/trips/new',
     redirect: { name: 'trip-create' },
   },
+  {
+    path: '/admin/usage',
+    name: 'admin-usage',
+    component: () => import('../pages/AdminUsagePage.vue'),
+    // bare, not workspace — this is an unlisted, secret-gated dashboard (see
+    // api/admin/usage.ts), not part of the normal app shell/sidebar, and
+    // deliberately absent from ONBOARDING_GATED_ROUTES so it doesn't route
+    // a fresh visitor who somehow lands here into onboarding.
+    meta: { layout: 'bare' },
+  },
 ]
 
 const router = createRouter({

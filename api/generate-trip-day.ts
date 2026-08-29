@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { stripBilingualName } from './_lib/placeName.js'
 import { distanceKm, geocodeCityCenter, getPlaceCoverPhotos, verifyPlace, type GeoPoint } from './_lib/placesVerify.js'
 import { enforceRateLimit } from './_lib/rateLimit.js'
+import { GENERATE_TRIP_DAY_RULE as RATE_LIMIT_RULE } from './_lib/rateLimitRules.js'
 import {
   buildDayPrompt,
   buildDaySystemPrompt,
@@ -28,11 +29,9 @@ import {
 // risk blocking some days of an already-approved trip but not others — a
 // worse failure mode than the fairness gap it would close. globalPerDay is
 // sized as a generous site-wide ceiling purely to bound worst-case cost from
-// a direct-bypass abuser, not to constrain normal usage.
-const RATE_LIMIT_RULE = {
-  endpoint: 'generate-trip-day',
-  globalPerDay: 200,
-}
+// a direct-bypass abuser, not to constrain normal usage. The rule itself
+// lives in rateLimitRules.ts, shared with api/admin/usage.ts — see that
+// file's own comment for why.
 
 // Computed once at module scope, not per-request — buildDaySystemPrompt()
 // takes no arguments and its output never changes, so building it fresh on

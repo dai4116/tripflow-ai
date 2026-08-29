@@ -24,9 +24,25 @@ export type RateLimitRule = {
 export type RateLimitResult = { allowed: boolean }
 
 const SESSION_10MIN_TTL_SECONDS = 10 * 60
+// Global counters intentionally outlive the day they're rate-limiting —
+// api/admin/usage.ts reads them back day-by-day to draw a usage history
+// chart, so a global key needs to survive long after its own rate-limiting
+// purpose is done. Session-scoped counters (session-day, session-10min)
+// don't get this treatment and keep expiring on their original schedule
+// below — there's no dashboard use case for retaining a single visitor's
+// history, and not doing so keeps that data minimally retained.
+const GLOBAL_COUNTER_TTL_SECONDS = 60 * 24 * 60 * 60
 
-function utcDateString(now: Date): string {
+// Exported so api/admin/usage.ts builds the exact same key format when
+// reading these counters back for its history chart, instead of
+// re-deriving the format independently and risking silent drift if this
+// changes.
+export function utcDateString(now: Date): string {
   return now.toISOString().slice(0, 10) // YYYY-MM-DD
+}
+
+export function globalCounterKey(endpoint: string, date: string): string {
+  return `ratelimit:global:${endpoint}:${date}`
 }
 
 // Calendar-day (UTC) reset, not a rolling 24h window — matches the "resets
@@ -48,9 +64,9 @@ function secondsUntilUtcMidnight(now: Date): number {
 export async function checkRateLimit(visitorId: string | undefined, rule: RateLimitRule): Promise<RateLimitResult> {
   const now = new Date()
   const date = utcDateString(now)
-  const dayTtl = secondsUntilUtcMidnight(now)
+  const sessionDayTtl = secondsUntilUtcMidnight(now)
 
-  const globalKey = `ratelimit:global:${rule.endpoint}:${date}`
+  const globalKey = globalCounterKey(rule.endpoint, date)
   const sessionDayKey =
     visitorId && rule.sessionPerDay !== undefined ? `ratelimit:sessionday:${rule.endpoint}:${visitorId}:${date}` : undefined
   const session10Key =
@@ -62,8 +78,8 @@ export async function checkRateLimit(visitorId: string | undefined, rule: RateLi
   // sequential KV_TIMEOUT_MS waits) for no reason: nothing about the global
   // count feeds into the session checks or vice versa.
   const [globalCount, sessionDayCount, session10Count] = await Promise.all([
-    kvIncr(globalKey, dayTtl),
-    sessionDayKey ? kvIncr(sessionDayKey, dayTtl) : Promise.resolve(undefined),
+    kvIncr(globalKey, GLOBAL_COUNTER_TTL_SECONDS, { alwaysRefreshTtl: true }),
+    sessionDayKey ? kvIncr(sessionDayKey, sessionDayTtl) : Promise.resolve(undefined),
     session10Key ? kvIncr(session10Key, SESSION_10MIN_TTL_SECONDS) : Promise.resolve(undefined),
   ])
 

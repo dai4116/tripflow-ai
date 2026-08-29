@@ -19,7 +19,19 @@ AI 排程的旅遊行程規劃工具：使用者輸入目的地/天數/風格，
 | `ANTHROPIC_API_KEY` | AI 生成（Claude） | 生成硬失敗，無 fallback |
 | `GOOGLE_PLACES_API_KEY` | 地點驗證/座標/照片/自動完成 | 退回舊的 Nominatim 路徑，可能定位不到或定位錯 |
 | `OPENROUTESERVICE_API_KEY` | 交通時間估算（經 `/api/route` 代理） | 交通時間功能不可用 |
-| `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Upstash Redis：`api/_lib/placesVerify.ts` 跨 function 快取已驗證地點 90 天；`api/place-photo.ts`（經 `api/_lib/kv.ts`）另外快取已解析的照片轉址網址 50 分鐘、過期/無效 photoRef 5 分鐘 | 兩邊都退回「每次都直接打 Google，沒有跨次快取」，不會壞掉 |
+| `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Upstash Redis：`api/_lib/placesVerify.ts` 跨 function 快取已驗證地點 90 天；`api/place-photo.ts`（經 `api/_lib/kv.ts`）另外快取已解析的照片轉址網址 50 分鐘、過期/無效 photoRef 5 分鐘；同一組 Redis 也存 `api/_lib/rateLimit.ts` 的配額計數器 | 三邊都退回「不快取／不設限」，不會壞掉——配額退回 unlimited，見下方 |
+| `ADMIN_DASHBOARD_SECRET` | 後台使用量頁 `/admin/usage`（`api/admin/usage.ts`）的存取密鑰，前端存 localStorage、經 `X-Admin-Secret` header 送出 | 端點直接 500 拒絕所有請求，不會退回「無密鑰也能看」 |
+
+## 免費額度保護（配額機制）
+
+面試期間怕 `$ANTHROPIC_API_KEY` 額度被打爆而做的三層配額，2026-08 上線：`api/_lib/rateLimit.ts` 的 `checkRateLimit`/`enforceRateLimit`，每次 Claude 呼叫前檢查（絕不在呼叫後才檢查）。
+
+- 三層：單一訪客 10 分鐘內次數、單一訪客當日次數、**全站當日次數**（真正的成本防線，跟訪客識別無關，砍不掉）。訪客身分是 `src/data/visitorId.ts` 存在 localStorage 的隨機 id（不是帳號、不是 IP），完全可被無痕視窗繞過，這是刻意接受的取捨——這層本來就不是防駭客，是防單一訪客/單一 session 失控
+- 擋下時一律回一句通用訊息「目前使用量較高，請稍後再試」，不透露是哪一層擋的、不承諾等多久，前端也不顯示剩餘額度給訪客看
+- `plan-trip-zones.ts` 是「每城市群組一次」不是「每趟行程一次」——多城市行程（`CreateTripPage.vue` 的 `MAX_CITIES = 8`）一次建立最多發 8 個請求，配額數字已經照這個抓（10 分鐘 10 次／每日 20 次），改配額前先看這支檔案開頭註解，不要用「一次呼叫=一次操作」的直覺去抓數字
+- `generate-trip-day.ts`（真正花錢的那支）只有**全站當日**配額（`globalPerDay: 200`），刻意不設單一訪客限制——同一趟多天行程的每一天是平行打不同請求，訪客層級限制會有「同一趟行程有些天被擋、有些天沒被擋」的風險
+- 全域計數器 TTL 拉到 60 天（不是當天就過期）——這是刻意的，讓 `/admin/usage` 能回顧歷史用量；單一訪客層級的計數器沒有這樣做，維持當天就過期，避免留存不必要的個人使用足跡
+- `plan-trip-zones` 失敗（含被擋）會 throw `RateLimitedError` 並讓整個建立行程流程中止，跟其他「失敗就靜默略過、繼續生成」的錯誤處理方式不同——這是刻意的例外，理由見 `aiTripClient.ts` 裡 `planZones` 的註解
 
 ## 系統分層
 

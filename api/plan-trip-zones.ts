@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { enforceRateLimit } from './_lib/rateLimit.js'
+import { PLAN_TRIP_ZONES_RULE as RATE_LIMIT_RULE } from './_lib/rateLimitRules.js'
 import {
   buildZonePlanPrompt,
   validateDestination,
@@ -22,21 +23,9 @@ import { geocodeCityCenter, type GeoPoint } from './_lib/placesVerify.js'
 // "proceeding with no zone hints" the way a transient failure does.
 // generate-trip-day.ts still has its own separate, global-only backstop
 // (see its own comment) so a client that calls it directly, skipping this
-// endpoint entirely, doesn't get a completely free pass.
-//
-// One call per CITY GROUP, not one per trip — a multi-destination trip
-// (CreateTripPage.vue's MAX_CITIES = 8) can fire up to 8 of these for a
-// single, entirely legitimate "create trip" click. sessionPer10Min/
-// sessionPerDay are sized to comfortably clear that in one shot (confirmed
-// live: the original 3/10min, 8/day pair self-rate-limited a normal 4+-city
-// trip on its very first attempt, before any abuse was possible) rather than
-// being tuned around "one attempt = one call".
-const RATE_LIMIT_RULE = {
-  endpoint: 'plan-trip-zones',
-  sessionPer10Min: 10,
-  sessionPerDay: 20,
-  globalPerDay: 60,
-}
+// endpoint entirely, doesn't get a completely free pass. The rule itself
+// (numbers + reasoning) lives in rateLimitRules.ts, shared with
+// api/admin/usage.ts — see that file's own comment for why.
 
 // Stage 1 of trip generation, split out into its own lightweight request so
 // the client can call it once up front, then fan out many small per-day
