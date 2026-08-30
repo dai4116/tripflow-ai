@@ -20,7 +20,7 @@ AI 排程的旅遊行程規劃工具：使用者輸入目的地/天數/風格，
 | `GOOGLE_PLACES_API_KEY` | 地點驗證/座標/照片/自動完成 | 退回舊的 Nominatim 路徑，可能定位不到或定位錯 |
 | `OPENROUTESERVICE_API_KEY` | 交通時間估算（經 `/api/route` 代理） | 交通時間功能不可用 |
 | `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Upstash Redis：`api/_lib/placesVerify.ts` 跨 function 快取已驗證地點 90 天；`api/place-photo.ts`（經 `api/_lib/kv.ts`）另外快取已解析的照片轉址網址 50 分鐘、過期/無效 photoRef 5 分鐘；同一組 Redis 也存 `api/_lib/rateLimit.ts` 的配額計數器 | 三邊都退回「不快取／不設限」，不會壞掉——配額退回 unlimited，見下方 |
-| `ADMIN_DASHBOARD_SECRET` | 後台使用量頁 `/admin/usage`（`api/admin/usage.ts`）的存取密鑰，前端存 localStorage、經 `X-Admin-Secret` header 送出 | 端點直接 500 拒絕所有請求，不會退回「無密鑰也能看」 |
+| `ADMIN_DASHBOARD_SECRET` | 後台使用量頁 `/admin/usage`（`api/admin/usage.ts`）的存取密鑰，前端存 **sessionStorage**（不是 localStorage——關掉分頁/瀏覽器就清掉，縮短明碼曝露時間，見 `adminUsageClient.ts` 註解）、經 `X-Admin-Secret` header 送出 | 端點直接 500 拒絕所有請求，不會退回「無密鑰也能看」 |
 
 ## 免費額度保護（配額機制）
 

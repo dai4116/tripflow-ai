@@ -5,9 +5,16 @@ export type UsageSeries = { endpoint: string; label: string; globalPerDay: numbe
 export type UsageResult = { series: UsageSeries[] }
 export type UsageError = 'unauthorized' | 'unconfigured' | 'unknown'
 
+// sessionStorage, not localStorage — this is a plaintext secret (client-side
+// "encryption" of it would be security theater: the decryption key would
+// have to live in the same browser too, so anyone who can run JS in this
+// origin can reverse it exactly the way the app does). sessionStorage
+// bounds how long that plaintext sits on disk instead: it's cleared when the
+// tab/browser closes, at the cost of re-entering the secret each new
+// session instead of it persisting indefinitely.
 export function getStoredAdminSecret(): string | undefined {
   try {
-    return window.localStorage.getItem(STORAGE_KEY) ?? undefined
+    return window.sessionStorage.getItem(STORAGE_KEY) ?? undefined
   } catch {
     return undefined
   }
@@ -15,16 +22,16 @@ export function getStoredAdminSecret(): string | undefined {
 
 export function storeAdminSecret(secret: string): void {
   try {
-    window.localStorage.setItem(STORAGE_KEY, secret)
+    window.sessionStorage.setItem(STORAGE_KEY, secret)
   } catch {
-    // localStorage unavailable (private mode, disabled) — the secret just
+    // sessionStorage unavailable (private mode, disabled) — the secret just
     // won't persist across reloads, not worth surfacing as an error here.
   }
 }
 
 export function clearStoredAdminSecret(): void {
   try {
-    window.localStorage.removeItem(STORAGE_KEY)
+    window.sessionStorage.removeItem(STORAGE_KEY)
   } catch {
     // See storeAdminSecret's own comment.
   }

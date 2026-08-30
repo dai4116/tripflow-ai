@@ -5887,27 +5887,45 @@ h3 {
   }
 }
 
-.admin-usage-page__today {
+.admin-usage-page__stats {
+  display: flex;
+  gap: 12px;
   font-size: $fs-small;
   color: $color-muted;
   font-variant-numeric: tabular-nums;
 }
 
+.admin-usage-page__stat--today strong {
+  color: $color-text;
+  font-size: $fs-ui;
+}
+
+// Chart gets top padding so the always-on count label (positioned above
+// each bar) never gets clipped on a near-100%-of-max day.
 .admin-usage-page__chart {
   display: flex;
   align-items: flex-end;
   gap: 3px;
   height: 90px;
+  padding-top: 16px;
 }
 
 .admin-usage-page__bar {
+  position: relative;
   flex: 1;
   height: 100%;
   display: flex;
   align-items: flex-end;
   background: $color-surface-soft;
   border-radius: 2px;
-  overflow: hidden;
+}
+
+// Today's bar gets its own color so "did anything happen today/yesterday"
+// is answerable at a glance instead of having to count bars in from the
+// right edge — this was the whole point of the redesign (see chat: the
+// original hover-only tooltip made a single day's count too easy to miss).
+.admin-usage-page__bar--today .admin-usage-page__bar-fill {
+  background: $color-accent;
 }
 
 .admin-usage-page__bar-fill {
@@ -5915,6 +5933,21 @@ h3 {
   background: $color-primary;
   border-radius: 2px 2px 0 0;
   min-height: 2px;
+}
+
+// Always visible, not hover-only — a bar's height alone can't distinguish
+// "1" from "2" at this size, and a value only reachable via mouse-hover on a
+// 3px-wide bar is effectively invisible on mobile (no hover at all).
+.admin-usage-page__bar-count {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 2px;
+  font-size: $fs-micro;
+  color: $color-muted;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .admin-usage-page__chart-labels {
