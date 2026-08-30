@@ -2,7 +2,10 @@ const STORAGE_KEY = 'tripflow-admin-secret'
 
 export type UsageDay = { date: string; count: number }
 export type UsageSeries = { endpoint: string; label: string; globalPerDay: number; history: UsageDay[] }
-export type UsageResult = { series: UsageSeries[] }
+// No visitor id / IP — deliberately just "when, and did it work" (see
+// api/admin/usage.ts's AuthLogEntry comment).
+export type AuthLogEntry = { timestamp: string; outcome: 'success' | 'fail' }
+export type UsageResult = { series: UsageSeries[]; authLog: AuthLogEntry[] }
 export type UsageError = 'unauthorized' | 'unconfigured' | 'unknown'
 
 // sessionStorage, not localStorage — this is a plaintext secret (client-side

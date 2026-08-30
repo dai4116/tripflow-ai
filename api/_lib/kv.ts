@@ -126,3 +126,34 @@ export async function kvIncr(key: string, ttlSeconds: number, opts?: { alwaysRef
     return undefined
   }
 }
+
+// Fixed-length event log (newest first) — LPUSH onto the head, then LTRIM
+// back down to maxEntries so the list never grows unbounded. Used for
+// api/admin/usage.ts's access log: a lightweight "did anyone hit this
+// endpoint, and did they get in" record that outlives Vercel's own function
+// log retention, without needing a per-entry TTL or a separate cleanup job.
+// Fire-and-forget, same as kvSet — logging a visit must never hold up or
+// fail the request that triggered it.
+export function kvLogEvent<T>(key: string, entry: T, maxEntries: number): void {
+  if (!kv) return
+  kv.lpush(key, JSON.stringify(entry))
+    .then(() => kv.ltrim(key, 0, maxEntries - 1))
+    .catch((error) => {
+      console.error('[kv] log event failed', error)
+    })
+}
+
+// Reads back the most recent `count` entries written by kvLogEvent, newest
+// first (matches LPUSH's own ordering, no re-sorting needed). No manual
+// JSON.parse here — the client's default deserializer already JSON.parses
+// every LRANGE element (same auto-deserialization kvGet relies on for
+// `.v`), so lrange<T> already hands back parsed T values, not raw strings.
+export async function kvGetLog<T>(key: string, count: number): Promise<T[]> {
+  if (!kv) return []
+  try {
+    return await withKvTimeout(kv.lrange<T>(key, 0, count - 1))
+  } catch (error) {
+    console.error('[kv] log read failed, falling back to empty', error)
+    return []
+  }
+}

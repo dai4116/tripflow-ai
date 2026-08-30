@@ -49,6 +49,21 @@
               <span>今天（{{ series.history[series.history.length - 1]?.date }}）</span>
             </div>
           </div>
+
+          <div class="admin-usage-page__card">
+            <div class="admin-usage-page__card-head">
+              <h2>最近存取紀錄</h2>
+            </div>
+            <p v-if="result.authLog.length === 0" class="admin-usage-page__loading">還沒有任何紀錄</p>
+            <ul v-else class="admin-usage-page__log">
+              <li v-for="(entry, index) in result.authLog" :key="index" class="admin-usage-page__log-entry">
+                <span>{{ formatLogTimestamp(entry.timestamp) }}</span>
+                <span :class="entry.outcome === 'success' ? 'admin-usage-page__log-success' : 'admin-usage-page__log-fail'">
+                  {{ entry.outcome === 'success' ? '成功' : '失敗' }}
+                </span>
+              </li>
+            </ul>
+          </div>
         </div>
       </template>
     </div>
@@ -87,6 +102,10 @@ function seriesMax(series: UsageSeries): number {
 function barHeight(count: number, max: number): string {
   if (max <= 0) return '0%'
   return `${Math.min(100, Math.round((count / max) * 100))}%`
+}
+
+function formatLogTimestamp(iso: string): string {
+  return new Date(iso).toLocaleString('zh-TW', { dateStyle: 'short', timeStyle: 'medium' })
 }
 
 async function load() {

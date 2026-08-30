@@ -5957,3 +5957,28 @@ h3 {
   font-size: $fs-micro;
   color: $color-subtle;
 }
+
+.admin-usage-page__log {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.admin-usage-page__log-entry {
+  display: flex;
+  justify-content: space-between;
+  font-size: $fs-small;
+  color: $color-muted;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-usage-page__log-success {
+  color: $color-success;
+}
+
+.admin-usage-page__log-fail {
+  color: $color-danger;
+}

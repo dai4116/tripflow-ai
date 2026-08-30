@@ -1,5 +1,5 @@
 import { createHash, timingSafeEqual as cryptoTimingSafeEqual } from 'node:crypto'
-import { kvGetRaw, kvIncr, kvMGetRaw } from '../_lib/kv.js'
+import { kvGetLog, kvGetRaw, kvIncr, kvLogEvent, kvMGetRaw } from '../_lib/kv.js'
 import { globalCounterKey, utcDateString } from '../_lib/rateLimit.js'
 import { ASK_AI_RULE, GENERATE_TRIP_DAY_RULE, PLAN_TRIP_ZONES_RULE } from '../_lib/rateLimitRules.js'
 
@@ -36,6 +36,16 @@ const DEFAULT_HISTORY_DAYS = 14
 const AUTH_FAIL_LIMIT = 20
 const AUTH_FAIL_KEY = 'ratelimit:admin-auth-fail'
 const AUTH_FAIL_WINDOW_SECONDS = 10 * 60
+
+// Monitoring only, not identity tracking — deliberately no IP, no visitor
+// id, nothing that could be used to profile who tried. Just "when, and did
+// it work" so a real question ("did my friend's test actually reach the
+// server yesterday?") is answerable from inside the dashboard itself,
+// without depending on Vercel's own function-log retention window (short on
+// the Hobby tier, and gone entirely once it rolls off).
+type AuthLogEntry = { timestamp: string; outcome: 'success' | 'fail' }
+const AUTH_LOG_KEY = 'admin-auth-log'
+const AUTH_LOG_MAX_ENTRIES = 50
 
 type VercelLikeRequest = {
   method?: string
@@ -99,9 +109,11 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
   const providedSecret = typeof providedSecretHeader === 'string' ? providedSecretHeader : undefined
   if (!providedSecret || !secretsMatch(providedSecret, configuredSecret)) {
     kvIncr(AUTH_FAIL_KEY, AUTH_FAIL_WINDOW_SECONDS)
+    kvLogEvent<AuthLogEntry>(AUTH_LOG_KEY, { timestamp: new Date().toISOString(), outcome: 'fail' }, AUTH_LOG_MAX_ENTRIES)
     res.status(401).json({ error: 'Unauthorized' })
     return
   }
+  kvLogEvent<AuthLogEntry>(AUTH_LOG_KEY, { timestamp: new Date().toISOString(), outcome: 'success' }, AUTH_LOG_MAX_ENTRIES)
 
   const daysParam = req.query?.days
   const requestedDays = typeof daysParam === 'string' ? parseInt(daysParam, 10) : DEFAULT_HISTORY_DAYS
@@ -112,7 +124,7 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
   // kvGetRaw call per pair — up to 3 * 60 = 180 individual Upstash REST
   // round trips for a single dashboard load otherwise.
   const allKeys = ENDPOINTS.flatMap(({ rule }) => dates.map((date) => globalCounterKey(rule.endpoint, date)))
-  const allCounts = await kvMGetRaw<number>(allKeys)
+  const [allCounts, authLog] = await Promise.all([kvMGetRaw<number>(allKeys), kvGetLog<AuthLogEntry>(AUTH_LOG_KEY, AUTH_LOG_MAX_ENTRIES)])
 
   let cursor = 0
   const series = ENDPOINTS.map(({ label, rule }) => {
@@ -126,5 +138,5 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
     }
   })
 
-  res.status(200).json({ series })
+  res.status(200).json({ series, authLog })
 }
