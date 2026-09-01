@@ -485,7 +485,7 @@
       />
 
       <button
-        v-if="isMobile && mobileView === 'board' && !showAddModal"
+        v-if="isMobile && mobileView === 'board' && !showAddModal && !drawerPlace"
         type="button"
         class="kanban-mobile-add-fab"
         :aria-label="`新增地點到 ${focusedColumnTitle}`"
@@ -506,7 +506,7 @@
 
       <AskAiPanel
         :trip-id="activeTrip.id"
-        :hide-launcher="showAddModal || (isSheetMode && Boolean(drawerPlace))"
+        :hide-launcher="showAddModal || (isMobile && Boolean(drawerPlace))"
         @applied="focusColumn"
       />
       </div>
