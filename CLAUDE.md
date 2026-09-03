@@ -10,7 +10,7 @@ AI 排程的旅遊行程規劃工具：使用者輸入目的地/天數/風格，
 - `npm run build` — **必須用 `vue-tsc -b`**（見下方協作慣例），不是 `--noEmit -p tsconfig.json`，後者在這個 solution-style root config 下會靜默 no-op
 - `npm run test` — 型別檢查（api / data 兩個 tsconfig）+ `node --test` 跑 `api/`、`src/data`、`src/stores`、`src/composables` 的邏輯層測試
 - `npm run test:components` — `vitest run`，元件層測試
-- 目前沒有 CI，這兩個測試指令要自己手動跑
+- CI（`.github/workflows/ci.yml`）在 push 到 main 與開 PR 時自動跑「`npm run test` → `npm run test:components` → `npm run build`」，任一步失敗就擋下。本機改完仍建議先手動跑過，不要只靠 CI 事後才發現
 
 ## 環境變數（詳見 `.env.example`）
 
