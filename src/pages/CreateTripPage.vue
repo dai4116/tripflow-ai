@@ -53,14 +53,18 @@
             </button>
           </div>
           <button
-            v-if="form.cities.length < MAX_CITIES && totalDays < MAX_TRIP_DAYS"
+            v-if="form.cities.length < MAX_CITIES"
             type="button"
             class="destination-list__add"
+            :disabled="totalDays >= MAX_TRIP_DAYS"
             @click="addCity"
           >
             <AppIcon name="plus" :size="13" />
             新增城市
           </button>
+          <p v-if="form.cities.length < MAX_CITIES && totalDays >= MAX_TRIP_DAYS" class="form-card__hint">
+            已達單趟行程最多 {{ MAX_TRIP_DAYS }} 天，請先減少其他城市的天數才能新增
+          </p>
         </div>
 
         <BaseInput
@@ -230,17 +234,15 @@ import BaseInput from '../components/ui/BaseInput.vue'
 import TimePickerSheet from '../components/ui/TimePickerSheet.vue'
 import type { IconName } from '../components/ui/icons'
 import DestinationAutocomplete from '../components/trips/DestinationAutocomplete.vue'
-import { cityFromDestination, formatDateRange, parseDateInputValue, toDateInputValue } from '../data/generateTrip'
+import { MAX_TRIP_DAYS, cityFromDestination, formatDateRange, parseDateInputValue, toDateInputValue } from '../data/generateTrip'
 import { preferences, travelStyleHints, travelStyles } from '../data/mockPreferences'
 import { useTripsStore } from '../stores/trips'
 
-// Mirrors computeTripDays' own clamp in generateTrip.ts — kept in sync there
-// rather than imported, since this bounds the day-count stepper's UI (how
-// high "+" can go) while computeTripDays clamps the derived total for
-// whatever actually gets submitted; the two independently agreeing is what
-// keeps the stepper from ever promising a day the submission would silently
-// truncate.
-const MAX_TRIP_DAYS = 30
+// MAX_TRIP_DAYS is imported (not redeclared) so the day-count stepper's UI cap
+// and computeTripDays' submission clamp can never drift apart — the stepper
+// must never promise a day the submission would silently truncate, and sharing
+// one constant is what guarantees that rather than merely hoping two literals
+// stay in sync.
 // A sane UI cap on how many destinations one trip can list — arbitrary, just
 // large enough that no real itinerary hits it.
 const MAX_CITIES = 8

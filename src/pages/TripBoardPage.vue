@@ -563,7 +563,6 @@ import { useIsMobile } from '../composables/useIsMobile'
 import { usePlacePhoto } from '../composables/usePlacePhoto'
 import {
   cityFromDestination,
-  computeTripDays,
   dayWindowForPace,
   formatColumnDate,
   formatDateRange,
@@ -1070,66 +1069,25 @@ function removeDay(columnId: string) {
   showBoardToast(`已刪除天數`)
 }
 
-// Editing the trip's date range in the settings modal can change how many
-// day-columns the trip needs. Growing just appends empty days (safe);
-// shrinking can orphan places sitting in the trailing days it drops, so that
-// path goes through the same confirm dialog as deleting a day by hand.
+// Day count is NOT editable via this modal — TripSettingsModal derives
+// payload.endDate as startDate + (trip.days - 1) and never lets the user
+// change that, so day count here is always trip.days unchanged. Do NOT run
+// it through computeTripDays' MAX_TRIP_DAYS clamp: a trip created back when
+// the cap was higher (this app has lowered it before — see MAX_TRIP_DAYS'
+// own comment in generateTrip.ts) would otherwise get silently shrunk just
+// from editing the title or shifting the start date, deleting its trailing
+// days and any places on them with no confirm dialog when those days happen
+// to be empty. If day-count editing is ever added to this modal, do it
+// explicitly here with its own dedicated confirm flow — don't resurrect this
+// derive-then-clamp shape, since the clamp firing on a value the user never
+// touched is exactly what caused this bug.
 function onSaveTripSettings(payload: TripSettingsSavePayload) {
   const trip = activeTrip.value
-  const newDays = computeTripDays({ startDate: payload.startDate, endDate: payload.endDate })
-  const currentDays = displayedColumns.value.length
-
-  function applyMeta() {
-    trip.title = payload.title
-    trip.startDate = payload.startDate
-    trip.dateRange = formatDateRange(payload.startDate, payload.endDate)
-    trip.days = newDays
-    trip.coverPhotoRef = payload.coverPhotoRef
-    showTripSettingsModal.value = false
-  }
-
-  if (newDays === currentDays) {
-    applyMeta()
-    return
-  }
-
-  if (newDays > currentDays) {
-    const additions: TripColumn[] = Array.from({ length: newDays - currentDays }, (_, index) => {
-      const dayNumber = currentDays + index + 1
-      return { id: `day-${nanoid(6)}`, dayNumber, title: `第${dayNumber}天`, placeIds: [] }
-    })
-    trip.columns = [...displayedColumns.value, ...additions]
-    applyMeta()
-    return
-  }
-
-  const survivors = displayedColumns.value.slice(0, newDays)
-  const dropped = displayedColumns.value.slice(newDays)
-  const placeIdsToRemove = new Set(dropped.flatMap((column) => column.placeIds))
-
-  function applyShrink() {
-    if (placeIdsToRemove.size > 0) {
-      places.value = places.value.filter((place) => !placeIdsToRemove.has(place.id))
-    }
-    trip.columns = survivors
-    if (drawerPlaceId.value && placeIdsToRemove.has(drawerPlaceId.value)) closeDrawer()
-    if (focusedColumnId.value && !survivors.some((column) => column.id === focusedColumnId.value)) {
-      focusedColumnId.value = resolveDefaultColumnId(survivors)
-    }
-    applyMeta()
-  }
-
-  if (placeIdsToRemove.size > 0) {
-    openConfirm({
-      title: '縮短行程天數？',
-      message: `新的日期範圍少了 ${dropped.length} 天，這幾天裡的 ${placeIdsToRemove.size} 個地點會一併刪除，刪除後無法復原喔`,
-      confirmLabel: '確定縮短',
-      danger: true,
-      onConfirm: applyShrink,
-    })
-  } else {
-    applyShrink()
-  }
+  trip.title = payload.title
+  trip.startDate = payload.startDate
+  trip.dateRange = formatDateRange(payload.startDate, payload.endDate)
+  trip.coverPhotoRef = payload.coverPhotoRef
+  showTripSettingsModal.value = false
 }
 
 function removeDrawerPlace() {

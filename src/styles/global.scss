@@ -1939,6 +1939,15 @@ h3 {
   background: $color-primary-soft;
 }
 
+.destination-list__add:disabled {
+  color: $color-muted;
+  cursor: not-allowed;
+}
+
+.destination-list__add:disabled:hover {
+  background: none;
+}
+
 .trip-form__submit {
   width: 100%;
   min-height: 50px;

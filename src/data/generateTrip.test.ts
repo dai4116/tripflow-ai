@@ -3,6 +3,7 @@ import test from 'node:test'
 
 import type { CreateTripInput } from '../types/index.ts'
 import {
+  MAX_TRIP_DAYS,
   cityFromDestination,
   computeTripDays,
   dayColorForIndex,
@@ -265,8 +266,8 @@ test('computeTripDays counts inclusive calendar days', () => {
   assert.equal(computeTripDays({ startDate: '2024-03-01', endDate: '2024-03-03' }), 3)
 })
 
-test('computeTripDays clamps an overlong span to 30 days', () => {
-  assert.equal(computeTripDays({ startDate: '2024-01-01', endDate: '2024-03-01' }), 30)
+test('computeTripDays clamps an overlong span to MAX_TRIP_DAYS', () => {
+  assert.equal(computeTripDays({ startDate: '2024-01-01', endDate: '2024-03-01' }), MAX_TRIP_DAYS)
 })
 
 test('computeTripDays clamps an end-before-start span to 1 day', () => {

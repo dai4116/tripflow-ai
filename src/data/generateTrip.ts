@@ -423,12 +423,27 @@ function daysBetween(startDate: string, endDate: string): number {
   return Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
 }
 
+// Single source of truth for the trip-length cap ON THE FRONTEND FORM —
+// CreateTripPage.vue imports this for its own city-day-sum guard rather than
+// declaring a second constant. Two independent paths can reach a day count (a
+// start/end date span, and the per-city day inputs summed), so a cap
+// expressed in only one of them silently lets the other exceed it.
+//
+// This is a UI-only guard, not an API-enforced limit — api/_lib/tripGen.ts's
+// validateTotalDays still accepts 1..30 server-side, so anyone calling the
+// API directly bypasses this cap entirely. It's sized to keep normal form
+// usage cheap (one day = one generate-trip-day request), not as the actual
+// cost ceiling — that's api/_lib/rateLimitRules.ts's per-day global quota.
+// Lowering this again without also tightening validateTotalDays only limits
+// the form, not real spend.
+export const MAX_TRIP_DAYS = 10
+
 // Exported so callers can size an AI place request (days * dayWindowForPace(pace))
 // before the deterministic trip scaffolding runs, without duplicating the clamp logic.
 // Takes just the date fields (not the full CreateTripInput) so the create-trip
 // form can also use it to preview the day count before submitting.
 export function computeTripDays(input: Pick<CreateTripInput, 'startDate' | 'endDate'>): number {
-  return Math.max(1, Math.min(30, daysBetween(input.startDate, input.endDate) || 7))
+  return Math.max(1, Math.min(MAX_TRIP_DAYS, daysBetween(input.startDate, input.endDate) || 7))
 }
 
 // YYYY-MM-DD in local time — Date#toISOString() is UTC and can land on the
