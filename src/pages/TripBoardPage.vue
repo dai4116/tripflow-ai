@@ -485,7 +485,7 @@
       />
 
       <button
-        v-if="isMobile && mobileView === 'board' && !showAddModal && !drawerPlace"
+        v-if="isMobile && !showAddModal && !drawerPlace"
         type="button"
         class="kanban-mobile-add-fab"
         :aria-label="`新增地點到 ${focusedColumnTitle}`"
