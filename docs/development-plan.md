@@ -1,3 +1,5 @@
+> **這是 2026-07 專案啟動時寫的 v1 初版開發計畫，保留作為演進紀錄，不代表目前的實作。** 例如 AI 生成後來改成「每城市排主題、每天一個請求」的兩階段管線，並加入 Google Places 驗證。目前的架構與設計決定請看 [README](../README.md) 與 [CLAUDE.md](../CLAUDE.md)。
+
 ```md
 # TripFlow AI Development Plan
 

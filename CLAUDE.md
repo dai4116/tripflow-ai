@@ -4,6 +4,8 @@ AI 排程的旅遊行程規劃工具：使用者輸入目的地/天數/風格，
 
 `docs/prd.md`、`docs/development-plan.md`、`docs/design-notes.md` 是專案剛啟動時寫的 v1 初版規劃，**現況已經演進很多，不要當成現行規格參考**（例：PRD 把 Google Places API 列為 out of scope，現在它是 AI 生成管線的核心）。這份 CLAUDE.md 才是現況索引——**改動了會影響現況的東西，記得回來補一行**，這比任何正式流程都重要。
 
+`README.md` 裡面寫了 Places 快取 90 天、多城市上限、TripBoardPage 行數等具體細節。**改到這些東西時 README 也要跟著改**，不然對外文件會跟實作不一致。三份 v1 docs 開頭也各加了一段「不代表目前實作」的提醒。
+
 ## 開發指令
 
 - `npm run dev` — Vite dev server（沒有 serverless functions，AI 生成會直接失敗，這是預期行為）
@@ -66,7 +68,7 @@ Google Places 一律經 `api/` 代理（藏 key）；Nominatim 因不需要金�
 - 一天一請求是刻意設計（取代舊的整趟一次式），原因：舊設計耗時隨天數線性增加、有撞 Vercel 60s 上限的風險，且 AI 曾在同批次把某天標錯導致整天遺失且無法偵測
 - 跨天去重（`dedupeByPlaceId`）、補天（`daysNeedingBackfill`）、整段失敗檢查（`failedSegment`）都在**客戶端**做——獨立 serverless invocation 之間沒有共享記憶體
 - **AI 生成失敗會直接 throw，不會靜默退回範本資料**（`trips.ts` createTrip 的刻意決定）：這個 app 的賣點就是 AI 排程，悄悄塞一個普通行程會是更糟的失敗。改這段邏輯前務必想清楚這個 trade-off
-- 地點數量由 pace 決定（relaxed/balanced/packed），內含餐點時段配置
+- 地點數量由 pace 決定（relaxed/balanced/packed）。美食地點**只有勾選「必吃美食」偏好時**才強制每天至少一個（表單預設勾選，取消就不排），見 `api/_lib/tripGen.ts` 的 `FOOD_PREFERENCE` 註解
 
 ## 地理定位：兩條路徑，不要搞混
 

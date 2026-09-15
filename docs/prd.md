@@ -1,3 +1,5 @@
+> **這是 2026-07 專案啟動時寫的 v1 初版 PRD，保留作為演進紀錄，不代表目前的實作。** 例如下方第 5 節把 Google Maps Places API 列為 out of scope，現在它是 AI 生成管線的核心（每個 AI 推薦的景點都經過它驗證）。目前的架構與設計決定請看 [README](../README.md) 與 [CLAUDE.md](../CLAUDE.md)。
+
 # TripFlow AI PRD
 
 ## 1. Product Overview

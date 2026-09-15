@@ -1,3 +1,5 @@
+> **這是 2026-07 專案啟動時寫的 v1 初版設計筆記，保留作為演進紀錄，不代表目前的實作。** 目前的視覺設計已改為青綠色主色（`#00C5AB`）的系統，`design-reference/` 裡的圖也是早期設計稿，不是現在 app 的截圖。目前的架構與設計決定請看 [README](../README.md) 與 [CLAUDE.md](../CLAUDE.md)。
+
 # TripFlow AI Design Notes
 
 ## 1. Design Direction
