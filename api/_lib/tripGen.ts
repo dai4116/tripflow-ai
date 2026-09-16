@@ -8,6 +8,17 @@
 // batches losing a whole day to AI day-tag mistagging with no way to detect
 // or correct it after the fact. See each caller for its own reasoning.
 
+import {
+  isBoundedString,
+  isOptionalBoundedStringArray,
+  MAX_DESTINATION_LENGTH,
+  MAX_NOTES_LENGTH,
+  MAX_TAG_COUNT,
+  MAX_TAG_LENGTH,
+  MAX_ZONE_TEXT_LENGTH,
+  truncateToCodePoints,
+} from './inputLimits.js'
+
 const PLACE_CATEGORIES = ['food', 'attraction', 'shopping', 'stay', 'transport', 'other'] as const
 
 // When a candidate is typically/best visited — drives client-side ordering
@@ -203,7 +214,7 @@ export type VercelLikeResponse = {
 // additional fields to validate beyond these two, but destination/totalDays
 // are common to both and were previously copy-pasted identically in each file.
 export function validateDestination(destination: unknown): destination is string {
-  return typeof destination === 'string' && destination.length > 0
+  return typeof destination === 'string' && destination.length > 0 && destination.length <= MAX_DESTINATION_LENGTH
 }
 
 export function validateTotalDays(totalDays: unknown): totalDays is number {
@@ -222,6 +233,78 @@ export function validateTimeWindow(windowStart: unknown, windowEnd: unknown): bo
   if (typeof windowStart !== 'string' || typeof windowEnd !== 'string') return false
   if (!HHMM_PATTERN.test(windowStart) || !HHMM_PATTERN.test(windowEnd)) return false
   return windowStart < windowEnd
+}
+
+// TripContext's remaining free-text fields. All optional, so absent passes;
+// present must be the right type and within inputLimits.ts's ceilings, since
+// every one of them is pasted straight into the prompt text. Not exported on
+// its own — both endpoints go through validateGenerationTextFields below,
+// which folds this together with the arrivalTime/departureTime check they
+// also both need.
+function validateTripContextText(ctx: { travelStyle?: unknown; preferences?: unknown; additionalNotes?: unknown }): boolean {
+  return (
+    isOptionalBoundedStringArray(ctx.travelStyle, MAX_TAG_COUNT, MAX_TAG_LENGTH) &&
+    isOptionalBoundedStringArray(ctx.preferences, MAX_TAG_COUNT, MAX_TAG_LENGTH) &&
+    (ctx.additionalNotes === undefined || isBoundedString(ctx.additionalNotes, MAX_NOTES_LENGTH))
+  )
+}
+
+// arrivalTime/departureTime are optional, but when present both prompts paste
+// them in verbatim (旅客當地時間 ${arrivalTime} 才會抵達), so anything other
+// than a real 'HH:mm' is rejected instead of trusted as free text. The client
+// only ever sends TimePickerSheet.vue's own zero-padded output.
+export function validateOptionalTime(value: unknown): boolean {
+  return value === undefined || (typeof value === 'string' && HHMM_PATTERN.test(value))
+}
+
+// Combines validateTripContextText + validateOptionalTime for
+// arrivalTime/departureTime into the one check both endpoints run right
+// before building their Claude prompt (plan-trip-zones.ts and
+// generate-trip-day.ts share this exact set of free-text fields — see
+// TripContext). Factored out so the two call sites can't drift out of sync
+// on which fields get bounded, the way two independently-typed copies of the
+// same three-line block eventually would. Returns the JSON error body to
+// send on failure, or null when everything passes.
+export function validateGenerationTextFields(fields: {
+  travelStyle?: unknown
+  preferences?: unknown
+  additionalNotes?: unknown
+  arrivalTime?: unknown
+  departureTime?: unknown
+}): { error: string } | null {
+  if (!validateTripContextText(fields)) return { error: 'Invalid travelStyle/preferences/additionalNotes' }
+  if (!validateOptionalTime(fields.arrivalTime) || !validateOptionalTime(fields.departureTime)) {
+    return { error: 'Invalid arrivalTime/departureTime' }
+  }
+  return null
+}
+
+// Unlike every other field above, zone hints aren't user-typed: they're
+// plan-trip-zones.ts's own Claude output, relayed back through the client
+// (see aiTripClient.ts). So an over-long zone/focus is truncated, not
+// rejected. A 400 here would fail the whole trip creation over text the user
+// never wrote, just because stage 1 happened to be wordy. Malformed entries
+// are dropped, the same way the old `Array.isArray(zones) ? zones : []`
+// fallback already tolerated a malformed array as a whole.
+export function sanitizeZoneHints(zones: unknown): ZoneHint[] {
+  if (!Array.isArray(zones)) return []
+  return zones
+    .filter(
+      (entry): entry is ZoneHint =>
+        typeof entry === 'object' &&
+        entry !== null &&
+        Number.isInteger(entry.day) &&
+        typeof entry.zone === 'string' &&
+        typeof entry.focus === 'string',
+    )
+    .map((entry) => ({
+      day: entry.day,
+      zone: truncateToCodePoints(entry.zone, MAX_ZONE_TEXT_LENGTH),
+      focus: truncateToCodePoints(entry.focus, MAX_ZONE_TEXT_LENGTH),
+      assignedPreferences: Array.isArray(entry.assignedPreferences)
+        ? entry.assignedPreferences.filter((preference) => isBoundedString(preference, MAX_TAG_LENGTH)).slice(0, MAX_TAG_COUNT)
+        : [],
+    }))
 }
 
 // Runs `fn` over `items` with at most `limit` in flight at once. A small

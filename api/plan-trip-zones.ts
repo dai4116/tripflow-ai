@@ -4,6 +4,7 @@ import { PLAN_TRIP_ZONES_RULE as RATE_LIMIT_RULE } from './_lib/rateLimitRules.j
 import {
   buildZonePlanPrompt,
   validateDestination,
+  validateGenerationTextFields,
   validateTotalDays,
   ZONE_SCHEMA,
   type TripContext,
@@ -83,6 +84,12 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
   }
   if (departureDay !== undefined && (!Number.isInteger(departureDay) || departureDay < 1 || departureDay > totalDays)) {
     res.status(400).json({ error: 'Invalid departureDay' })
+    return
+  }
+  // All pasted into buildZonePlanPrompt's text (see inputLimits.ts).
+  const textFieldsError = validateGenerationTextFields({ travelStyle, preferences, additionalNotes, arrivalTime, departureTime })
+  if (textFieldsError) {
+    res.status(400).json(textFieldsError)
     return
   }
 

@@ -35,6 +35,7 @@ AI 排程的旅遊行程規劃工具：使用者輸入目的地/天數/風格，
 - `generate-trip-day.ts`（真正花錢的那支）只有**全站當日**配額（`globalPerDay: 200`），刻意不設單一訪客限制——同一趟多天行程的每一天是平行打不同請求，訪客層級限制會有「同一趟行程有些天被擋、有些天沒被擋」的風險
 - 全域計數器 TTL 拉到 60 天（不是當天就過期）——這是刻意的，讓 `/admin/usage` 能回顧歷史用量；單一訪客層級的計數器沒有這樣做，維持當天就過期，避免留存不必要的個人使用足跡
 - `plan-trip-zones` 失敗（含被擋）會 throw `RateLimitedError` 並讓整個建立行程流程中止，跟其他「失敗就靜默略過、繼續生成」的錯誤處理方式不同——這是刻意的例外，理由見 `aiTripClient.ts` 裡 `planZones` 的註解
+- 配額算的是**次數**不是 token，所以 2026-09 另外加了 `api/_lib/inputLimits.ts`：所有會插進 prompt 的欄位（destination、additionalNotes、偏好陣列、航班時間、ask-ai 的 message 與 columns）都有長度或格式上限，超過回 400。前端表單有對應的 `maxlength`（常數在 `generateTrip.ts`、`askAiClient.ts`，跟後端手動同步），**一律是後端上限的一半，不能相等**：自動完成是用程式寫入欄位，手機注音輸入法組字也可能不受 maxlength 限制，而 `generate-trip-day` 回 400 會讓整趟生成失敗。`zones`（AI 自己產生的文字）和 ask-ai 的地點名稱（看板上能存任意長度）刻意截斷而不是拒絕（見 `tripGen.ts` 的 `sanitizeZoneHints`、`inputLimits.ts` 的 `MAX_PLACE_NAME_LENGTH`）
 
 ## 系統分層
 

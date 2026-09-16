@@ -7,6 +7,11 @@ import type { PlaceSuggestion } from './generateTrip'
 // a cold start.
 const REQUEST_TIMEOUT_MS = 20000
 
+// Typing cap for AskAiPanel.vue's message input. Pairs with
+// api/_lib/inputLimits.ts's MAX_ASK_AI_MESSAGE_LENGTH (the real guard, and
+// deliberately double this, see that file for why).
+export const ASK_AI_MESSAGE_MAX_LENGTH = 500
+
 export type AskAiColumnSummary = {
   id: string
   dayNumber: number

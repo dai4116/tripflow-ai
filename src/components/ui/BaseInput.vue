@@ -8,6 +8,7 @@
         ref="fieldEl"
         :placeholder="placeholder"
         :rows="rows"
+        :maxlength="maxlength"
         :value="modelValue"
         @input="emitValue"
       />
@@ -16,6 +17,7 @@
         ref="fieldEl"
         :type="type"
         :placeholder="placeholder"
+        :maxlength="maxlength"
         :value="modelValue"
         :min="min"
         :max="max"
@@ -42,6 +44,7 @@ withDefaults(
     icon?: IconName
     min?: number
     max?: number
+    maxlength?: number
     error?: string
   }>(),
   {

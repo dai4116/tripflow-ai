@@ -438,6 +438,14 @@ function daysBetween(startDate: string, endDate: string): number {
 // the form, not real spend.
 export const MAX_TRIP_DAYS = 10
 
+// Typing caps for CreateTripPage.vue's destination and 其他補充 fields. Each
+// pairs with a server-side ceiling in api/_lib/inputLimits.ts, which is the
+// real guard; these just keep a normal user from typing past it. Both are
+// deliberately half the server's ceiling, see inputLimits.ts for why they
+// can't be equal.
+export const DESTINATION_INPUT_MAX_LENGTH = 100
+export const ADDITIONAL_NOTES_MAX_LENGTH = 500
+
 // Exported so callers can size an AI place request (days * dayWindowForPace(pace))
 // before the deterministic trip scaffolding runs, without duplicating the clamp logic.
 // Takes just the date fields (not the full CreateTripInput) so the create-trip

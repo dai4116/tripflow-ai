@@ -16,6 +16,7 @@
               :ref="(el) => setCityInputRef(city.key, el)"
               v-model="city.destination"
               :placeholder="index === 0 ? '例如：東京' : '例如：大阪'"
+              :maxlength="DESTINATION_INPUT_MAX_LENGTH"
               icon="search"
               :error="city.key === destinationErrorKey ? destinationError : undefined"
               :resolved="Boolean(city.destinationPlaceId)"
@@ -162,6 +163,7 @@
           v-model="form.additionalNotes"
           label="其他補充"
           multiline
+          :maxlength="ADDITIONAL_NOTES_MAX_LENGTH"
           placeholder="例如：想避開觀光客拉麵店、想安排一天海邊、有素食需求..."
         />
       </BaseCard>
@@ -234,7 +236,15 @@ import BaseInput from '../components/ui/BaseInput.vue'
 import TimePickerSheet from '../components/ui/TimePickerSheet.vue'
 import type { IconName } from '../components/ui/icons'
 import DestinationAutocomplete from '../components/trips/DestinationAutocomplete.vue'
-import { MAX_TRIP_DAYS, cityFromDestination, formatDateRange, parseDateInputValue, toDateInputValue } from '../data/generateTrip'
+import {
+  ADDITIONAL_NOTES_MAX_LENGTH,
+  DESTINATION_INPUT_MAX_LENGTH,
+  MAX_TRIP_DAYS,
+  cityFromDestination,
+  formatDateRange,
+  parseDateInputValue,
+  toDateInputValue,
+} from '../data/generateTrip'
 import { preferences, travelStyleHints, travelStyles } from '../data/mockPreferences'
 import { useTripsStore } from '../stores/trips'
 

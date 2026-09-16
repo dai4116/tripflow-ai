@@ -2,6 +2,17 @@ import Anthropic from '@anthropic-ai/sdk'
 import { enforceRateLimit } from './_lib/rateLimit.js'
 import { ASK_AI_RULE as RATE_LIMIT_RULE } from './_lib/rateLimitRules.js'
 import { stripBilingualName } from './_lib/placeName.js'
+import {
+  isBoundedString,
+  MAX_ASK_AI_COLUMNS,
+  MAX_ASK_AI_DESTINATION_LENGTH,
+  MAX_ASK_AI_MESSAGE_LENGTH,
+  MAX_ASK_AI_PLACES,
+  MAX_CATEGORY_LENGTH,
+  MAX_ID_LENGTH,
+  MAX_PLACE_NAME_LENGTH,
+  truncateToCodePoints,
+} from './_lib/inputLimits.js'
 
 // Chat replies are small (one tool call or a short sentence), so this
 // doesn't need the full 30s budget generate-trip.ts uses for a whole
@@ -130,7 +141,9 @@ function buildPrompt(message: string, destination: string, columns: ColumnSummar
   const itinerary = columns
     .map((column) => {
       const placeList = column.places.length
-        ? column.places.map((place) => `${place.name}（id: ${place.id}, 分類: ${place.category}）`).join('、')
+        ? column.places
+            .map((place) => `${truncateToCodePoints(place.name, MAX_PLACE_NAME_LENGTH)}（id: ${place.id}, 分類: ${place.category}）`)
+            .join('、')
         : '（目前沒有景點）'
       return `第 ${column.dayNumber} 天（column id: ${column.id}）：${placeList}`
     })
@@ -158,6 +171,36 @@ function buildPrompt(message: string, destination: string, columns: ColumnSummar
   ].join('\n')
 }
 
+// Every field checked here ends up interpolated into buildPrompt's text (see
+// inputLimits.ts for why each is capped at the network boundary). dayNumber
+// is checked as a real integer for the same reason: it's pasted in as
+// 第 ${dayNumber} 天, so an unchecked value would be one more free-text slot.
+// column.title isn't checked because buildPrompt never reads it. A place's
+// name is only type-checked: its length is truncated in buildPrompt instead
+// (see MAX_PLACE_NAME_LENGTH for why).
+function isWithinPromptLimits(message: string, destination: unknown, columns: unknown[]): boolean {
+  if (message.length > MAX_ASK_AI_MESSAGE_LENGTH) return false
+  if (destination !== undefined && !isBoundedString(destination, MAX_ASK_AI_DESTINATION_LENGTH)) return false
+  if (columns.length > MAX_ASK_AI_COLUMNS) return false
+
+  let placeCount = 0
+  for (const column of columns) {
+    if (typeof column !== 'object' || column === null) return false
+    const { id, dayNumber, places } = column as Record<string, unknown>
+    if (!isBoundedString(id, MAX_ID_LENGTH) || !Number.isInteger(dayNumber) || !Array.isArray(places)) return false
+    placeCount += places.length
+    if (placeCount > MAX_ASK_AI_PLACES) return false
+    for (const place of places) {
+      if (typeof place !== 'object' || place === null) return false
+      const { id: placeId, name, category } = place as Record<string, unknown>
+      if (!isBoundedString(placeId, MAX_ID_LENGTH) || typeof name !== 'string' || !isBoundedString(category, MAX_CATEGORY_LENGTH)) {
+        return false
+      }
+    }
+  }
+  return true
+}
+
 export default async function handler(req: VercelLikeRequest, res: VercelLikeResponse) {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' })
@@ -175,8 +218,12 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
   }
 
   const { message, destination, columns } = (req.body ?? {}) as AskAiBody
-  if (!message?.trim() || !Array.isArray(columns)) {
+  if (typeof message !== 'string' || !message.trim() || !Array.isArray(columns)) {
     res.status(400).json({ error: 'Missing message or columns' })
+    return
+  }
+  if (!isWithinPromptLimits(message.trim(), destination, columns)) {
+    res.status(400).json({ error: 'Invalid or oversized message/destination/columns' })
     return
   }
 

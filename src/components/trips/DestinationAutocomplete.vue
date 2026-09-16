@@ -14,6 +14,7 @@
         :aria-busy="isSearching || undefined"
         autocomplete="off"
         :placeholder="placeholder"
+        :maxlength="maxlength"
         :value="modelValue"
         @input="onInput"
         @keydown="onKeydown"
@@ -56,6 +57,7 @@ const props = defineProps<{
   modelValue: string
   label?: string
   placeholder?: string
+  maxlength?: number
   icon?: IconName
   error?: string
   // True when the CURRENT modelValue already corresponds to a resolved

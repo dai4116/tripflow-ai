@@ -113,6 +113,7 @@
         <input
           v-model="draft"
           type="text"
+          :maxlength="ASK_AI_MESSAGE_MAX_LENGTH"
           placeholder="例如：推薦我第 1 天附近的景點..."
           aria-label="傳送訊息給 AI"
         />
@@ -135,7 +136,7 @@ import { storeToRefs } from 'pinia'
 import { computed, nextTick, ref, watch } from 'vue'
 import { useIsMobile } from '../../composables/useIsMobile'
 import type { AskAiColumnSummary, AskAiResult } from '../../data/askAiClient'
-import { fetchAskAiResult } from '../../data/askAiClient'
+import { ASK_AI_MESSAGE_MAX_LENGTH, fetchAskAiResult } from '../../data/askAiClient'
 import { orderByTimeBucket, TIME_BUCKET_WEIGHT } from '../../data/generateTrip'
 import type { PlaceSuggestion } from '../../data/generateTrip'
 import { useTripsStore } from '../../stores/trips'

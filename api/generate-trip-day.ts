@@ -9,7 +9,9 @@ import {
   mapWithConcurrency,
   overAskCountFor,
   PLACE_SCHEMA,
+  sanitizeZoneHints,
   validateDestination,
+  validateGenerationTextFields,
   validateTimeWindow,
   validateTotalDays,
   type AiPlace,
@@ -157,8 +159,16 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
   const effectiveWindowStart = typeof windowStart === 'string' ? windowStart : DEFAULT_WINDOW_START
   const effectiveWindowEnd = typeof windowEnd === 'string' ? windowEnd : DEFAULT_WINDOW_END
 
+  // All pasted into buildDayPrompt's text (see inputLimits.ts).
+  const textFieldsError = validateGenerationTextFields({ travelStyle, preferences, additionalNotes, arrivalTime, departureTime })
+  if (textFieldsError) {
+    res.status(400).json(textFieldsError)
+    return
+  }
+
   const ctx: TripContext = { destination, travelStyle, preferences, additionalNotes }
-  const zoneHints = Array.isArray(zones) ? zones : []
+  // Cleaned and truncated rather than validated, see sanitizeZoneHints.
+  const zoneHints = sanitizeZoneHints(zones)
 
   // If the client disconnects (its own timeout fired, tab closed, etc.),
   // stop generating — otherwise Claude finishes the response and we're
