@@ -4705,8 +4705,18 @@ h3 {
     border-top: 1px solid $color-border;
   }
 
+  // Below 1101px the map view shows .map-panel__preview along its bottom
+  // edge (~53px tall — 10px padding + a ~32px card row + border), sharing
+  // this same corner with the two absolutely-positioned FABs. Bumped up from
+  // the base 24px/84px so both sit clear above it instead of overlapping the
+  // rightmost preview card.
   .ask-ai-launcher {
     right: 24px;
+    bottom: 64px;
+  }
+
+  .kanban-mobile-add-fab {
+    bottom: 124px;
   }
 
   .ask-ai-panel {
@@ -5272,10 +5282,13 @@ h3 {
     bottom: calc(16px + var(--bottomnav-h));
   }
 
+  // 64px (up from a plain 16px) so the launcher clears .map-panel__preview's
+  // ~53px-tall bottom strip in map view instead of sitting on top of it —
+  // same target offset as the 1101px-tier absolute-position rule above.
   .ask-ai-launcher {
     position: fixed;
     right: 16px;
-    bottom: calc(16px + var(--bottomnav-h));
+    bottom: calc(64px + var(--bottomnav-h));
     left: auto;
     z-index: 55;
     padding: 0;
@@ -5293,7 +5306,7 @@ h3 {
   .kanban-mobile-add-fab {
     position: fixed;
     right: 16px;
-    bottom: calc(76px + var(--bottomnav-h));
+    bottom: calc(124px + var(--bottomnav-h));
     // Keep this board-level action below drawer/sheet overlays (38+), so it
     // cannot float through the Ask AI panel or place-detail sheet.
     z-index: 37;
