@@ -149,6 +149,18 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
       return
     }
     if (googleRes.status < 300 || googleRes.status >= 400 || !location) {
+      // TEMP DIAGNOSTIC — 2026-09-29, remove once root cause of the
+      // site-wide photo outage is confirmed. This branch used to swallow
+      // Google's actual status/body, so Vercel logs only ever showed our
+      // own 404 with nothing to say why. Autocomplete works on the same
+      // key, so this should narrow it down to a Photo-specific quota/
+      // billing/restriction issue vs something else.
+      const diagnosticBody = await googleRes.text().catch(() => '<unreadable>')
+      console.error('[place-photo] non-redirect response from Google', {
+        status: googleRes.status,
+        body: diagnosticBody.slice(0, 500),
+      })
+
       // A photo ref can go stale (Google docs note these aren't permanent)
       // or the place may since have lost its photo — either way this is a
       // permanent-for-now negative, not a retry-me error. The frontend's
